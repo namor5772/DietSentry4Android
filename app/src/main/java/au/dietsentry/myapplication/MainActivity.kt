@@ -5,16 +5,12 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -56,18 +52,11 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var foods by remember { mutableStateOf(readFoodsFromDatabase(context, "foods.db")) }
     val keyboardController = LocalSoftwareKeyboardController.current
-    var selectedFood by remember { mutableStateOf<Food?>(null) }
 
-    Column(
-        modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    Column(modifier = modifier) {
         TextField(
             value = searchQuery,
-            onValueChange = {
-                searchQuery = it
-                selectedFood = null // Deselect when search query changes
-            },
+            onValueChange = { searchQuery = it },
             label = { Text("Enter food filter text") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -79,29 +68,17 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
                 }
                 keyboardController?.hide()
             }),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
         )
-
         FoodList(
             foods = foods,
-            selectedFood = selectedFood,
-            onFoodSelected = { food ->
-                selectedFood = if (selectedFood == food) null else food // Toggle selection
-            },
-            modifier = Modifier.weight(1f) // Allow list to take available space
+            onFoodClicked = { food ->
+                // This is the action that happens when you click a food item
+                Toast.makeText(context, "${food.foodDescription} clicked!", Toast.LENGTH_SHORT).show()
+            }
         )
-
-        Button(
-            onClick = {
-                selectedFood?.let {
-                    Toast.makeText(context, "${it.foodDescription} selected!", Toast.LENGTH_SHORT).show()
-                }
-            },
-            enabled = selectedFood != null,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Perform Action on Selection")
-        }
     }
 }
 

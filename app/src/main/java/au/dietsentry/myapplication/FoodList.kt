@@ -1,6 +1,5 @@
 package au.dietsentry.myapplication
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -8,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -19,28 +17,19 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun FoodList(
     foods: List<Food>,
-    selectedFood: Food?,
-    onFoodSelected: (Food) -> Unit,
+    onFoodClicked: (Food) -> Unit, // We add a function to handle clicks
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
         modifier = modifier
-            .padding(horizontal = 16.dp)
+            .padding(16.dp)
             .border(1.dp, Color.Gray)
     ) {
         items(foods) { food ->
-            val isSelected = food == selectedFood
-            val backgroundColor = if (isSelected) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-            } else {
-                Color.Transparent
-            }
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(backgroundColor)
-                    .clickable { onFoodSelected(food) }
+                    .clickable { onFoodClicked(food) } // Make the whole column clickable
                     .padding(8.dp)
             ) {
                 Text(text = food.foodDescription, fontWeight = FontWeight.Bold)
