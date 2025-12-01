@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ToggleOff
+import androidx.compose.material.icons.filled.ToggleOn
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
@@ -104,7 +106,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
                 }
             ) {
                 Icon(
-                    imageVector = if (showNutritionalInfo) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                    imageVector = if (showNutritionalInfo) Icons.Default.ToggleOn else Icons.Default.ToggleOff,
                     contentDescription = "Toggle nutritional information"
                 )
             }
