@@ -19,8 +19,7 @@ This is a simple Android application that displays nutritional information for v
 
 1.  Clone this repository to your local machine.
 2.  Open the project in Android Studio.
-3.  Obtain a copy of the `foods.db` SQLite database.
-4.  Place the `foods.db` file in the `app/src/main/assets` directory.
+3.  The `foods.db` SQLite database file should already be in the `app/src/main/assets` directory.
 
 ### Building and Running
 
@@ -30,7 +29,7 @@ This is a simple Android application that displays nutritional information for v
 
 ## Database
 
-The app uses a SQLite database named `foods.db` to store food information. The database must contain a table named `Foods` with the following columns:
+The app uses a SQLite database named `foods.db` to store food information. The database must contain a table named `Foods` with at least the following columns:
 
 *   `FoodId` (Integer)
 *   `FoodDescription` (Text)

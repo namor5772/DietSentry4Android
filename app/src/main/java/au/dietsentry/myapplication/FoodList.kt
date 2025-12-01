@@ -22,14 +22,14 @@ fun FoodList(foods: List<Food>, modifier: Modifier = Modifier) {
         items(foods) { food ->
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(text = food.foodDescription, fontWeight = FontWeight.Bold)
-                Text(text = "Energy: ${food.energy}")
-                Text(text = "Protein: ${food.protein}")
-                Text(text = "Fat (Total): ${food.fatTotal}")
-                Text(text = "Saturated Fat: ${food.saturatedFat}")
-                Text(text = "Carbohydrate: ${food.carbohydrate}")
-                Text(text = "Sugars: ${food.sugars}")
-                Text(text = "Sodium: ${food.sodium}")
-                Text(text = "Dietary Fibre: ${food.dietaryFibre}")
+                Text(text = "Energy (kJ): ${"%.0f".format(food.energy)}")
+                Text(text = "Protein (g): ${"%.1f".format(food.protein)}")
+                Text(text = "Fat, Total (g): ${"%.1f".format(food.fatTotal)}")
+                Text(text = "Saturated Fat (g): ${"%.1f".format(food.saturatedFat)}")
+                Text(text = "Carbohydrate (g): ${"%.1f".format(food.carbohydrate)}")
+                Text(text = "Sugars (g): ${"%.1f".format(food.sugars)}")
+                Text(text = "Sodium (mg): ${"%.1f".format(food.sodium)}")
+                Text(text = "Dietary Fibre (g): ${"%.1f".format(food.dietaryFibre)}")
             }
         }
     }
