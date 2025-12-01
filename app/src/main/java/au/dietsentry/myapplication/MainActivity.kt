@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.edit
 import au.dietsentry.myapplication.ui.theme.DietSentry4AndroidTheme
 
 private const val PREFS_NAME = "DietSentryPrefs"
@@ -97,7 +98,9 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
                 checked = showNutritionalInfo,
                 onCheckedChange = {
                     showNutritionalInfo = it
-                    sharedPreferences.edit().putBoolean(KEY_SHOW_NUTRITIONAL_INFO, it).apply()
+                    sharedPreferences.edit {
+                        putBoolean(KEY_SHOW_NUTRITIONAL_INFO, it)
+                    }
                 }
             ) {
                 Icon(
