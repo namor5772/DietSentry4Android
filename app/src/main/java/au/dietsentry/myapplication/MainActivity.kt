@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
             DietSentry4AndroidTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Greeting(
-                        name = "Android",
+                        name = "Roman",
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
