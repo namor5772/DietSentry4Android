@@ -31,6 +31,22 @@ fun copyDatabaseFromAssets(context: Context, databaseName: String) {
     }
 }
 
+fun deleteFood(context: Context, databaseName: String, foodId: Int): Boolean {
+    val dbPath = context.getDatabasePath(databaseName)
+    var db: SQLiteDatabase? = null
+    var success = false
+    try {
+        db = SQLiteDatabase.openDatabase(dbPath.path, null, SQLiteDatabase.OPEN_READWRITE)
+        val rowsAffected = db.delete("Foods", "FoodId = ?", arrayOf(foodId.toString()))
+        success = rowsAffected > 0
+    } catch (e: Exception) {
+        Log.e("DatabaseHelper", "Error deleting food", e)
+    } finally {
+        db?.close()
+    }
+    return success
+}
+
 @SuppressLint("Range")
 fun readFoodsFromDatabase(context: Context, databaseName: String): List<Food> {
     val foodList = mutableListOf<Food>()

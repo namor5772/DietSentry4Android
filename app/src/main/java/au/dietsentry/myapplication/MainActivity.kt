@@ -18,11 +18,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -66,6 +68,8 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
 
     // State to control the visibility of our new dialog
     var showSelectDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
 
     Box(modifier = modifier.fillMaxSize()) {
         Column {
@@ -125,7 +129,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
                     onSelect = { showSelectDialog = true }, // Show the dialog on click
                     onEdit = { /* TODO */ },
                     onInsert = { /* TODO */ },
-                    onDelete = { /* TODO */ }
+                    onDelete = { showDeleteDialog = true }
                 )
             }
         }
@@ -143,7 +147,61 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
                 )
             }
         }
+        if (showDeleteDialog) {
+            selectedFood?.let { food ->
+                DeleteConfirmationDialog(
+                    food = food,
+                    onDismiss = { showDeleteDialog = false },
+                    onConfirm = {
+                        deleteFood(context, "foods.db", food.foodId)
+                        foods = readFoodsFromDatabase(context, "foods.db")
+                        selectedFood = null
+                        showDeleteDialog = false
+                    }
+                )
+            }
+        }
     }
+}
+
+@Composable
+fun DeleteConfirmationDialog(
+    food: Food,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Delete Food?",
+                color = Color.Red,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                //fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                Text("Are you sure you want to delete :")
+                Text(food.foodDescription, fontWeight = FontWeight.Bold)
+            }
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Button(onClick = onConfirm) {
+                    Text("Delete")
+                }
+                Button(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            }
+        },
+        dismissButton = {}
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -338,7 +396,7 @@ fun SelectionPanel(
                     .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Button(onClick = onSelect) { Text("Select") }
+                Button(onClick = onSelect) { Text("Eaten") }
                 Button(onClick = onEdit) { Text("Edit") }
                 Button(onClick = onInsert) { Text("Insert") }
                 Button(onClick = onDelete) { Text("Delete") }
