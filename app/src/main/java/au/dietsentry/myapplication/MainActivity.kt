@@ -2,6 +2,7 @@ package au.dietsentry.myapplication
 
 import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -39,7 +40,6 @@ private const val KEY_SHOW_NUTRITIONAL_INFO = "showNutritionalInfo"
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        copyDatabaseFromAssets(this, "foods.db")
         enableEdgeToEdge()
         setContent {
             DietSentry4AndroidTheme {
@@ -54,12 +54,14 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun FoodSearchScreen(modifier: Modifier = Modifier) {
-    var searchQuery by remember { mutableStateOf("") }
     val context = LocalContext.current
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
+    
+    var searchQuery by remember { mutableStateOf("") }
     val sharedPreferences = remember {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
-    var foods by remember { mutableStateOf(readFoodsFromDatabase(context, "foods.db")) }
+    var foods by remember { mutableStateOf(dbHelper.readFoodsFromDatabase()) }
     val keyboardController = LocalSoftwareKeyboardController.current
     var showNutritionalInfo by remember {
         mutableStateOf(sharedPreferences.getBoolean(KEY_SHOW_NUTRITIONAL_INFO, false))
@@ -87,9 +89,9 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = {
                         foods = if (searchQuery.isNotBlank()) {
-                            searchFoods(context, "foods.db", searchQuery)
+                            dbHelper.searchFoods(searchQuery)
                         } else {
-                            readFoodsFromDatabase(context, "foods.db")
+                            dbHelper.readFoodsFromDatabase()
                         }
                         keyboardController?.hide()
                     }),
@@ -136,12 +138,14 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
 
         // When showSelectDialog is true, display the dialog
         if (showSelectDialog) {
-            selectedFood?.let {
+            selectedFood?.let { food ->
                 SelectAmountDialog(
-                    food = it,
+                    food = food,
                     onDismiss = { showSelectDialog = false },
                     onConfirm = { amount, dateTime ->
-                        // TODO: Handle the confirmed amount and date/time
+                        val success = dbHelper.logEatenFood(food, amount, dateTime)
+                        val message = if (success) "Food logged successfully!" else "Failed to log food."
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         showSelectDialog = false
                     }
                 )
@@ -153,8 +157,8 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
                     food = food,
                     onDismiss = { showDeleteDialog = false },
                     onConfirm = {
-                        deleteFood(context, "foods.db", food.foodId)
-                        foods = readFoodsFromDatabase(context, "foods.db")
+                        dbHelper.deleteFood(food.foodId)
+                        foods = dbHelper.readFoodsFromDatabase()
                         selectedFood = null
                         showDeleteDialog = false
                     }
@@ -178,7 +182,7 @@ fun DeleteConfirmationDialog(
                 color = Color.Red,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center,
-                //fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold
             )
         },
         text = {
