@@ -1,12 +1,16 @@
 # DietSentry Food Database Viewer
 
-This is a simple Android application that displays nutritional information for various foods. The app reads data from a local SQLite database and displays it in a scrollable list.
+This is a simple Android application for viewing and managing nutritional information for various foods. The app reads data from a local SQLite database, allows for searching, and provides options to interact with the food items.
 
 ## Features
 
-*   Displays a list of foods with detailed nutritional information.
-*   Reads data from a pre-populated SQLite database (`foods.db`).
-*   Built with modern Android development tools: Kotlin and Jetpack Compose.
+*   **Food List Display**: Shows a scrollable list of food items from the database.
+*   **Search/Filter**: Filter the food list by entering text in the search bar.
+*   **Nutritional Information Toggle**: A persistent toggle button allows the user to show or hide detailed nutritional information for all items in the list.
+*   **Selection Panel**: Tapping a food item reveals a bottom panel with options to interact with the selected food.
+*   **"Eaten" Dialog**: The "Select" button opens a dialog to log the amount of food consumed, complete with native date and time pickers.
+*   **Delete with Confirmation**: The "Delete" button opens a styled confirmation dialog to prevent accidental deletions. Deleting a food removes it from the database and refreshes the list.
+*   **Modern UI**: Built entirely with Jetpack Compose, following modern Android development practices.
 
 ## Getting Started
 
@@ -19,19 +23,13 @@ This is a simple Android application that displays nutritional information for v
 
 1.  Clone this repository to your local machine.
 2.  Open the project in Android Studio.
-3.  The `foods.db` SQLite database file should already be in the `app/src/main/assets` directory.
-
-### Building and Running
-
-1.  In Android Studio, click the **Run** button or press `Shift` + `F10`.
-2.  Select an available Android device or emulator.
-3.  The app will build, install, and run on the selected device.
+3.  Build and run the project. The `foods.db` database in `app/src/main/assets` will be copied for use on the first run.
 
 ## Database
 
-The app uses a SQLite database named `foods.db` to store food information. The database must contain a table named `Foods` with at least the following columns:
+The app uses a SQLite database named `foods.db`. It must contain a `Foods` table with the following columns:
 
-*   `FoodId` (Integer)
+*   `FoodId` (Integer, Primary Key)
 *   `FoodDescription` (Text)
 *   `Energy` (Real)
 *   `Protein` (Real)
@@ -39,7 +37,7 @@ The app uses a SQLite database named `foods.db` to store food information. The d
 *   `SaturatedFat` (Real)
 *   `Carbohydrate` (Real)
 *   `Sugars` (Real)
-*   `Sodium` (Real)
+*   `SodiumNa` (Real)
 *   `DietaryFibre` (Real)
 
 ## Contributing
