@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.ToggleOff
 import androidx.compose.material.icons.filled.ToggleOn
 import androidx.compose.material3.*
@@ -30,6 +31,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.edit
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import au.dietsentry.myapplication.ui.theme.DietSentry4AndroidTheme
 import java.text.SimpleDateFormat
 import java.util.*
@@ -43,17 +48,63 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             DietSentry4AndroidTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    FoodSearchScreen(modifier = Modifier.padding(innerPadding))
+                val navController = rememberNavController()
+                NavHost(navController = navController, startDestination = "foodSearch") {
+                    composable("foodSearch") {
+                        FoodSearchScreen(navController = navController)
+                    }
+                    composable("eatenLog") {
+                        EatenLogScreen(navController = navController)
+                    }
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EatenLogScreen(navController: NavController) {
+    val context = LocalContext.current
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
+    val eatenFoods = remember { dbHelper.readEatenFoods() }
+
+    val logText = remember(eatenFoods) {
+        eatenFoods.joinToString(separator = "\n\n") { eatenFood ->
+            "Date: ${eatenFood.dateEaten} ${eatenFood.timeEaten}\n" +
+            "Food: ${eatenFood.foodDescription}\n" +
+            "Amount: ${eatenFood.amountEaten}g/mL"
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Eaten Food Log") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.List, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        TextField(
+            value = logText,
+            onValueChange = {},
+            readOnly = true,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(8.dp)
+        )
+    }
+}
+
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun FoodSearchScreen(modifier: Modifier = Modifier) {
+fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     
@@ -111,6 +162,9 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
                         contentDescription = "Toggle nutritional information"
                     )
                 }
+                IconButton(onClick = { navController.navigate("eatenLog") }) {
+                    Icon(Icons.Default.List, contentDescription = "View Eaten Log")
+                }
             }
             FoodList(
                 foods = foods,
@@ -147,6 +201,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
                         val message = if (success) "Food logged successfully!" else "Failed to log food."
                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         showSelectDialog = false
+                        navController.navigate("eatenLog")
                     }
                 )
             }
@@ -413,6 +468,7 @@ fun SelectionPanel(
 @Composable
 fun GreetingPreview() {
     DietSentry4AndroidTheme {
-        FoodSearchScreen()
+        // This preview will not work correctly with navigation
+        // FoodSearchScreen(navController = rememberNavController())
     }
 }

@@ -9,6 +9,7 @@ import android.util.Log
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
 
 class DatabaseHelper private constructor(context: Context, private val databaseName: String) {
 
@@ -33,6 +34,8 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             Log.e("DatabaseHelper", "Error copying database", e)
         }
     }
+    
+    private fun Double.roundToTwoDecimalPlaces(): Double = (this * 100).roundToInt() / 100.0
 
     fun logEatenFood(food: Food, amount: Float, dateTime: Long): Boolean {
         return try {
@@ -40,33 +43,39 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
                 val date = Date(dateTime)
                 put("DateEaten", SimpleDateFormat("d-MMM-yy", Locale.getDefault()).format(date))
                 put("TimeEaten", SimpleDateFormat("HH:mm", Locale.getDefault()).format(date))
-                put("EatenTs", (dateTime / 1000).toInt())
+
+                // Correct EatenTs calculation
+                val referenceTimestampSeconds = 1672491600L // Adjusted by 460 minutes
+                val eatenTimestampSeconds = dateTime / 1000
+                val eatenTsInMinutes = (eatenTimestampSeconds - referenceTimestampSeconds) / 60
+                put("EatenTs", eatenTsInMinutes.toInt())
+
                 put("AmountEaten", amount)
                 put("FoodDescription", food.foodDescription)
                 val scale = amount / 100.0
-                put("Energy", food.energy * scale)
-                put("Protein", food.protein * scale)
-                put("FatTotal", food.fatTotal * scale)
-                put("SaturatedFat", food.saturatedFat * scale)
-                put("TransFat", food.transFat * scale)
-                put("PolyunsaturatedFat", food.polyunsaturatedFat * scale)
-                put("MonounsaturatedFat", food.monounsaturatedFat * scale)
-                put("Carbohydrate", food.carbohydrate * scale)
-                put("Sugars", food.sugars * scale)
-                put("DietaryFibre", food.dietaryFibre * scale)
-                put("SodiumNa", food.sodium * scale)
-                put("CalciumCa", food.calciumCa * scale)
-                put("PotassiumK", food.potassiumK * scale)
-                put("ThiaminB1", food.thiaminB1 * scale)
-                put("RiboflavinB2", food.riboflavinB2 * scale)
-                put("NiacinB3", food.niacinB3 * scale)
-                put("Folate", food.folate * scale)
-                put("IronFe", food.ironFe * scale)
-                put("MagnesiumMg", food.magnesiumMg * scale)
-                put("VitaminC", food.vitaminC * scale)
-                put("Caffeine", food.caffeine * scale)
-                put("Cholesterol", food.cholesterol * scale)
-                put("Alcohol", food.alcohol * scale)
+                put("Energy", (food.energy * scale).roundToTwoDecimalPlaces())
+                put("Protein", (food.protein * scale).roundToTwoDecimalPlaces())
+                put("FatTotal", (food.fatTotal * scale).roundToTwoDecimalPlaces())
+                put("SaturatedFat", (food.saturatedFat * scale).roundToTwoDecimalPlaces())
+                put("TransFat", (food.transFat * scale).roundToTwoDecimalPlaces())
+                put("PolyunsaturatedFat", (food.polyunsaturatedFat * scale).roundToTwoDecimalPlaces())
+                put("MonounsaturatedFat", (food.monounsaturatedFat * scale).roundToTwoDecimalPlaces())
+                put("Carbohydrate", (food.carbohydrate * scale).roundToTwoDecimalPlaces())
+                put("Sugars", (food.sugars * scale).roundToTwoDecimalPlaces())
+                put("DietaryFibre", (food.dietaryFibre * scale).roundToTwoDecimalPlaces())
+                put("SodiumNa", (food.sodium * scale).roundToTwoDecimalPlaces())
+                put("CalciumCa", (food.calciumCa * scale).roundToTwoDecimalPlaces())
+                put("PotassiumK", (food.potassiumK * scale).roundToTwoDecimalPlaces())
+                put("ThiaminB1", (food.thiaminB1 * scale).roundToTwoDecimalPlaces())
+                put("RiboflavinB2", (food.riboflavinB2 * scale).roundToTwoDecimalPlaces())
+                put("NiacinB3", (food.niacinB3 * scale).roundToTwoDecimalPlaces())
+                put("Folate", (food.folate * scale).roundToTwoDecimalPlaces())
+                put("IronFe", (food.ironFe * scale).roundToTwoDecimalPlaces())
+                put("MagnesiumMg", (food.magnesiumMg * scale).roundToTwoDecimalPlaces())
+                put("VitaminC", (food.vitaminC * scale).roundToTwoDecimalPlaces())
+                put("Caffeine", (food.caffeine * scale).roundToTwoDecimalPlaces())
+                put("Cholesterol", (food.cholesterol * scale).roundToTwoDecimalPlaces())
+                put("Alcohol", (food.alcohol * scale).roundToTwoDecimalPlaces())
             }
             db.insert("Eaten", null, values) != -1L
         } catch (e: Exception) {
@@ -99,6 +108,23 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             Log.e("DatabaseHelper", "Error reading foods from database", e)
         }
         return foodList
+    }
+    
+    @SuppressLint("Range")
+    fun readEatenFoods(): List<EatenFood> {
+        val eatenFoodList = mutableListOf<EatenFood>()
+        try {
+            db.rawQuery("SELECT * FROM Eaten ORDER BY EatenTs DESC", null).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    do {
+                        eatenFoodList.add(createEatenFoodFromCursor(cursor))
+                    } while (cursor.moveToNext())
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error reading eaten foods", e)
+        }
+        return eatenFoodList
     }
 
     @SuppressLint("Range")
@@ -134,6 +160,41 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             sugars = cursor.getDouble(cursor.getColumnIndexOrThrow("Sugars")),
             dietaryFibre = cursor.getDouble(cursor.getColumnIndexOrThrow("DietaryFibre")),
             sodium = cursor.getDouble(cursor.getColumnIndexOrThrow("SodiumNa")),
+            calciumCa = cursor.getDouble(cursor.getColumnIndexOrThrow("CalciumCa")),
+            potassiumK = cursor.getDouble(cursor.getColumnIndexOrThrow("PotassiumK")),
+            thiaminB1 = cursor.getDouble(cursor.getColumnIndexOrThrow("ThiaminB1")),
+            riboflavinB2 = cursor.getDouble(cursor.getColumnIndexOrThrow("RiboflavinB2")),
+            niacinB3 = cursor.getDouble(cursor.getColumnIndexOrThrow("NiacinB3")),
+            folate = cursor.getDouble(cursor.getColumnIndexOrThrow("Folate")),
+            ironFe = cursor.getDouble(cursor.getColumnIndexOrThrow("IronFe")),
+            magnesiumMg = cursor.getDouble(cursor.getColumnIndexOrThrow("MagnesiumMg")),
+            vitaminC = cursor.getDouble(cursor.getColumnIndexOrThrow("VitaminC")),
+            caffeine = cursor.getDouble(cursor.getColumnIndexOrThrow("Caffeine")),
+            cholesterol = cursor.getDouble(cursor.getColumnIndexOrThrow("Cholesterol")),
+            alcohol = cursor.getDouble(cursor.getColumnIndexOrThrow("Alcohol"))
+        )
+    }
+
+    @SuppressLint("Range")
+    private fun createEatenFoodFromCursor(cursor: Cursor): EatenFood {
+        return EatenFood(
+            eatenId = cursor.getInt(cursor.getColumnIndexOrThrow("EatenId")),
+            dateEaten = cursor.getString(cursor.getColumnIndexOrThrow("DateEaten")),
+            timeEaten = cursor.getString(cursor.getColumnIndexOrThrow("TimeEaten")),
+            eatenTs = cursor.getInt(cursor.getColumnIndexOrThrow("EatenTs")),
+            amountEaten = cursor.getDouble(cursor.getColumnIndexOrThrow("AmountEaten")),
+            foodDescription = cursor.getString(cursor.getColumnIndexOrThrow("FoodDescription")),
+            energy = cursor.getDouble(cursor.getColumnIndexOrThrow("Energy")),
+            protein = cursor.getDouble(cursor.getColumnIndexOrThrow("Protein")),
+            fatTotal = cursor.getDouble(cursor.getColumnIndexOrThrow("FatTotal")),
+            saturatedFat = cursor.getDouble(cursor.getColumnIndexOrThrow("SaturatedFat")),
+            transFat = cursor.getDouble(cursor.getColumnIndexOrThrow("TransFat")),
+            polyunsaturatedFat = cursor.getDouble(cursor.getColumnIndexOrThrow("PolyunsaturatedFat")),
+            monounsaturatedFat = cursor.getDouble(cursor.getColumnIndexOrThrow("MonounsaturatedFat")),
+            carbohydrate = cursor.getDouble(cursor.getColumnIndexOrThrow("Carbohydrate")),
+            sugars = cursor.getDouble(cursor.getColumnIndexOrThrow("Sugars")),
+            dietaryFibre = cursor.getDouble(cursor.getColumnIndexOrThrow("DietaryFibre")),
+            sodiumNa = cursor.getDouble(cursor.getColumnIndexOrThrow("SodiumNa")),
             calciumCa = cursor.getDouble(cursor.getColumnIndexOrThrow("CalciumCa")),
             potassiumK = cursor.getDouble(cursor.getColumnIndexOrThrow("PotassiumK")),
             thiaminB1 = cursor.getDouble(cursor.getColumnIndexOrThrow("ThiaminB1")),

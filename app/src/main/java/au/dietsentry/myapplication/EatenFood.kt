@@ -1,0 +1,33 @@
+package au.dietsentry.myapplication
+
+data class EatenFood(
+    val eatenId: Int,
+    val dateEaten: String,
+    val timeEaten: String,
+    val eatenTs: Int,
+    val amountEaten: Double,
+    val foodDescription: String,
+    val energy: Double,
+    val protein: Double,
+    val fatTotal: Double,
+    val saturatedFat: Double,
+    val transFat: Double,
+    val polyunsaturatedFat: Double,
+    val monounsaturatedFat: Double,
+    val carbohydrate: Double,
+    val sugars: Double,
+    val dietaryFibre: Double,
+    val sodiumNa: Double,
+    val calciumCa: Double,
+    val potassiumK: Double,
+    val thiaminB1: Double,
+    val riboflavinB2: Double,
+    val niacinB3: Double,
+    val folate: Double,
+    val ironFe: Double,
+    val magnesiumMg: Double,
+    val vitaminC: Double,
+    val caffeine: Double,
+    val cholesterol: Double,
+    val alcohol: Double
+)
