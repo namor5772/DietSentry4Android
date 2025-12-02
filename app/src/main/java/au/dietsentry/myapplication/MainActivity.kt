@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,6 +25,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.edit
 import au.dietsentry.myapplication.ui.theme.DietSentry4AndroidTheme
 import java.text.SimpleDateFormat
@@ -61,7 +63,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
         mutableStateOf(sharedPreferences.getBoolean(KEY_SHOW_NUTRITIONAL_INFO, false))
     }
     var selectedFood by remember { mutableStateOf<Food?>(null) }
-    
+
     // State to control the visibility of our new dialog
     var showSelectDialog by remember { mutableStateOf(false) }
 
@@ -127,7 +129,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
                 )
             }
         }
-        
+
         // When showSelectDialog is true, display the dialog
         if (showSelectDialog) {
             selectedFood?.let {
@@ -144,6 +146,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SelectAmountDialog(
     food: Food,
@@ -156,16 +159,71 @@ fun SelectAmountDialog(
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
+    // --- Date Picker State ---
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateTime)
+
+    // --- Time Picker State ---
+    var showTimePicker by remember { mutableStateOf(false) }
+    val calendarForTime = Calendar.getInstance().apply { timeInMillis = selectedDateTime }
+    val timePickerState = rememberTimePickerState(
+        initialHour = calendarForTime.get(Calendar.HOUR_OF_DAY),
+        initialMinute = calendarForTime.get(Calendar.MINUTE)
+    )
+
     val foodUnit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(food.foodDescription)) "mL" else "g"
     val displayName = food.foodDescription.replace(Regex(" #$| mL#?$", RegexOption.IGNORE_CASE), "")
 
+    // --- Date Picker Dialog ---
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                Button(onClick = {
+                    datePickerState.selectedDateMillis?.let {
+                        val newDate = Calendar.getInstance().apply { timeInMillis = it }
+                        val current = Calendar.getInstance().apply { timeInMillis = selectedDateTime }
+                        current.set(newDate.get(Calendar.YEAR), newDate.get(Calendar.MONTH), newDate.get(Calendar.DAY_OF_MONTH))
+                        selectedDateTime = current.timeInMillis
+                    }
+                    showDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    // --- Time Picker Dialog ---
+    if (showTimePicker) {
+        TimePickerDialog(
+            onDismiss = { showTimePicker = false },
+            onConfirm = {
+                val current = Calendar.getInstance().apply { timeInMillis = selectedDateTime }
+                current.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                current.set(Calendar.MINUTE, timePickerState.minute)
+                selectedDateTime = current.timeInMillis
+                showTimePicker = false
+            },
+        ) {
+            TimePicker(state = timePickerState)
+        }
+    }
+
+    // --- Main Dialog ---
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 1. Text box for numerical value
                     TextField(
                         value = amount,
                         onValueChange = { amount = it.filter { char -> char.isDigit() || char == '.' } },
@@ -174,42 +232,88 @@ fun SelectAmountDialog(
                         modifier = Modifier.weight(1f)
                     )
                     Spacer(Modifier.width(8.dp))
-                    // 2. "g" or "mL" text
                     Text(text = foodUnit)
                 }
                 Spacer(Modifier.height(16.dp))
-                // 3. Date and time selection
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    Button(onClick = { /* TODO: Show Date Picker */ }) {
+                    Button(onClick = { showDatePicker = true }) {
                         Text(text = dateFormat.format(selectedDateTime))
                     }
-                    Button(onClick = { /* TODO: Show Time Picker */ }) {
+                    Button(onClick = { showTimePicker = true }) {
                         Text(text = timeFormat.format(selectedDateTime))
                     }
                 }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    val finalAmount = amount.toFloatOrNull() ?: 0f
-                    onConfirm(finalAmount, selectedDateTime)
-                },
-                enabled = amount.isNotBlank()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Text("Confirm")
+                Button(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = {
+                        val finalAmount = amount.toFloatOrNull() ?: 0f
+                        onConfirm(finalAmount, selectedDateTime)
+                    },
+                    enabled = amount.isNotBlank()
+                ) {
+                    Text("Confirm")
+                }
             }
         },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
+        dismissButton = {}
     )
 }
+
+// A wrapper for the TimePickerDialog to make it feel more integrated
+@Composable
+fun TimePickerDialog(
+    title: String = "Select Time",
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 6.dp,
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier
+                .width(IntrinsicSize.Min)
+                .height(IntrinsicSize.Min),
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 20.dp),
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium
+                )
+                content()
+                Row(
+                    modifier = Modifier
+                        .height(40.dp)
+                        .fillMaxWidth()
+                ) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    TextButton(onClick = onConfirm) { Text("OK") }
+                }
+            }
+        }
+    }
+}
+
 
 @Composable
 fun SelectionPanel(
