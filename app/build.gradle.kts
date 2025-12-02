@@ -8,9 +8,7 @@ plugins {
 
 android {
     namespace = "au.dietsentry.myapplication"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "au.dietsentry.myapplication"
