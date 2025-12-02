@@ -2,13 +2,15 @@ package au.dietsentry.myapplication
 
 import android.content.Context
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -68,14 +70,7 @@ fun EatenLogScreen(navController: NavController) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     val eatenFoods = remember { dbHelper.readEatenFoods() }
-
-    val logText = remember(eatenFoods) {
-        eatenFoods.joinToString(separator = "\n\n") { eatenFood ->
-            "Date: ${eatenFood.dateEaten} ${eatenFood.timeEaten}\n" +
-            "Food: ${eatenFood.foodDescription}\n" +
-            "Amount: ${eatenFood.amountEaten}g/mL"
-        }
-    }
+    var selectedEatenFood by remember { mutableStateOf<EatenFood?>(null) }
 
     Scaffold(
         topBar = {
@@ -89,20 +84,100 @@ fun EatenLogScreen(navController: NavController) {
             )
         }
     ) { innerPadding ->
-        TextField(
-            value = logText,
-            onValueChange = {},
-            readOnly = true,
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(8.dp)
-        )
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+            ) {
+                items(eatenFoods) { eatenFood ->
+                    EatenLogItem(
+                        eatenFood = eatenFood,
+                        onClick = {
+                            selectedEatenFood = if (selectedEatenFood == eatenFood) null else eatenFood
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+
+            AnimatedVisibility(
+                visible = selectedEatenFood != null,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                selectedEatenFood?.let {
+                    EatenSelectionPanel(
+                        eatenFood = it,
+                        onEdit = { /* TODO */ },
+                        onDelete = { /* TODO */ }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EatenLogItem(eatenFood: EatenFood, onClick: () -> Unit) {
+    val unit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(eatenFood.foodDescription)) "mL" else "g"
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Date: ${eatenFood.dateEaten} ${eatenFood.timeEaten}", style = MaterialTheme.typography.bodySmall)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(eatenFood.foodDescription, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Amount: ${eatenFood.amountEaten} $unit", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+fun EatenSelectionPanel(
+    eatenFood: EatenFood,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = eatenFood.foodDescription,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "Logged on: ${eatenFood.dateEaten} at ${eatenFood.timeEaten}",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Button(onClick = onEdit) { Text("Edit") }
+                Button(onClick = onDelete) { Text("Delete") }
+            }
+        }
     }
 }
 
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController) {
     val context = LocalContext.current
@@ -123,49 +198,50 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
     var showSelectDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-
-    Box(modifier = modifier.fillMaxSize()) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    label = { Text("Enter food filter text") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        foods = if (searchQuery.isNotBlank()) {
-                            dbHelper.searchFoods(searchQuery)
-                        } else {
-                            dbHelper.readFoodsFromDatabase()
-                        }
-                        keyboardController?.hide()
-                    }),
-                    modifier = Modifier.weight(1f)
-                )
-                IconToggleButton(
-                    checked = showNutritionalInfo,
-                    onCheckedChange = {
-                        showNutritionalInfo = it
-                        sharedPreferences.edit {
-                            putBoolean(KEY_SHOW_NUTRITIONAL_INFO, it)
-                        }
-                    }
-                ) {
-                    Icon(
-                        imageVector = if (showNutritionalInfo) Icons.Default.ToggleOn else Icons.Default.ToggleOff,
-                        contentDescription = "Toggle nutritional information"
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Enter food filter text") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = {
+                            foods = if (searchQuery.isNotBlank()) {
+                                dbHelper.searchFoods(searchQuery)
+                            } else {
+                                dbHelper.readFoodsFromDatabase()
+                            }
+                            keyboardController?.hide()
+                        }),
+                        modifier = Modifier.fillMaxWidth()
                     )
+                },
+                actions = {
+                    IconToggleButton(
+                        checked = showNutritionalInfo,
+                        onCheckedChange = {
+                            showNutritionalInfo = it
+                            sharedPreferences.edit {
+                                putBoolean(KEY_SHOW_NUTRITIONAL_INFO, it)
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (showNutritionalInfo) Icons.Default.ToggleOn else Icons.Default.ToggleOff,
+                            contentDescription = "Toggle nutritional information"
+                        )
+                    }
+                    IconButton(onClick = { navController.navigate("eatenLog") }) {
+                        Icon(Icons.Default.List, contentDescription = "View Eaten Log")
+                    }
                 }
-                IconButton(onClick = { navController.navigate("eatenLog") }) {
-                    Icon(Icons.Default.List, contentDescription = "View Eaten Log")
-                }
-            }
+            )
+        }
+    ) { innerPadding ->
+        Box(modifier = Modifier.padding(innerPadding)) {
             FoodList(
                 foods = foods,
                 onFoodClicked = { food ->
@@ -173,52 +249,49 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
                 },
                 showNutritionalInfo = showNutritionalInfo
             )
-        }
 
-        AnimatedVisibility(
-            visible = selectedFood != null,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        ) {
-            selectedFood?.let { food ->
-                SelectionPanel(
-                    food = food,
-                    onSelect = { showSelectDialog = true }, // Show the dialog on click
-                    onEdit = { /* TODO */ },
-                    onInsert = { /* TODO */ },
-                    onDelete = { showDeleteDialog = true }
-                )
+            AnimatedVisibility(
+                visible = selectedFood != null,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                selectedFood?.let { food ->
+                    SelectionPanel(
+                        food = food,
+                        onSelect = { showSelectDialog = true }, // Show the dialog on click
+                        onEdit = { /* TODO */ },
+                        onInsert = { /* TODO */ },
+                        onDelete = { showDeleteDialog = true }
+                    )
+                }
             }
         }
+    }
 
-        // When showSelectDialog is true, display the dialog
-        if (showSelectDialog) {
-            selectedFood?.let { food ->
-                SelectAmountDialog(
-                    food = food,
-                    onDismiss = { showSelectDialog = false },
-                    onConfirm = { amount, dateTime ->
-                        val success = dbHelper.logEatenFood(food, amount, dateTime)
-                        val message = if (success) "Food logged successfully!" else "Failed to log food."
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                        showSelectDialog = false
-                        navController.navigate("eatenLog")
-                    }
-                )
-            }
+    if (showSelectDialog) {
+        selectedFood?.let { food ->
+            SelectAmountDialog(
+                food = food,
+                onDismiss = { showSelectDialog = false },
+                onConfirm = { amount, dateTime ->
+                    dbHelper.logEatenFood(food, amount, dateTime)
+                    showSelectDialog = false
+                    navController.navigate("eatenLog")
+                }
+            )
         }
-        if (showDeleteDialog) {
-            selectedFood?.let { food ->
-                DeleteConfirmationDialog(
-                    food = food,
-                    onDismiss = { showDeleteDialog = false },
-                    onConfirm = {
-                        dbHelper.deleteFood(food.foodId)
-                        foods = dbHelper.readFoodsFromDatabase()
-                        selectedFood = null
-                        showDeleteDialog = false
-                    }
-                )
-            }
+    }
+    if (showDeleteDialog) {
+        selectedFood?.let { food ->
+            DeleteConfirmationDialog(
+                food = food,
+                onDismiss = { showDeleteDialog = false },
+                onConfirm = {
+                    dbHelper.deleteFood(food.foodId)
+                    foods = dbHelper.readFoodsFromDatabase()
+                    selectedFood = null
+                    showDeleteDialog = false
+                }
+            )
         }
     }
 }
