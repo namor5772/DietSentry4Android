@@ -3,6 +3,7 @@ package au.dietsentry.myapplication
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
@@ -14,6 +15,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.ToggleOff
 import androidx.compose.material.icons.filled.ToggleOn
@@ -71,14 +74,18 @@ fun EatenLogScreen(navController: NavController) {
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     val eatenFoods = remember { dbHelper.readEatenFoods() }
     var selectedEatenFood by remember { mutableStateOf<EatenFood?>(null) }
+    
+    BackHandler(enabled = selectedEatenFood != null) {
+        selectedEatenFood = null
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Eaten Food Log") },
-                navigationIcon = {
+                actions = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.List, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -198,27 +205,14 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
     var showSelectDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
+    BackHandler(enabled = selectedFood != null) {
+        selectedFood = null
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    TextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        label = { Text("Enter food filter text") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = {
-                            foods = if (searchQuery.isNotBlank()) {
-                                dbHelper.searchFoods(searchQuery)
-                            } else {
-                                dbHelper.readFoodsFromDatabase()
-                            }
-                            keyboardController?.hide()
-                        }),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
+                title = { Text("Foods Table") },
                 actions = {
                     IconToggleButton(
                         checked = showNutritionalInfo,
@@ -235,21 +229,42 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
                         )
                     }
                     IconButton(onClick = { navController.navigate("eatenLog") }) {
-                        Icon(Icons.Default.List, contentDescription = "View Eaten Log")
+                        Icon(Icons.Default.ArrowForward, contentDescription = "View Eaten Log")
                     }
                 }
             )
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) {
-            FoodList(
-                foods = foods,
-                onFoodClicked = { food ->
-                    selectedFood = if (selectedFood == food) null else food
-                },
-                showNutritionalInfo = showNutritionalInfo
-            )
-
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .padding(innerPadding)) {
+            Column {
+                TextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Enter food filter text") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = {
+                        foods = if (searchQuery.isNotBlank()) {
+                            dbHelper.searchFoods(searchQuery)
+                        } else {
+                            dbHelper.readFoodsFromDatabase()
+                        }
+                        keyboardController?.hide()
+                    }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                FoodList(
+                    foods = foods,
+                    onFoodClicked = { food ->
+                        selectedFood = if (selectedFood == food) null else food
+                    },
+                    showNutritionalInfo = showNutritionalInfo
+                )
+            }
             AnimatedVisibility(
                 visible = selectedFood != null,
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -322,13 +337,10 @@ fun DeleteConfirmationDialog(
         confirmButton = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.Center
             ) {
                 Button(onClick = onConfirm) {
                     Text("Delete")
-                }
-                Button(onClick = onDismiss) {
-                    Text("Cancel")
                 }
             }
         },
@@ -441,11 +453,8 @@ fun SelectAmountDialog(
         confirmButton = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.Center
             ) {
-                Button(onClick = onDismiss) {
-                    Text("Cancel")
-                }
                 Button(
                     onClick = {
                         val finalAmount = amount.toFloatOrNull() ?: 0f
