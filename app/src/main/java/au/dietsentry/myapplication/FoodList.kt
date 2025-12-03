@@ -2,7 +2,9 @@ package au.dietsentry.myapplication
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,18 +33,42 @@ fun FoodList(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onFoodClicked(food) } // Make the whole column clickable
-                    .padding(8.dp)
+                    .padding(4.dp)
             ) {
                 Text(text = food.foodDescription, fontWeight = FontWeight.Bold)
                 if (showNutritionalInfo) {
-                    Text(text = "Energy (kJ): ${"%.0f".format(food.energy)}")
-                    Text(text = "Protein (g): ${"%.1f".format(food.protein)}")
-                    Text(text = "Fat, Total (g): ${"%.1f".format(food.fatTotal)}")
-                    Text(text = "Saturated Fat (g): ${"%.1f".format(food.saturatedFat)}")
-                    Text(text = "Carbohydrate (g): ${"%.1f".format(food.carbohydrate)}")
-                    Text(text = "Sugars (g): ${"%.1f".format(food.sugars)}")
-                    Text(text = "Sodium (mg): ${"%.1f".format(food.sodium)}")
-                    Text(text = "Dietary Fibre (g): ${"%.1f".format(food.dietaryFibre)}")
+                    Row(modifier = Modifier.fillMaxWidth(0.5f), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = "Energy (kJ):")
+                        Text(text = "%.0f".format(food.energy))
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(0.5f), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = "Protein (g):")
+                        Text(text = "%.1f".format(food.protein))
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(0.5f), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = "Fat, Total (g):")
+                        Text(text = "%.1f".format(food.fatTotal))
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(0.5f), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = "- Saturated (g):")
+                        Text(text = "%.1f".format(food.saturatedFat))
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(0.5f), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = "Carbohydrate (g):")
+                        Text(text = "%.1f".format(food.carbohydrate))
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(0.5f), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = "- Sugars (g):")
+                        Text(text = "%.1f".format(food.sugars))
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(0.5f), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = "Sodium (mg):")
+                        Text(text = "%.1f".format(food.sodium))
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(0.5f), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = "Dietary Fibre (g):")
+                        Text(text = "%.1f".format(food.dietaryFibre))
+                    }
                 }
             }
         }

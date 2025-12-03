@@ -76,6 +76,12 @@ fun EatenLogScreen(navController: NavController) {
     var selectedEatenFood by remember { mutableStateOf<EatenFood?>(null) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showDeleteEatenDialog by remember { mutableStateOf(false) }
+    val sharedPreferences = remember {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+    var showNutritionalInfo by remember {
+        mutableStateOf(sharedPreferences.getBoolean(KEY_SHOW_NUTRITIONAL_INFO, false))
+    }
 
     BackHandler(enabled = selectedEatenFood != null) {
         selectedEatenFood = null
@@ -86,6 +92,20 @@ fun EatenLogScreen(navController: NavController) {
             TopAppBar(
                 title = { Text("Eaten Food Log") },
                 actions = {
+                    IconToggleButton(
+                        checked = showNutritionalInfo,
+                        onCheckedChange = {
+                            showNutritionalInfo = it
+                            sharedPreferences.edit {
+                                putBoolean(KEY_SHOW_NUTRITIONAL_INFO, it)
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (showNutritionalInfo) Icons.Default.ToggleOn else Icons.Default.ToggleOff,
+                            contentDescription = "Toggle nutritional information"
+                        )
+                    }
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
@@ -108,7 +128,8 @@ fun EatenLogScreen(navController: NavController) {
                         eatenFood = eatenFood,
                         onClick = {
                             selectedEatenFood = if (selectedEatenFood == eatenFood) null else eatenFood
-                        }
+                        },
+                        showNutritionalInfo = showNutritionalInfo
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
@@ -182,7 +203,7 @@ fun DeleteEatenItemConfirmationDialog(
                 Text("Are you sure you want to delete:")
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(eatenFood.foodDescription, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 val unit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(eatenFood.foodDescription)) "mL" else "g"
                 Text("Amount: ${eatenFood.amountEaten} $unit")
             }
@@ -202,7 +223,7 @@ fun DeleteEatenItemConfirmationDialog(
 }
 
 @Composable
-fun EatenLogItem(eatenFood: EatenFood, onClick: () -> Unit) {
+fun EatenLogItem(eatenFood: EatenFood, onClick: () -> Unit, showNutritionalInfo: Boolean) {
     val unit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(eatenFood.foodDescription)) "mL" else "g"
     Card(
         modifier = Modifier
@@ -215,8 +236,27 @@ fun EatenLogItem(eatenFood: EatenFood, onClick: () -> Unit) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(eatenFood.foodDescription, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(2.dp))
-            Text("Amount: ${eatenFood.amountEaten} $unit", style = MaterialTheme.typography.bodyMedium)
+
+
+            Text("Amount: ${eatenFood.amountEaten}$unit", style = MaterialTheme.typography.bodyMedium)
+            if (showNutritionalInfo) {
+                NutritionalInfo(eatenFood)
+            }
         }
+    }
+}
+
+@Composable
+fun NutritionalInfo(eatenFood: EatenFood) {
+    Column(modifier = Modifier.padding(top = 0.dp)) {
+        Text("Energy: ${eatenFood.energy}kJ", style = MaterialTheme.typography.bodyMedium)
+        Text("Protein: ${eatenFood.protein}g", style = MaterialTheme.typography.bodyMedium)
+        Text("Fat, total: ${eatenFood.fatTotal}g", style = MaterialTheme.typography.bodyMedium)
+        Text("- Saturated: ${eatenFood.saturatedFat}g", style = MaterialTheme.typography.bodyMedium)
+        Text("Carbohydrate: ${eatenFood.carbohydrate}g", style = MaterialTheme.typography.bodyMedium)
+        Text("- Sugars: ${eatenFood.sugars}g", style = MaterialTheme.typography.bodyMedium)
+        Text("Dietary Fibre: ${eatenFood.dietaryFibre}g", style = MaterialTheme.typography.bodyMedium)
+        Text("Sodium: ${eatenFood.sodiumNa}mg", style = MaterialTheme.typography.bodyMedium)
     }
 }
 
