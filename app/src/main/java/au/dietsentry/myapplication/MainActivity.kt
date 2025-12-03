@@ -72,9 +72,11 @@ class MainActivity : ComponentActivity() {
 fun EatenLogScreen(navController: NavController) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
-    val eatenFoods = remember { dbHelper.readEatenFoods() }
+    var eatenFoods by remember { mutableStateOf(dbHelper.readEatenFoods()) }
     var selectedEatenFood by remember { mutableStateOf<EatenFood?>(null) }
-    
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteEatenDialog by remember { mutableStateOf(false) }
+
     BackHandler(enabled = selectedEatenFood != null) {
         selectedEatenFood = null
     }
@@ -119,13 +121,84 @@ fun EatenLogScreen(navController: NavController) {
                 selectedEatenFood?.let {
                     EatenSelectionPanel(
                         eatenFood = it,
-                        onEdit = { /* TODO */ },
-                        onDelete = { /* TODO */ }
+                        onEdit = { showEditDialog = true },
+                        onDelete = { showDeleteEatenDialog = true }
                     )
                 }
             }
         }
     }
+
+    if (showEditDialog) {
+        selectedEatenFood?.let { eatenFood ->
+            EditEatenItemDialog(
+                eatenFood = eatenFood,
+                onDismiss = { showEditDialog = false },
+                onConfirm = { amount, dateTime ->
+                    dbHelper.updateEatenFood(eatenFood, amount, dateTime)
+                    eatenFoods = dbHelper.readEatenFoods()
+                    showEditDialog = false
+                    selectedEatenFood = null
+                }
+            )
+        }
+    }
+    
+    if (showDeleteEatenDialog) {
+        selectedEatenFood?.let { eatenFood ->
+            DeleteEatenItemConfirmationDialog(
+                eatenFood = eatenFood,
+                onDismiss = { showDeleteEatenDialog = false },
+                onConfirm = {
+                    dbHelper.deleteEatenFood(eatenFood.eatenId)
+                    eatenFoods = dbHelper.readEatenFoods()
+                    selectedEatenFood = null
+                    showDeleteEatenDialog = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun DeleteEatenItemConfirmationDialog(
+    eatenFood: EatenFood,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Delete Eaten Food?",
+                color = Color.Red,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                Text("Are you sure you want to delete:")
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(eatenFood.foodDescription, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                val unit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(eatenFood.foodDescription)) "mL" else "g"
+                Text("Amount: ${eatenFood.amountEaten} $unit")
+            }
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(onClick = onConfirm) {
+                    Text("Delete")
+                }
+            }
+        },
+        dismissButton = {}
+    )
 }
 
 @Composable
@@ -141,7 +214,7 @@ fun EatenLogItem(eatenFood: EatenFood, onClick: () -> Unit) {
             Text("Date: ${eatenFood.dateEaten} ${eatenFood.timeEaten}", style = MaterialTheme.typography.bodySmall)
             Spacer(modifier = Modifier.height(4.dp))
             Text(eatenFood.foodDescription, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text("Amount: ${eatenFood.amountEaten} $unit", style = MaterialTheme.typography.bodyMedium)
         }
     }
@@ -347,6 +420,138 @@ fun DeleteConfirmationDialog(
         dismissButton = {}
     )
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditEatenItemDialog(
+    eatenFood: EatenFood,
+    onDismiss: () -> Unit,
+    onConfirm: (amount: Float, dateTime: Long) -> Unit
+) {
+    val initialDateTime = remember(eatenFood) {
+        try {
+            val dateTimeString = "${eatenFood.dateEaten} ${eatenFood.timeEaten}"
+            val parser = SimpleDateFormat("d-MMM-yy HH:mm", Locale.getDefault())
+            parser.parse(dateTimeString)?.time ?: System.currentTimeMillis()
+        } catch (e: Exception) {
+            System.currentTimeMillis() // Fallback
+        }
+    }
+
+    var amount by remember { mutableStateOf(eatenFood.amountEaten.toString()) }
+    var selectedDateTime by remember { mutableStateOf(initialDateTime) }
+    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+
+    // --- Date Picker State ---
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateTime)
+
+    // --- Time Picker State ---
+    var showTimePicker by remember { mutableStateOf(false) }
+    val calendarForTime = Calendar.getInstance().apply { timeInMillis = selectedDateTime }
+    val timePickerState = rememberTimePickerState(
+        initialHour = calendarForTime.get(Calendar.HOUR_OF_DAY),
+        initialMinute = calendarForTime.get(Calendar.MINUTE)
+    )
+
+    val foodUnit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(eatenFood.foodDescription)) "mL" else "g"
+    val displayName = eatenFood.foodDescription.replace(Regex(" #$| mL#?$", RegexOption.IGNORE_CASE), "")
+
+    // --- Date Picker Dialog ---
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                Button(onClick = {
+                    datePickerState.selectedDateMillis?.let {
+                        val newDate = Calendar.getInstance().apply { timeInMillis = it }
+                        val current = Calendar.getInstance().apply { timeInMillis = selectedDateTime }
+                        current.set(newDate.get(Calendar.YEAR), newDate.get(Calendar.MONTH), newDate.get(Calendar.DAY_OF_MONTH))
+                        selectedDateTime = current.timeInMillis
+                    }
+                    showDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    // --- Time Picker Dialog ---
+    if (showTimePicker) {
+        TimePickerDialog(
+            onDismiss = { showTimePicker = false },
+            onConfirm = {
+                val current = Calendar.getInstance().apply { timeInMillis = selectedDateTime }
+                current.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                current.set(Calendar.MINUTE, timePickerState.minute)
+                selectedDateTime = current.timeInMillis
+                showTimePicker = false
+            },
+        ) {
+            TimePicker(state = timePickerState)
+        }
+    }
+
+    // --- Main Dialog ---
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextField(
+                        value = amount,
+                        onValueChange = { amount = it.filter { char -> char.isDigit() || char == '.' } },
+                        label = { Text("Amount") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = foodUnit)
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    Button(onClick = { showDatePicker = true }) {
+                        Text(text = dateFormat.format(selectedDateTime))
+                    }
+                    Button(onClick = { showTimePicker = true }) {
+                        Text(text = timeFormat.format(selectedDateTime))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(
+                    onClick = {
+                        val finalAmount = amount.toFloatOrNull() ?: 0f
+                        onConfirm(finalAmount, selectedDateTime)
+                    },
+                    enabled = amount.isNotBlank()
+                ) {
+                    Text("Confirm")
+                }
+            }
+        },
+        dismissButton = {}
+    )
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
