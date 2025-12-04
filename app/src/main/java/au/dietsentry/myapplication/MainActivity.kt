@@ -2,6 +2,7 @@ package au.dietsentry.myapplication
 
 import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -9,9 +10,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -407,6 +410,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
     // State to control the visibility of our new dialog
     var showSelectDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showEditFoodDialog by remember { mutableStateOf(false) }
 
     BackHandler(enabled = selectedFood != null) {
         selectedFood = null
@@ -476,7 +480,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
                     SelectionPanel(
                         food = food,
                         onSelect = { showSelectDialog = true }, // Show the dialog on click
-                        onEdit = { /* TODO */ },
+                        onEdit = { showEditFoodDialog = true },
                         onInsert = { /* TODO */ },
                         onDelete = { showDeleteDialog = true }
                     )
@@ -494,6 +498,24 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
                     dbHelper.logEatenFood(food, amount, dateTime)
                     showSelectDialog = false
                     navController.navigate("eatenLog")
+                }
+            )
+        }
+    }
+    if (showEditFoodDialog) {
+        selectedFood?.let { food ->
+            EditFoodDialog(
+                food = food,
+                onDismiss = { showEditFoodDialog = false },
+                onConfirm = { updatedFood ->
+                    val updated = dbHelper.updateFood(updatedFood)
+                    if (updated) {
+                        foods = dbHelper.readFoodsFromDatabase()
+                        selectedFood = foods.find { it.foodId == updatedFood.foodId }
+                        showEditFoodDialog = false
+                    } else {
+                        Toast.makeText(context, "Failed to update food", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
         }
@@ -549,6 +571,281 @@ fun DeleteConfirmationDialog(
         },
         dismissButton = {}
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditFoodDialog(
+    food: Food,
+    onDismiss: () -> Unit,
+    onConfirm: (Food) -> Unit
+) {
+    var description by remember(food) { mutableStateOf(food.foodDescription) }
+    var energy by remember(food) { mutableStateOf(food.energy.toString()) }
+    var protein by remember(food) { mutableStateOf(food.protein.toString()) }
+    var fatTotal by remember(food) { mutableStateOf(food.fatTotal.toString()) }
+    var saturatedFat by remember(food) { mutableStateOf(food.saturatedFat.toString()) }
+    var transFat by remember(food) { mutableStateOf(food.transFat.toString()) }
+    var polyunsaturatedFat by remember(food) { mutableStateOf(food.polyunsaturatedFat.toString()) }
+    var monounsaturatedFat by remember(food) { mutableStateOf(food.monounsaturatedFat.toString()) }
+    var carbohydrate by remember(food) { mutableStateOf(food.carbohydrate.toString()) }
+    var sugars by remember(food) { mutableStateOf(food.sugars.toString()) }
+    var dietaryFibre by remember(food) { mutableStateOf(food.dietaryFibre.toString()) }
+    var sodium by remember(food) { mutableStateOf(food.sodium.toString()) }
+    var calciumCa by remember(food) { mutableStateOf(food.calciumCa.toString()) }
+    var potassiumK by remember(food) { mutableStateOf(food.potassiumK.toString()) }
+    var thiaminB1 by remember(food) { mutableStateOf(food.thiaminB1.toString()) }
+    var riboflavinB2 by remember(food) { mutableStateOf(food.riboflavinB2.toString()) }
+    var niacinB3 by remember(food) { mutableStateOf(food.niacinB3.toString()) }
+    var folate by remember(food) { mutableStateOf(food.folate.toString()) }
+    var ironFe by remember(food) { mutableStateOf(food.ironFe.toString()) }
+    var magnesiumMg by remember(food) { mutableStateOf(food.magnesiumMg.toString()) }
+    var vitaminC by remember(food) { mutableStateOf(food.vitaminC.toString()) }
+    var caffeine by remember(food) { mutableStateOf(food.caffeine.toString()) }
+    var cholesterol by remember(food) { mutableStateOf(food.cholesterol.toString()) }
+    var alcohol by remember(food) { mutableStateOf(food.alcohol.toString()) }
+
+    val scrollState = rememberScrollState()
+    val numericEntries = listOf(
+        energy, protein, fatTotal, saturatedFat, transFat, polyunsaturatedFat, monounsaturatedFat,
+        carbohydrate, sugars, dietaryFibre, sodium, calciumCa, potassiumK, thiaminB1,
+        riboflavinB2, niacinB3, folate, ironFe, magnesiumMg, vitaminC, caffeine, cholesterol, alcohol
+    )
+    val isValid = description.isNotBlank() && numericEntries.all { it.toDoubleOrNull() != null }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Edit Food",
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState)
+            ) {
+                LabeledValueField(
+                    label = "Description",
+                    value = description,
+                    onValueChange = { description = it }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LabeledValueField(
+                    label = "Energy (kJ)",
+                    value = energy,
+                    onValueChange = { energy = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Protein (g)",
+                    value = protein,
+                    onValueChange = { protein = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Fat, Total (g)",
+                    value = fatTotal,
+                    onValueChange = { fatTotal = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Saturated (g)",
+                    value = saturatedFat,
+                    onValueChange = { saturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Trans (g)",
+                    value = transFat,
+                    onValueChange = { transFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Polyunsaturated (g)",
+                    value = polyunsaturatedFat,
+                    onValueChange = { polyunsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Monounsaturated (g)",
+                    value = monounsaturatedFat,
+                    onValueChange = { monounsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Carbohydrate (g)",
+                    value = carbohydrate,
+                    onValueChange = { carbohydrate = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Sugars (g)",
+                    value = sugars,
+                    onValueChange = { sugars = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Dietary Fibre (g)",
+                    value = dietaryFibre,
+                    onValueChange = { dietaryFibre = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Sodium (mg)",
+                    value = sodium,
+                    onValueChange = { sodium = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Calcium (mg)",
+                    value = calciumCa,
+                    onValueChange = { calciumCa = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Potassium (mg)",
+                    value = potassiumK,
+                    onValueChange = { potassiumK = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Thiamin B1 (mg)",
+                    value = thiaminB1,
+                    onValueChange = { thiaminB1 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Riboflavin B2 (mg)",
+                    value = riboflavinB2,
+                    onValueChange = { riboflavinB2 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Niacin B3 (mg)",
+                    value = niacinB3,
+                    onValueChange = { niacinB3 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Folate (ug)",
+                    value = folate,
+                    onValueChange = { folate = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Iron (mg)",
+                    value = ironFe,
+                    onValueChange = { ironFe = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Magnesium (mg)",
+                    value = magnesiumMg,
+                    onValueChange = { magnesiumMg = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Vitamin C (mg)",
+                    value = vitaminC,
+                    onValueChange = { vitaminC = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Caffeine (mg)",
+                    value = caffeine,
+                    onValueChange = { caffeine = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Cholesterol (mg)",
+                    value = cholesterol,
+                    onValueChange = { cholesterol = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Alcohol (g)",
+                    value = alcohol,
+                    onValueChange = { alcohol = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+            }
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(
+                    onClick = {
+                        val updatedFood = food.copy(
+                            foodDescription = description,
+                            energy = energy.toDouble(),
+                            protein = protein.toDouble(),
+                            fatTotal = fatTotal.toDouble(),
+                            saturatedFat = saturatedFat.toDouble(),
+                            transFat = transFat.toDouble(),
+                            polyunsaturatedFat = polyunsaturatedFat.toDouble(),
+                            monounsaturatedFat = monounsaturatedFat.toDouble(),
+                            carbohydrate = carbohydrate.toDouble(),
+                            sugars = sugars.toDouble(),
+                            dietaryFibre = dietaryFibre.toDouble(),
+                            sodium = sodium.toDouble(),
+                            calciumCa = calciumCa.toDouble(),
+                            potassiumK = potassiumK.toDouble(),
+                            thiaminB1 = thiaminB1.toDouble(),
+                            riboflavinB2 = riboflavinB2.toDouble(),
+                            niacinB3 = niacinB3.toDouble(),
+                            folate = folate.toDouble(),
+                            ironFe = ironFe.toDouble(),
+                            magnesiumMg = magnesiumMg.toDouble(),
+                            vitaminC = vitaminC.toDouble(),
+                            caffeine = caffeine.toDouble(),
+                            cholesterol = cholesterol.toDouble(),
+                            alcohol = alcohol.toDouble()
+                        )
+                        onConfirm(updatedFood)
+                    },
+                    enabled = isValid
+                ) {
+                    Text("Edit")
+                }
+            }
+        },
+        dismissButton = {}
+    )
+}
+
+@Composable
+private fun LabeledValueField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    keyboardType: KeyboardType = KeyboardType.Text
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            modifier = Modifier.weight(1f)
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
