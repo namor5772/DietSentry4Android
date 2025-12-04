@@ -701,7 +701,7 @@ fun EditFoodScreen(
                 value = description,
                 onValueChange = { description = it }
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             LabeledValueField(
                 label = "Energy (kJ)",
                 value = energy,
@@ -854,20 +854,23 @@ private fun LabeledValueField(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = label,
             modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyLarge
         )
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            modifier = Modifier.weight(1f)
+            textStyle = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 38.dp)
         )
     }
 }
