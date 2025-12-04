@@ -631,6 +631,7 @@ fun EditFoodScreen(
     var alcohol by remember(food) { mutableStateOf(food!!.alcohol.toString()) }
 
     val scrollState = rememberScrollState()
+    var selectedType by remember { mutableStateOf("Solid") }
     val numericEntries = listOf(
         energy, protein, fatTotal, saturatedFat, transFat, polyunsaturatedFat, monounsaturatedFat,
         carbohydrate, sugars, dietaryFibre, sodium, calciumCa, potassiumK, thiaminB1,
@@ -891,6 +892,7 @@ fun InsertFoodScreen(
     var cholesterol by remember { mutableStateOf("") }
     var alcohol by remember { mutableStateOf("") }
 
+    var selectedType by remember { mutableStateOf("Solid") }
     val scrollState = rememberScrollState()
     val numericEntries = listOf(
         energy, protein, fatTotal, saturatedFat, transFat, polyunsaturatedFat, monounsaturatedFat,
@@ -971,6 +973,26 @@ fun InsertFoodScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = selectedType == "Solid", onClick = { selectedType = "Solid" })
+                    Text("Solid", style = MaterialTheme.typography.bodyLarge)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = selectedType == "Liquid", onClick = { selectedType = "Liquid" })
+                    Text("Liquid", style = MaterialTheme.typography.bodyLarge)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = selectedType == "Recipe", onClick = { selectedType = "Recipe" })
+                    Text("Recipe", style = MaterialTheme.typography.bodyLarge)
+                }
+            }
             LabeledValueField(
                 label = "Description",
                 value = description,
