@@ -4,12 +4,14 @@ This is a simple Android application for viewing and managing nutritional inform
 
 ## Features
 
+*   **Two-Screen Navigation**: A `foodSearch` screen for browsing and a `eatenLog` screen for tracking consumption.
 *   **Food List Display**: Shows a scrollable list of food items from the database.
 *   **Search/Filter**: Filter the food list by entering text in the search bar.
 *   **Nutritional Information Toggle**: A persistent toggle button allows the user to show or hide detailed nutritional information for all items in the list.
 *   **Selection Panel**: Tapping a food item reveals a bottom panel with options to interact with the selected food.
 *   **"Eaten" Dialog**: The "Select" button opens a dialog to log the amount of food consumed, complete with native date and time pickers.
 *   **Delete with Confirmation**: The "Delete" button opens a styled confirmation dialog to prevent accidental deletions. Deleting a food removes it from the database and refreshes the list.
+*   **Eaten Food Log**: A dedicated screen to view, edit, and delete logged food entries.
 *   **Modern UI**: Built entirely with Jetpack Compose, following modern Android development practices.
 
 ## Getting Started
@@ -27,7 +29,11 @@ This is a simple Android application for viewing and managing nutritional inform
 
 ## Database
 
-The app uses a SQLite database named `foods.db`. It must contain a `Foods` table with the following columns:
+The app uses a SQLite database named `foods.db`.
+
+### Foods Table
+
+It must contain a `Foods` table with the following columns:
 
 *   `FoodId` (Integer, Primary Key)
 *   `FoodDescription` (Text)
@@ -35,10 +41,59 @@ The app uses a SQLite database named `foods.db`. It must contain a `Foods` table
 *   `Protein` (Real)
 *   `FatTotal` (Real)
 *   `SaturatedFat` (Real)
+*   `TransFat` (Real)
+*   `PolyunsaturatedFat` (Real)
+*   `MonounsaturatedFat` (Real)
 *   `Carbohydrate` (Real)
 *   `Sugars` (Real)
-*   `SodiumNa` (Real)
 *   `DietaryFibre` (Real)
+*   `SodiumNa` (Real)
+*   `CalciumCa` (Real)
+*   `PotassiumK` (Real)
+*   `ThiaminB1` (Real)
+*   `RiboflavinB2` (Real)
+*   `NiacinB3` (Real)
+*   `Folate` (Real)
+*   `IronFe` (Real)
+*   `MagnesiumMg` (Real)
+*   `VitaminC` (Real)
+*   `Caffeine` (Real)
+*   `Cholesterol` (Real)
+*   `Alcohol` (Real)
+
+### Eaten Table
+
+It also must contain an `Eaten` table with the following columns:
+
+*   `EatenId` (Integer, Primary Key)
+*   `DateEaten` (Text)
+*   `TimeEaten` (Text)
+*   `EatenTs` (Integer)
+*   `AmountEaten` (Real)
+*   `FoodDescription` (Text)
+*   `Energy` (Real)
+*   `Protein` (Real)
+*   `FatTotal` (Real)
+*   `SaturatedFat` (Real)
+*   `TransFat` (Real)
+*   `PolyunsaturatedFat` (Real)
+*   `MonounsaturatedFat` (Real)
+*   `Carbohydrate` (Real)
+*   `Sugars` (Real)
+*   `DietaryFibre` (Real)
+*   `SodiumNa` (Real)
+*   `CalciumCa` (Real)
+*   `PotassiumK` (Real)
+*   `ThiaminB1` (Real)
+*   `RiboflavinB2` (Real)
+*   `NiacinB3` (Real)
+*   `Folate` (Real)
+*   `IronFe` (Real)
+*   `MagnesiumMg` (Real)
+*   `VitaminC` (Real)
+*   `Caffeine` (Real)
+*   `Cholesterol` (Real)
+*   `Alcohol` (Real)
 
 ## Contributing
 
