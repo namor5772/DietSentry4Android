@@ -236,27 +236,117 @@ fun EatenLogItem(eatenFood: EatenFood, onClick: () -> Unit, showNutritionalInfo:
             Spacer(modifier = Modifier.height(4.dp))
             Text(eatenFood.foodDescription, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(2.dp))
-
-
-            Text("Amount: ${eatenFood.amountEaten}$unit", style = MaterialTheme.typography.bodyMedium)
             if (showNutritionalInfo) {
-                NutritionalInfo(eatenFood)
+                NutritionalInfo(eatenFood = eatenFood, unit = unit)
+            } else {
+                Text("Amount: ${eatenFood.amountEaten}$unit", style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
 }
 
 @Composable
-fun NutritionalInfo(eatenFood: EatenFood) {
+fun NutritionalInfo(eatenFood: EatenFood, unit: String) {
     Column(modifier = Modifier.padding(top = 0.dp)) {
-        Text("Energy: ${eatenFood.energy}kJ", style = MaterialTheme.typography.bodyMedium)
-        Text("Protein: ${eatenFood.protein}g", style = MaterialTheme.typography.bodyMedium)
-        Text("Fat, total: ${eatenFood.fatTotal}g", style = MaterialTheme.typography.bodyMedium)
-        Text("- Saturated: ${eatenFood.saturatedFat}g", style = MaterialTheme.typography.bodyMedium)
-        Text("Carbohydrate: ${eatenFood.carbohydrate}g", style = MaterialTheme.typography.bodyMedium)
-        Text("- Sugars: ${eatenFood.sugars}g", style = MaterialTheme.typography.bodyMedium)
-        Text("Dietary Fibre: ${eatenFood.dietaryFibre}g", style = MaterialTheme.typography.bodyMedium)
-        Text("Sodium: ${eatenFood.sodiumNa}mg", style = MaterialTheme.typography.bodyMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth(0.5f),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "Amount eaten ($unit):", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "%.1f".format(eatenFood.amountEaten),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.End
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(0.5f),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "Energy (kJ):", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "%.0f".format(eatenFood.energy),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.End
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(0.5f),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "Protein (g):", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "%.1f".format(eatenFood.protein),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.End
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(0.5f),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "Fat, total (g):", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "%.1f".format(eatenFood.fatTotal),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.End
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(0.5f),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "- Saturated (g):", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "%.1f".format(eatenFood.saturatedFat),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.End
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(0.5f),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "Carbohydrate (g):", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "%.1f".format(eatenFood.carbohydrate),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.End
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(0.5f),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "- Sugars (g):", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "%.1f".format(eatenFood.sugars),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.End
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(0.5f),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "Dietary Fibre (g):", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "%.1f".format(eatenFood.dietaryFibre),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.End
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(0.5f),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "Sodium (mg):", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "%.1f".format(eatenFood.sodiumNa),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.End
+            )
+        }
     }
 }
 
