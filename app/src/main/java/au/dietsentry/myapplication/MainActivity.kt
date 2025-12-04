@@ -10,10 +10,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -34,6 +36,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -72,6 +75,9 @@ class MainActivity : ComponentActivity() {
                     ) { backStackEntry ->
                         val foodId = backStackEntry.arguments?.getInt("foodId") ?: return@composable
                         EditFoodScreen(navController = navController, foodId = foodId)
+                    }
+                    composable("insertFood") {
+                        InsertFoodScreen(navController = navController)
                     }
                 }
             }
@@ -422,11 +428,19 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
 
     val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
     val foodUpdated = savedStateHandle?.get<Boolean>("foodUpdated") ?: false
+    val foodInserted = savedStateHandle?.get<Boolean>("foodInserted") ?: false
     LaunchedEffect(foodUpdated) {
         if (foodUpdated) {
             foods = dbHelper.readFoodsFromDatabase()
             selectedFood = foods.find { it.foodId == selectedFood?.foodId }
             savedStateHandle?.remove<Boolean>("foodUpdated")
+        }
+    }
+    LaunchedEffect(foodInserted) {
+        if (foodInserted) {
+            foods = dbHelper.readFoodsFromDatabase()
+            selectedFood = null
+            savedStateHandle?.remove<Boolean>("foodInserted")
         }
     }
 
@@ -499,7 +513,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
                         food = food,
                         onSelect = { showSelectDialog = true }, // Show the dialog on click
                         onEdit = { navController.navigate("editFood/${food.foodId}") },
-                        onInsert = { /* TODO */ },
+                        onInsert = { navController.navigate("insertFood") },
                         onDelete = { showDeleteDialog = true }
                     )
                 }
@@ -701,7 +715,268 @@ fun EditFoodScreen(
                 value = description,
                 onValueChange = { description = it }
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
+            LabeledValueField(
+                label = "Energy (kJ)",
+                value = energy,
+                onValueChange = { energy = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Protein (g)",
+                value = protein,
+                onValueChange = { protein = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Fat, Total (g)",
+                value = fatTotal,
+                onValueChange = { fatTotal = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "- Saturated (g)",
+                value = saturatedFat,
+                onValueChange = { saturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "- Trans (g)",
+                value = transFat,
+                onValueChange = { transFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "- Polyunsaturated (g)",
+                value = polyunsaturatedFat,
+                onValueChange = { polyunsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "- Monounsaturated (g)",
+                value = monounsaturatedFat,
+                onValueChange = { monounsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Carbohydrate (g)",
+                value = carbohydrate,
+                onValueChange = { carbohydrate = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "- Sugars (g)",
+                value = sugars,
+                onValueChange = { sugars = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Dietary Fibre (g)",
+                value = dietaryFibre,
+                onValueChange = { dietaryFibre = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Sodium (mg)",
+                value = sodium,
+                onValueChange = { sodium = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Calcium (mg)",
+                value = calciumCa,
+                onValueChange = { calciumCa = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Potassium (mg)",
+                value = potassiumK,
+                onValueChange = { potassiumK = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Thiamin B1 (mg)",
+                value = thiaminB1,
+                onValueChange = { thiaminB1 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Riboflavin B2 (mg)",
+                value = riboflavinB2,
+                onValueChange = { riboflavinB2 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Niacin B3 (mg)",
+                value = niacinB3,
+                onValueChange = { niacinB3 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Folate (ug)",
+                value = folate,
+                onValueChange = { folate = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Iron (mg)",
+                value = ironFe,
+                onValueChange = { ironFe = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Magnesium (mg)",
+                value = magnesiumMg,
+                onValueChange = { magnesiumMg = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Vitamin C (mg)",
+                value = vitaminC,
+                onValueChange = { vitaminC = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Caffeine (mg)",
+                value = caffeine,
+                onValueChange = { caffeine = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Cholesterol (mg)",
+                value = cholesterol,
+                onValueChange = { cholesterol = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Alcohol (g)",
+                value = alcohol,
+                onValueChange = { alcohol = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InsertFoodScreen(
+    navController: NavController
+) {
+    val context = LocalContext.current
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
+
+    var description by remember { mutableStateOf("") }
+    var energy by remember { mutableStateOf("") }
+    var protein by remember { mutableStateOf("") }
+    var fatTotal by remember { mutableStateOf("") }
+    var saturatedFat by remember { mutableStateOf("") }
+    var transFat by remember { mutableStateOf("") }
+    var polyunsaturatedFat by remember { mutableStateOf("") }
+    var monounsaturatedFat by remember { mutableStateOf("") }
+    var carbohydrate by remember { mutableStateOf("") }
+    var sugars by remember { mutableStateOf("") }
+    var dietaryFibre by remember { mutableStateOf("") }
+    var sodium by remember { mutableStateOf("") }
+    var calciumCa by remember { mutableStateOf("") }
+    var potassiumK by remember { mutableStateOf("") }
+    var thiaminB1 by remember { mutableStateOf("") }
+    var riboflavinB2 by remember { mutableStateOf("") }
+    var niacinB3 by remember { mutableStateOf("") }
+    var folate by remember { mutableStateOf("") }
+    var ironFe by remember { mutableStateOf("") }
+    var magnesiumMg by remember { mutableStateOf("") }
+    var vitaminC by remember { mutableStateOf("") }
+    var caffeine by remember { mutableStateOf("") }
+    var cholesterol by remember { mutableStateOf("") }
+    var alcohol by remember { mutableStateOf("") }
+
+    val scrollState = rememberScrollState()
+    val numericEntries = listOf(
+        energy, protein, fatTotal, saturatedFat, transFat, polyunsaturatedFat, monounsaturatedFat,
+        carbohydrate, sugars, dietaryFibre, sodium, calciumCa, potassiumK, thiaminB1,
+        riboflavinB2, niacinB3, folate, ironFe, magnesiumMg, vitaminC, caffeine, cholesterol, alcohol
+    )
+    val isValid = description.isNotBlank() && numericEntries.all { it.isBlank() || it.toDoubleOrNull() != null }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Insert Food") },
+                actions = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .navigationBarsPadding(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(
+                    onClick = {
+                        val newFood = Food(
+                            foodId = 0,
+                            foodDescription = description,
+                            energy = energy.toDoubleOrNull() ?: 0.0,
+                            protein = protein.toDoubleOrNull() ?: 0.0,
+                            fatTotal = fatTotal.toDoubleOrNull() ?: 0.0,
+                            saturatedFat = saturatedFat.toDoubleOrNull() ?: 0.0,
+                            transFat = transFat.toDoubleOrNull() ?: 0.0,
+                            polyunsaturatedFat = polyunsaturatedFat.toDoubleOrNull() ?: 0.0,
+                            monounsaturatedFat = monounsaturatedFat.toDoubleOrNull() ?: 0.0,
+                            carbohydrate = carbohydrate.toDoubleOrNull() ?: 0.0,
+                            sugars = sugars.toDoubleOrNull() ?: 0.0,
+                            dietaryFibre = dietaryFibre.toDoubleOrNull() ?: 0.0,
+                            sodium = sodium.toDoubleOrNull() ?: 0.0,
+                            calciumCa = calciumCa.toDoubleOrNull() ?: 0.0,
+                            potassiumK = potassiumK.toDoubleOrNull() ?: 0.0,
+                            thiaminB1 = thiaminB1.toDoubleOrNull() ?: 0.0,
+                            riboflavinB2 = riboflavinB2.toDoubleOrNull() ?: 0.0,
+                            niacinB3 = niacinB3.toDoubleOrNull() ?: 0.0,
+                            folate = folate.toDoubleOrNull() ?: 0.0,
+                            ironFe = ironFe.toDoubleOrNull() ?: 0.0,
+                            magnesiumMg = magnesiumMg.toDoubleOrNull() ?: 0.0,
+                            vitaminC = vitaminC.toDoubleOrNull() ?: 0.0,
+                            caffeine = caffeine.toDoubleOrNull() ?: 0.0,
+                            cholesterol = cholesterol.toDoubleOrNull() ?: 0.0,
+                            alcohol = alcohol.toDoubleOrNull() ?: 0.0
+                        )
+                        val inserted = dbHelper.insertFood(newFood)
+                        if (inserted) {
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("foodInserted", true)
+                            navController.popBackStack()
+                        } else {
+                            Toast.makeText(context, "Failed to insert food", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    enabled = isValid
+                ) {
+                    Text("Insert")
+                }
+            }
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(innerPadding)
+                .padding(16.dp)
+        ) {
+            LabeledValueField(
+                label = "Description",
+                value = description,
+                onValueChange = { description = it }
+            )
+            Spacer(modifier = Modifier.height(2.dp))
             LabeledValueField(
                 label = "Energy (kJ)",
                 value = energy,
@@ -854,7 +1129,7 @@ private fun LabeledValueField(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
+            .padding(vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -862,15 +1137,54 @@ private fun LabeledValueField(
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyLarge
         )
-        OutlinedTextField(
+        CompactTextField(
             value = value,
             onValueChange = onValueChange,
+            keyboardType = keyboardType,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CompactTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    keyboardType: KeyboardType,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val colors = OutlinedTextFieldDefaults.colors()
+    val shape = OutlinedTextFieldDefaults.shape
+
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyLarge,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        modifier = modifier
+            .fillMaxWidth()
+    ) { innerTextField ->
+        OutlinedTextFieldDefaults.DecorationBox(
+            value = value,
+            innerTextField = innerTextField,
+            enabled = true,
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            textStyle = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier
-                .weight(1f)
-                .heightIn(min = 38.dp)
+            visualTransformation = VisualTransformation.None,
+            interactionSource = interactionSource,
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            container = {
+                OutlinedTextFieldDefaults.Container(
+                    enabled = true,
+                    isError = false,
+                    interactionSource = interactionSource,
+                    colors = colors,
+                    shape = shape
+                )
+            },
+            colors = colors
         )
     }
 }

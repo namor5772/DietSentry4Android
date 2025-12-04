@@ -175,6 +175,41 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
         }
     }
 
+    fun insertFood(food: Food): Boolean {
+        return try {
+            val values = ContentValues().apply {
+                put("FoodDescription", food.foodDescription)
+                put("Energy", food.energy)
+                put("Protein", food.protein)
+                put("FatTotal", food.fatTotal)
+                put("SaturatedFat", food.saturatedFat)
+                put("TransFat", food.transFat)
+                put("PolyunsaturatedFat", food.polyunsaturatedFat)
+                put("MonounsaturatedFat", food.monounsaturatedFat)
+                put("Carbohydrate", food.carbohydrate)
+                put("Sugars", food.sugars)
+                put("DietaryFibre", food.dietaryFibre)
+                put("SodiumNa", food.sodium)
+                put("CalciumCa", food.calciumCa)
+                put("PotassiumK", food.potassiumK)
+                put("ThiaminB1", food.thiaminB1)
+                put("RiboflavinB2", food.riboflavinB2)
+                put("NiacinB3", food.niacinB3)
+                put("Folate", food.folate)
+                put("IronFe", food.ironFe)
+                put("MagnesiumMg", food.magnesiumMg)
+                put("VitaminC", food.vitaminC)
+                put("Caffeine", food.caffeine)
+                put("Cholesterol", food.cholesterol)
+                put("Alcohol", food.alcohol)
+            }
+            db.insert("Foods", null, values) != -1L
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error inserting food", e)
+            false
+        }
+    }
+
     @SuppressLint("Range")
     fun getFoodById(foodId: Int): Food? {
         return try {
