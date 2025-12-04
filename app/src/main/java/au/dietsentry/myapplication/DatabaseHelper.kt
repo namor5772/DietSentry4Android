@@ -175,6 +175,18 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
         }
     }
 
+    @SuppressLint("Range")
+    fun getFoodById(foodId: Int): Food? {
+        return try {
+            db.rawQuery("SELECT * FROM Foods WHERE FoodId = ?", arrayOf(foodId.toString())).use { cursor ->
+                if (cursor.moveToFirst()) createFoodFromCursor(cursor) else null
+            }
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error fetching food by id", e)
+            null
+        }
+    }
+
     fun deleteEatenFood(eatenId: Int): Boolean {
         return try {
             db.delete("Eaten", "EatenId = ?", arrayOf(eatenId.toString())) > 0

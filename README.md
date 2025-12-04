@@ -20,6 +20,7 @@ This is a simple Android application for viewing and managing nutritional inform
 
 *   Android Studio
 *   An Android device or emulator
+*   JDK available on your PATH or `JAVA_HOME` set (required for `./gradlew assembleDebug`)
 
 ### Setup
 
