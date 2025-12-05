@@ -20,8 +20,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.ToggleOff
 import androidx.compose.material.icons.filled.ToggleOn
@@ -40,6 +40,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.edit
 import androidx.navigation.NavController
@@ -125,7 +126,7 @@ fun EatenLogScreen(navController: NavController) {
                         )
                     }
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -426,21 +427,22 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
     var showSelectDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
-    val foodUpdated = savedStateHandle?.get<Boolean>("foodUpdated") ?: false
-    val foodInserted = savedStateHandle?.get<Boolean>("foodInserted") ?: false
-    LaunchedEffect(foodUpdated) {
-        if (foodUpdated) {
-            foods = dbHelper.readFoodsFromDatabase()
-            selectedFood = foods.find { it.foodId == selectedFood?.foodId }
-            savedStateHandle?.remove<Boolean>("foodUpdated")
+    navController.currentBackStackEntry?.savedStateHandle?.let { savedStateHandle ->
+        val foodUpdated = savedStateHandle.get<Boolean>("foodUpdated") ?: false
+        val foodInserted = savedStateHandle.get<Boolean>("foodInserted") ?: false
+        LaunchedEffect(foodUpdated) {
+            if (foodUpdated) {
+                foods = dbHelper.readFoodsFromDatabase()
+                selectedFood = foods.find { it.foodId == selectedFood?.foodId }
+                savedStateHandle.remove<Boolean>("foodUpdated")
+            }
         }
-    }
-    LaunchedEffect(foodInserted) {
-        if (foodInserted) {
-            foods = dbHelper.readFoodsFromDatabase()
-            selectedFood = null
-            savedStateHandle?.remove<Boolean>("foodInserted")
+        LaunchedEffect(foodInserted) {
+            if (foodInserted) {
+                foods = dbHelper.readFoodsFromDatabase()
+                selectedFood = null
+                savedStateHandle.remove<Boolean>("foodInserted")
+            }
         }
     }
 
@@ -468,7 +470,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
                         )
                     }
                     IconButton(onClick = { navController.navigate("eatenLog") }) {
-                        Icon(Icons.Default.ArrowForward, contentDescription = "View Eaten Log")
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "View Eaten Log")
                     }
                 }
             )
@@ -587,6 +589,17 @@ fun DeleteConfirmationDialog(
     )
 }
 
+private fun extractDescriptionParts(description: String): Pair<String, String> {
+    return when {
+        description.endsWith(" mL#") -> description.removeSuffix(" mL#") to " mL#"
+        description.endsWith(" mL") -> description.removeSuffix(" mL") to " mL"
+        description.endsWith(" #") -> description.removeSuffix(" #") to " #"
+        else -> description to ""
+    }
+}
+
+private fun formatOneDecimal(value: Double): String = String.format(Locale.US, "%.1f", value)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditFoodScreen(
@@ -605,47 +618,50 @@ fun EditFoodScreen(
         return
     }
 
-    var description by remember(food) { mutableStateOf(food!!.foodDescription) }
-    var energy by remember(food) { mutableStateOf(food!!.energy.toString()) }
-    var protein by remember(food) { mutableStateOf(food!!.protein.toString()) }
-    var fatTotal by remember(food) { mutableStateOf(food!!.fatTotal.toString()) }
-    var saturatedFat by remember(food) { mutableStateOf(food!!.saturatedFat.toString()) }
-    var transFat by remember(food) { mutableStateOf(food!!.transFat.toString()) }
-    var polyunsaturatedFat by remember(food) { mutableStateOf(food!!.polyunsaturatedFat.toString()) }
-    var monounsaturatedFat by remember(food) { mutableStateOf(food!!.monounsaturatedFat.toString()) }
-    var carbohydrate by remember(food) { mutableStateOf(food!!.carbohydrate.toString()) }
-    var sugars by remember(food) { mutableStateOf(food!!.sugars.toString()) }
-    var dietaryFibre by remember(food) { mutableStateOf(food!!.dietaryFibre.toString()) }
-    var sodium by remember(food) { mutableStateOf(food!!.sodium.toString()) }
-    var calciumCa by remember(food) { mutableStateOf(food!!.calciumCa.toString()) }
-    var potassiumK by remember(food) { mutableStateOf(food!!.potassiumK.toString()) }
-    var thiaminB1 by remember(food) { mutableStateOf(food!!.thiaminB1.toString()) }
-    var riboflavinB2 by remember(food) { mutableStateOf(food!!.riboflavinB2.toString()) }
-    var niacinB3 by remember(food) { mutableStateOf(food!!.niacinB3.toString()) }
-    var folate by remember(food) { mutableStateOf(food!!.folate.toString()) }
-    var ironFe by remember(food) { mutableStateOf(food!!.ironFe.toString()) }
-    var magnesiumMg by remember(food) { mutableStateOf(food!!.magnesiumMg.toString()) }
-    var vitaminC by remember(food) { mutableStateOf(food!!.vitaminC.toString()) }
-    var caffeine by remember(food) { mutableStateOf(food!!.caffeine.toString()) }
-    var cholesterol by remember(food) { mutableStateOf(food!!.cholesterol.toString()) }
-    var alcohol by remember(food) { mutableStateOf(food!!.alcohol.toString()) }
+    val (initialDescription, descriptionSuffix) = remember(food) {
+        extractDescriptionParts(food!!.foodDescription)
+    }
+    var description by remember(food) { mutableStateOf(initialDescription) }
+    var energy by remember(food) { mutableStateOf(formatOneDecimal(food!!.energy)) }
+    var protein by remember(food) { mutableStateOf(formatOneDecimal(food!!.protein)) }
+    var fatTotal by remember(food) { mutableStateOf(formatOneDecimal(food!!.fatTotal)) }
+    var saturatedFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.saturatedFat)) }
+    var transFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.transFat)) }
+    var polyunsaturatedFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.polyunsaturatedFat)) }
+    var monounsaturatedFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.monounsaturatedFat)) }
+    var carbohydrate by remember(food) { mutableStateOf(formatOneDecimal(food!!.carbohydrate)) }
+    var sugars by remember(food) { mutableStateOf(formatOneDecimal(food!!.sugars)) }
+    var dietaryFibre by remember(food) { mutableStateOf(formatOneDecimal(food!!.dietaryFibre)) }
+    var sodium by remember(food) { mutableStateOf(formatOneDecimal(food!!.sodium)) }
+    var calciumCa by remember(food) { mutableStateOf(formatOneDecimal(food!!.calciumCa)) }
+    var potassiumK by remember(food) { mutableStateOf(formatOneDecimal(food!!.potassiumK)) }
+    var thiaminB1 by remember(food) { mutableStateOf(formatOneDecimal(food!!.thiaminB1)) }
+    var riboflavinB2 by remember(food) { mutableStateOf(formatOneDecimal(food!!.riboflavinB2)) }
+    var niacinB3 by remember(food) { mutableStateOf(formatOneDecimal(food!!.niacinB3)) }
+    var folate by remember(food) { mutableStateOf(formatOneDecimal(food!!.folate)) }
+    var ironFe by remember(food) { mutableStateOf(formatOneDecimal(food!!.ironFe)) }
+    var magnesiumMg by remember(food) { mutableStateOf(formatOneDecimal(food!!.magnesiumMg)) }
+    var vitaminC by remember(food) { mutableStateOf(formatOneDecimal(food!!.vitaminC)) }
+    var caffeine by remember(food) { mutableStateOf(formatOneDecimal(food!!.caffeine)) }
+    var cholesterol by remember(food) { mutableStateOf(formatOneDecimal(food!!.cholesterol)) }
+    var alcohol by remember(food) { mutableStateOf(formatOneDecimal(food!!.alcohol)) }
 
     val scrollState = rememberScrollState()
-    var selectedType by remember { mutableStateOf("Solid") }
     val numericEntries = listOf(
         energy, protein, fatTotal, saturatedFat, transFat, polyunsaturatedFat, monounsaturatedFat,
         carbohydrate, sugars, dietaryFibre, sodium, calciumCa, potassiumK, thiaminB1,
         riboflavinB2, niacinB3, folate, ironFe, magnesiumMg, vitaminC, caffeine, cholesterol, alcohol
     )
+    val isLiquidFood = descriptionSuffix == " mL" || descriptionSuffix == " mL#"
     val isValid = description.isNotBlank() && numericEntries.all { it.toDoubleOrNull() != null }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Edit Food") },
+                title = { Text(if (isLiquidFood) "Editing Liquid Food" else "Editing Solid Food") },
                 actions = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -662,7 +678,7 @@ fun EditFoodScreen(
                     onClick = {
                         val currentFood = food ?: return@Button
                         val updatedFood = currentFood.copy(
-                            foodDescription = description,
+                            foodDescription = description + descriptionSuffix,
                             energy = energy.toDouble(),
                             protein = protein.toDouble(),
                             fatTotal = fatTotal.toDouble(),
@@ -714,7 +730,10 @@ fun EditFoodScreen(
             LabeledValueField(
                 label = "Description",
                 value = description,
-                onValueChange = { description = it }
+                onValueChange = { description = it },
+                wrapLabel = true,
+                labelSpacing = 8.dp,
+                valueFillFraction = 1f
             )
             Spacer(modifier = Modifier.height(2.dp))
             LabeledValueField(
@@ -907,7 +926,7 @@ fun InsertFoodScreen(
                 title = { Text("Insert Food") },
                 actions = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -922,9 +941,21 @@ fun InsertFoodScreen(
             ) {
                 Button(
                     onClick = {
+                        if (selectedType == "Recipe") {
+                            Toast.makeText(context, "To be implemented", Toast.LENGTH_SHORT).show()
+                            navController.popBackStack()
+                            return@Button
+                        }
+
+                        val processedDescription = when (selectedType) {
+                            "Solid" -> "$description #"
+                            "Liquid" -> "$description mL#"
+                            else -> description
+                        }
+
                         val newFood = Food(
                             foodId = 0,
-                            foodDescription = description,
+                            foodDescription = processedDescription,
                             energy = energy.toDoubleOrNull() ?: 0.0,
                             protein = protein.toDoubleOrNull() ?: 0.0,
                             fatTotal = fatTotal.toDoubleOrNull() ?: 0.0,
@@ -989,14 +1020,24 @@ fun InsertFoodScreen(
                     Text("Liquid", style = MaterialTheme.typography.bodyLarge)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = selectedType == "Recipe", onClick = { selectedType = "Recipe" })
+                    RadioButton(
+                        selected = selectedType == "Recipe",
+                        onClick = {
+                            selectedType = "Recipe"
+                            Toast.makeText(context, "To be implemented", Toast.LENGTH_SHORT).show()
+                            navController.popBackStack()
+                        }
+                    )
                     Text("Recipe", style = MaterialTheme.typography.bodyLarge)
                 }
             }
             LabeledValueField(
                 label = "Description",
                 value = description,
-                onValueChange = { description = it }
+                onValueChange = { description = it },
+                wrapLabel = true,
+                labelSpacing = 8.dp,
+                valueFillFraction = 1f
             )
             Spacer(modifier = Modifier.height(2.dp))
             LabeledValueField(
@@ -1146,7 +1187,12 @@ private fun LabeledValueField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
-    keyboardType: KeyboardType = KeyboardType.Text
+    keyboardType: KeyboardType = KeyboardType.Text,
+    labelWeight: Float = 1f,
+    valueWeight: Float = 1f,
+    wrapLabel: Boolean = false,
+    labelSpacing: Dp = 0.dp,
+    valueFillFraction: Float = 0.5f
 ) {
     Row(
         modifier = Modifier
@@ -1154,17 +1200,28 @@ private fun LabeledValueField(
             .padding(vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val labelModifier = if (wrapLabel) {
+            Modifier.padding(end = labelSpacing)
+        } else {
+            Modifier.weight(labelWeight)
+        }
         Text(
             text = label,
-            modifier = Modifier.weight(1f),
+            modifier = labelModifier,
             style = MaterialTheme.typography.bodyLarge
         )
-        CompactTextField(
-            value = value,
-            onValueChange = onValueChange,
-            keyboardType = keyboardType,
-            modifier = Modifier.weight(1f)
-        )
+        Box(
+            modifier = Modifier
+                .weight(valueWeight)
+                .wrapContentWidth(Alignment.Start)
+        ) {
+            CompactTextField(
+                value = value,
+                onValueChange = onValueChange,
+                keyboardType = keyboardType,
+                modifier = Modifier.fillMaxWidth(valueFillFraction)
+            )
+        }
     }
 }
 
@@ -1229,7 +1286,7 @@ fun EditEatenItemDialog(
     }
 
     var amount by remember { mutableStateOf(eatenFood.amountEaten.toString()) }
-    var selectedDateTime by remember { mutableStateOf(initialDateTime) }
+    var selectedDateTime by remember { mutableLongStateOf(initialDateTime) }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
@@ -1352,7 +1409,7 @@ fun SelectAmountDialog(
 ) {
     var amount by remember { mutableStateOf("") }
     val calendar = Calendar.getInstance()
-    var selectedDateTime by remember { mutableStateOf(calendar.timeInMillis) }
+    var selectedDateTime by remember { mutableLongStateOf(calendar.timeInMillis) }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
