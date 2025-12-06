@@ -4,11 +4,12 @@ DietSentry is a Kotlin/Jetpack Compose Android app for browsing foods and loggin
 
 ## App overview
 
-- Two-screen flow: Food search list (`foodSearch`) and eaten log (`eatenLog`).
-- Scrollable food catalog with search/filter and an optional nutrition-details toggle.
-- Bottom selection panel to select a food; actions include logging an eaten amount (with date/time pickers) or deleting the food with confirmation.
-- Eaten log screen to review, edit, and delete previously recorded entries.
-- Compose-only UI following modern Android patterns.
+- Home: Food search list (`foodSearch`) shows the full catalog sourced from the bundled `foods.db` asset. A search bar filters by description and a “Show Nutrition” toggle expands each row to reveal per-100g nutrient values (energy, macros, fibre, sodium, vitamins, minerals).
+- Food actions: Selecting a food opens a bottom sheet with two primary actions—`Select` to log what you ate and `Delete` to remove the food from your local catalog (with confirmation to prevent accidental loss).
+- Logging flow: The log dialog accepts an amount eaten (grams) and captures the exact date/time via pickers. When saved, the app stores a snapshot of the food’s nutrition scaled to the entered amount so later edits to the master list do not alter historical entries.
+- Eaten log (`eatenLog`): Displays a reverse-chronological list of entries including description, amount, timestamp, and nutrition totals for that serving. Each entry supports edit (update amount or timestamp and recalculated nutrition) and delete.
+- Data model and persistence: Uses a prepopulated SQLite database copied on first launch; no network fetches are required. `DatabaseHelper` manages CRUD for both the master food list and the eaten log, keeping schema names aligned with the bundled asset.
+- UI technology: 100% Jetpack Compose, following Material-style layouts with two-column nutrient rows to align labels and values. Lists are scrollable and optimized for quick scanning on phones, with state hoisted into screens for predictable behaviour across configuration changes.
 
 ## Quick start
 
