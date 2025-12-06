@@ -21,8 +21,8 @@ fun FoodList(
     foods: List<Food>,
     onFoodClicked: (Food) -> Unit, // We add a function to handle clicks
     showNutritionalInfo: Boolean, // New parameter to control visibility
-    showExtraNutrients: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showExtraNutrients: Boolean = false
 ) {
     LazyColumn(
         modifier = modifier
