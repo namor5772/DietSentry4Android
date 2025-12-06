@@ -63,6 +63,8 @@ naming conventions rather than inventing new top-level packages.
   other than this project).
 - Do not introduce new third-party libraries without asking; prefer using the
   existing AndroidX / Kotlin stdlib stack.
+- Do not reply at the end of your response with something like " Tests/build not run (SDK not configured here); please rebuild in Android Studio." just say something like "You can
+  try running the app now"
 
 When in doubt about architectural changes, ask for confirmation and present a
 short plan before making large refactors.

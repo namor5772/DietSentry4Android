@@ -23,8 +23,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.ToggleOff
-import androidx.compose.material.icons.filled.ToggleOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +36,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
@@ -54,7 +53,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 private const val PREFS_NAME = "DietSentryPrefs"
-private const val KEY_SHOW_NUTRITIONAL_INFO = "showNutritionalInfo"
+private const val KEY_SHOW_NUTRITIONAL_INFO = "showNutritionalInfo" // legacy boolean; kept for fallback
+private const val KEY_NUTRITION_SELECTION_FOOD = "nutritionSelectionFood"
+private const val KEY_NUTRITION_SELECTION_EATEN = "nutritionSelectionEaten"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -98,9 +99,15 @@ fun EatenLogScreen(navController: NavController) {
     val sharedPreferences = remember {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
-    var showNutritionalInfo by remember {
-        mutableStateOf(sharedPreferences.getBoolean(KEY_SHOW_NUTRITIONAL_INFO, false))
+    val initialEatenSelection = remember {
+        sharedPreferences.getInt(
+            KEY_NUTRITION_SELECTION_EATEN,
+            if (sharedPreferences.getBoolean(KEY_SHOW_NUTRITIONAL_INFO, false)) 1 else 0
+        )
     }
+    var nutritionalInfoSelection by remember { mutableStateOf(initialEatenSelection) }
+    var showNutritionalInfo by remember { mutableStateOf(initialEatenSelection != 0) }
+    val showExtraNutrients = nutritionalInfoSelection == 2
 
     BackHandler(enabled = selectedEatenFood != null) {
         selectedEatenFood = null
@@ -109,21 +116,33 @@ fun EatenLogScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Eaten Food Log") },
+                title = { Text("Eaten Table", fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconToggleButton(
-                        checked = showNutritionalInfo,
-                        onCheckedChange = {
-                            showNutritionalInfo = it
-                            sharedPreferences.edit {
-                                putBoolean(KEY_SHOW_NUTRITIONAL_INFO, it)
+                    val options = listOf("Hide", "Show", "Extra")
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier.widthIn(max = 200.dp)
+                    ) {
+                        options.forEachIndexed { index, label ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                                selected = nutritionalInfoSelection == index,
+                                onClick = {
+                                    nutritionalInfoSelection = index
+                                    val shouldShowInfo = index != 0
+                                    showNutritionalInfo = shouldShowInfo
+                                    sharedPreferences.edit {
+                                        putInt(KEY_NUTRITION_SELECTION_EATEN, index)
+                                    }
+                                }
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
-                    ) {
-                        Icon(
-                            imageVector = if (showNutritionalInfo) Icons.Default.ToggleOn else Icons.Default.ToggleOff,
-                            contentDescription = "Toggle nutritional information"
-                        )
                     }
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -148,7 +167,8 @@ fun EatenLogScreen(navController: NavController) {
                         onClick = {
                             selectedEatenFood = if (selectedEatenFood == eatenFood) null else eatenFood
                         },
-                        showNutritionalInfo = showNutritionalInfo
+                        showNutritionalInfo = showNutritionalInfo,
+                        showExtraNutrients = showExtraNutrients
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
@@ -242,7 +262,12 @@ fun DeleteEatenItemConfirmationDialog(
 }
 
 @Composable
-fun EatenLogItem(eatenFood: EatenFood, onClick: () -> Unit, showNutritionalInfo: Boolean) {
+fun EatenLogItem(
+    eatenFood: EatenFood,
+    onClick: () -> Unit,
+    showNutritionalInfo: Boolean,
+    showExtraNutrients: Boolean = false
+) {
     val unit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(eatenFood.foodDescription)) "mL" else "g"
     Card(
         modifier = Modifier
@@ -256,7 +281,7 @@ fun EatenLogItem(eatenFood: EatenFood, onClick: () -> Unit, showNutritionalInfo:
             Text(eatenFood.foodDescription, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(2.dp))
             if (showNutritionalInfo) {
-                NutritionalInfo(eatenFood = eatenFood, unit = unit)
+                NutritionalInfo(eatenFood = eatenFood, unit = unit, showExtraNutrients = showExtraNutrients)
             } else {
                 Text("Amount: ${eatenFood.amountEaten}$unit", style = MaterialTheme.typography.bodyMedium)
             }
@@ -265,7 +290,7 @@ fun EatenLogItem(eatenFood: EatenFood, onClick: () -> Unit, showNutritionalInfo:
 }
 
 @Composable
-fun NutritionalInfo(eatenFood: EatenFood, unit: String) {
+fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Boolean = false) {
     Column(modifier = Modifier.padding(top = 0.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(0.5f),
@@ -322,6 +347,41 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String) {
                 textAlign = TextAlign.End
             )
         }
+        if (showExtraNutrients) {
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "- Trans (g):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.transFat),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "- Polyunsaturated (g):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.polyunsaturatedFat),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "- Monounsaturated (g):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.monounsaturatedFat),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth(0.5f),
             horizontalArrangement = Arrangement.SpaceBetween
@@ -365,6 +425,140 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String) {
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.End
             )
+        }
+        if (showExtraNutrients) {
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Calcium (mg):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.calciumCa),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Potassium (mg):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.potassiumK),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Thiamin B1 (mg):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.thiaminB1),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Riboflavin B2 (mg):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.riboflavinB2),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Niacin B3 (mg):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.niacinB3),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Folate (ug):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.folate),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Iron (mg):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.ironFe),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Magnesium (mg):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.magnesiumMg),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Vitamin C (mg):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.vitaminC),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Caffeine (mg):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.caffeine),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Cholesterol (mg):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.cholesterol),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Alcohol (g):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "%.1f".format(eatenFood.alcohol),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
         }
     }
 }
@@ -418,9 +612,14 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
     }
     var foods by remember { mutableStateOf(dbHelper.readFoodsFromDatabase()) }
     val keyboardController = LocalSoftwareKeyboardController.current
-    var showNutritionalInfo by remember {
-        mutableStateOf(sharedPreferences.getBoolean(KEY_SHOW_NUTRITIONAL_INFO, false))
+    val initialFoodSelection = remember {
+        sharedPreferences.getInt(
+            KEY_NUTRITION_SELECTION_FOOD,
+            if (sharedPreferences.getBoolean(KEY_SHOW_NUTRITIONAL_INFO, false)) 1 else 0
+        )
     }
+    var nutritionalInfoSelection by remember { mutableStateOf(initialFoodSelection) }
+    var showNutritionalInfo by remember { mutableStateOf(initialFoodSelection != 0) }
     var selectedFood by remember { mutableStateOf<Food?>(null) }
 
     // State to control the visibility of our new dialog
@@ -453,21 +652,33 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Foods Table") },
+                title = { Text("Foods Table", fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconToggleButton(
-                        checked = showNutritionalInfo,
-                        onCheckedChange = {
-                            showNutritionalInfo = it
-                            sharedPreferences.edit {
-                                putBoolean(KEY_SHOW_NUTRITIONAL_INFO, it)
+                    val options = listOf("Hide", "Show", "Extra")
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier.widthIn(max = 200.dp)
+                    ) {
+                        options.forEachIndexed { index, label ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                                selected = nutritionalInfoSelection == index,
+                                onClick = {
+                                    nutritionalInfoSelection = index
+                                    val shouldShowInfo = index != 0
+                                    showNutritionalInfo = shouldShowInfo
+                                    sharedPreferences.edit {
+                                        putInt(KEY_NUTRITION_SELECTION_FOOD, index)
+                                    }
+                                }
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
-                    ) {
-                        Icon(
-                            imageVector = if (showNutritionalInfo) Icons.Default.ToggleOn else Icons.Default.ToggleOff,
-                            contentDescription = "Toggle nutritional information"
-                        )
                     }
                     IconButton(onClick = { navController.navigate("eatenLog") }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "View Eaten Log")
@@ -503,7 +714,8 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
                     onFoodClicked = { food ->
                         selectedFood = if (selectedFood == food) null else food
                     },
-                    showNutritionalInfo = showNutritionalInfo
+                    showNutritionalInfo = showNutritionalInfo,
+                    showExtraNutrients = nutritionalInfoSelection == 2
                 )
             }
             AnimatedVisibility(
@@ -658,7 +870,7 @@ fun EditFoodScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isLiquidFood) "Editing Liquid Food" else "Editing Solid Food") },
+                title = { Text(if (isLiquidFood) "Editing Liquid Food" else "Editing Solid Food", fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -923,7 +1135,7 @@ fun InsertFoodScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Insert Food") },
+                title = { Text("Insert Food", fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
