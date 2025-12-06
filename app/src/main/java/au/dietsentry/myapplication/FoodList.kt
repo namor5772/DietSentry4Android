@@ -56,7 +56,7 @@ fun FoodList(
                     }
                     if (showExtraNutrients) {
                         Row(modifier = Modifier.fillMaxWidth(0.5f), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(text = "- Trans (g):")
+                            Text(text = "- Trans (mg):")
                             Text(text = "%.1f".format(food.transFat))
                         }
                         Row(modifier = Modifier.fillMaxWidth(0.5f), horizontalArrangement = Arrangement.SpaceBetween) {

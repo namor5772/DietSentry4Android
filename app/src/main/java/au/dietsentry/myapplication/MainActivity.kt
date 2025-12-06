@@ -56,6 +56,7 @@ private const val PREFS_NAME = "DietSentryPrefs"
 private const val KEY_SHOW_NUTRITIONAL_INFO = "showNutritionalInfo" // legacy boolean; kept for fallback
 private const val KEY_NUTRITION_SELECTION_FOOD = "nutritionSelectionFood"
 private const val KEY_NUTRITION_SELECTION_EATEN = "nutritionSelectionEaten"
+private const val KEY_DISPLAY_DAILY_TOTALS = "displayDailyTotals"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -105,9 +106,14 @@ fun EatenLogScreen(navController: NavController) {
             if (sharedPreferences.getBoolean(KEY_SHOW_NUTRITIONAL_INFO, false)) 1 else 0
         )
     }
+    val initialDisplayDailyTotals = remember {
+        sharedPreferences.getBoolean(KEY_DISPLAY_DAILY_TOTALS, false)
+    }
     var nutritionalInfoSelection by remember { mutableStateOf(initialEatenSelection) }
     var showNutritionalInfo by remember { mutableStateOf(initialEatenSelection != 0) }
     val showExtraNutrients = nutritionalInfoSelection == 2
+    var displayDailyTotals by remember { mutableStateOf(initialDisplayDailyTotals) }
+    val dailyTotals = remember(eatenFoods) { aggregateDailyTotals(eatenFoods) }
 
     BackHandler(enabled = selectedEatenFood != null) {
         selectedEatenFood = null
@@ -156,26 +162,71 @@ fun EatenLogScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(8.dp)
             ) {
-                items(eatenFoods) { eatenFood ->
-                    EatenLogItem(
-                        eatenFood = eatenFood,
-                        onClick = {
-                            selectedEatenFood = if (selectedEatenFood == eatenFood) null else eatenFood
-                        },
-                        showNutritionalInfo = showNutritionalInfo,
-                        showExtraNutrients = showExtraNutrients
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = displayDailyTotals,
+                        onCheckedChange = {
+                            displayDailyTotals = it
+                            if (it) {
+                                selectedEatenFood = null
+                            }
+                            sharedPreferences.edit {
+                                putBoolean(KEY_DISPLAY_DAILY_TOTALS, it)
+                            }
+                        }
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Display daily totals",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                if (displayDailyTotals) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    ) {
+                        items(dailyTotals) { totals ->
+                            DailyTotalsCard(
+                                totals = totals,
+                                showNutritionalInfo = showNutritionalInfo,
+                                showExtraNutrients = showExtraNutrients
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    ) {
+                        items(eatenFoods) { eatenFood ->
+                            EatenLogItem(
+                                eatenFood = eatenFood,
+                                onClick = {
+                                    selectedEatenFood = if (selectedEatenFood == eatenFood) null else eatenFood
+                                },
+                                showNutritionalInfo = showNutritionalInfo,
+                                showExtraNutrients = showExtraNutrients
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
                 }
             }
 
             AnimatedVisibility(
-                visible = selectedEatenFood != null,
+                visible = selectedEatenFood != null && !displayDailyTotals,
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 selectedEatenFood?.let {
@@ -218,6 +269,147 @@ fun EatenLogScreen(navController: NavController) {
             )
         }
     }
+}
+
+data class DailyTotals(
+    val date: String,
+    val unitLabel: String,
+    val amountEaten: Double,
+    val energy: Double,
+    val protein: Double,
+    val fatTotal: Double,
+    val saturatedFat: Double,
+    val transFat: Double,
+    val polyunsaturatedFat: Double,
+    val monounsaturatedFat: Double,
+    val carbohydrate: Double,
+    val sugars: Double,
+    val dietaryFibre: Double,
+    val sodiumNa: Double,
+    val calciumCa: Double,
+    val potassiumK: Double,
+    val thiaminB1: Double,
+    val riboflavinB2: Double,
+    val niacinB3: Double,
+    val folate: Double,
+    val ironFe: Double,
+    val magnesiumMg: Double,
+    val vitaminC: Double,
+    val caffeine: Double,
+    val cholesterol: Double,
+    val alcohol: Double
+)
+
+private fun aggregateDailyTotals(eatenFoods: List<EatenFood>): List<DailyTotals> {
+    val mlRegex = Regex("mL#?$", RegexOption.IGNORE_CASE)
+    return eatenFoods
+        .groupBy { it.dateEaten }
+        .map { (date, items) ->
+            val allMl = items.all { mlRegex.containsMatchIn(it.foodDescription) }
+            val allGrams = items.all { !mlRegex.containsMatchIn(it.foodDescription) }
+            val unitLabel = when {
+                allMl -> "mL"
+                allGrams -> "g"
+                else -> "mixed units"
+            }
+            DailyTotals(
+                date = date,
+                unitLabel = unitLabel,
+                amountEaten = items.sumOf { it.amountEaten },
+                energy = items.sumOf { it.energy },
+                protein = items.sumOf { it.protein },
+                fatTotal = items.sumOf { it.fatTotal },
+                saturatedFat = items.sumOf { it.saturatedFat },
+                transFat = items.sumOf { it.transFat },
+                polyunsaturatedFat = items.sumOf { it.polyunsaturatedFat },
+                monounsaturatedFat = items.sumOf { it.monounsaturatedFat },
+                carbohydrate = items.sumOf { it.carbohydrate },
+                sugars = items.sumOf { it.sugars },
+                dietaryFibre = items.sumOf { it.dietaryFibre },
+                sodiumNa = items.sumOf { it.sodiumNa },
+                calciumCa = items.sumOf { it.calciumCa },
+                potassiumK = items.sumOf { it.potassiumK },
+                thiaminB1 = items.sumOf { it.thiaminB1 },
+                riboflavinB2 = items.sumOf { it.riboflavinB2 },
+                niacinB3 = items.sumOf { it.niacinB3 },
+                folate = items.sumOf { it.folate },
+                ironFe = items.sumOf { it.ironFe },
+                magnesiumMg = items.sumOf { it.magnesiumMg },
+                vitaminC = items.sumOf { it.vitaminC },
+                caffeine = items.sumOf { it.caffeine },
+                cholesterol = items.sumOf { it.cholesterol },
+                alcohol = items.sumOf { it.alcohol }
+            )
+        }
+}
+
+@Composable
+fun DailyTotalsCard(
+    totals: DailyTotals,
+    showNutritionalInfo: Boolean,
+    showExtraNutrients: Boolean
+) {
+    val amountUnitSuffix = when (totals.unitLabel) {
+        "mixed units" -> " (mixed units)"
+        else -> " ${totals.unitLabel}"
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Date: ${totals.date}", style = MaterialTheme.typography.bodySmall)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Daily totals", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.height(2.dp))
+            if (showNutritionalInfo) {
+                NutritionalInfo(
+                    eatenFood = totals.toEatenFoodPlaceholder(),
+                    unit = totals.unitLabel,
+                    showExtraNutrients = showExtraNutrients
+                )
+            } else {
+                Text(
+                    "Amount: %.1f%s".format(totals.amountEaten, amountUnitSuffix),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+    }
+}
+
+private fun DailyTotals.toEatenFoodPlaceholder(): EatenFood {
+    return EatenFood(
+        eatenId = -1,
+        dateEaten = date,
+        timeEaten = "",
+        eatenTs = 0,
+        amountEaten = amountEaten,
+        foodDescription = "",
+        energy = energy,
+        protein = protein,
+        fatTotal = fatTotal,
+        saturatedFat = saturatedFat,
+        transFat = transFat,
+        polyunsaturatedFat = polyunsaturatedFat,
+        monounsaturatedFat = monounsaturatedFat,
+        carbohydrate = carbohydrate,
+        sugars = sugars,
+        dietaryFibre = dietaryFibre,
+        sodiumNa = sodiumNa,
+        calciumCa = calciumCa,
+        potassiumK = potassiumK,
+        thiaminB1 = thiaminB1,
+        riboflavinB2 = riboflavinB2,
+        niacinB3 = niacinB3,
+        folate = folate,
+        ironFe = ironFe,
+        magnesiumMg = magnesiumMg,
+        vitaminC = vitaminC,
+        caffeine = caffeine,
+        cholesterol = cholesterol,
+        alcohol = alcohol
+    )
 }
 
 @Composable
@@ -296,7 +488,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             modifier = Modifier.fillMaxWidth(0.5f),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "Amount eaten ($unit):", style = MaterialTheme.typography.bodyMedium)
+            Text(text = "Amount (g or mL)", style = MaterialTheme.typography.bodyMedium)
             Text(
                 text = "%.1f".format(eatenFood.amountEaten),
                 style = MaterialTheme.typography.bodyMedium,
@@ -352,7 +544,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
                 modifier = Modifier.fillMaxWidth(0.5f),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(text = "- Trans (g):", style = MaterialTheme.typography.bodyMedium)
+                Text(text = "- Trans (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
                     text = "%.1f".format(eatenFood.transFat),
                     style = MaterialTheme.typography.bodyMedium,
@@ -973,7 +1165,7 @@ fun EditFoodScreen(
                 keyboardType = KeyboardType.Decimal
             )
             LabeledValueField(
-                label = "- Trans (g)",
+                label = "- Trans (mg)",
                 value = transFat,
                 onValueChange = { transFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
                 keyboardType = KeyboardType.Decimal
@@ -1277,7 +1469,7 @@ fun InsertFoodScreen(
                 keyboardType = KeyboardType.Decimal
             )
             LabeledValueField(
-                label = "- Trans (g)",
+                label = "- Trans (mg)",
                 value = transFat,
                 onValueChange = { transFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
                 keyboardType = KeyboardType.Decimal
