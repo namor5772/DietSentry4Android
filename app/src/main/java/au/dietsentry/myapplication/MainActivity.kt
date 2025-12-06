@@ -22,7 +22,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -71,6 +72,9 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("eatenLog") {
                         EatenLogScreen(navController = navController)
+                    }
+                    composable("help") {
+                        HelpScreen(navController = navController)
                     }
                     composable(
                         route = "editFood/{foodId}",
@@ -150,6 +154,13 @@ fun EatenLogScreen(navController: NavController) {
                             }
                         }
                     }
+                    HelpOverflowMenu(
+                        onHelpSelected = {
+                            navController.navigate("help") {
+                                launchSingleTop = true
+                            }
+                        }
+                    )
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
@@ -797,6 +808,120 @@ fun EatenSelectionPanel(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HelpScreen(navController: NavController) {
+    val scrollState = rememberScrollState()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Help & FAQ", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(innerPadding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Quick reference for browsing foods, logging servings, and understanding the nutrition snapshots stored on your device.",
+                style = MaterialTheme.typography.bodyLarge
+            )
+            HelpSection(
+                title = "Searching foods",
+                items = listOf(
+                    "Use the search bar to filter by description; clearing it restores the full list from the bundled database.",
+                    "Show/Extra toggles in the top bar expand per-100g (or per-100mL) nutrient rows while you browse.",
+                    "Tap a food to open the action sheet; choose Eaten to log a serving, Edit to adjust values, or Delete to remove it from your catalog."
+                )
+            )
+            HelpSection(
+                title = "Logging what you ate",
+                items = listOf(
+                    "Enter the amount in grams or mL (the unit follows the food description) and pick the exact date/time with the built-in pickers.",
+                    "When saved, the app stores a nutrient snapshot scaled to your amount so later edits to the master food do not rewrite past entries.",
+                    "You can hop to the eaten log right after saving to confirm the new entry."
+                )
+            )
+            HelpSection(
+                title = "Eaten log & totals",
+                items = listOf(
+                    "The Eaten Table lists entries newest first; tap an item to expand nutrients or use Hide/Show/Extra to control columns.",
+                    "Use Edit to change amount or timestamp; nutrients recalc automatically. Delete removes only that log row.",
+                    "Enable \"Display daily totals\" to see one card per day aggregating energy, macros, and micronutrients with the same Hide/Show/Extra toggle."
+                )
+            )
+            HelpSection(
+                title = "Managing your food list",
+                items = listOf(
+                    "Edit existing foods to correct descriptions or nutrient values; Insert adds a new food with solid/liquid tags for grams vs mL.",
+                    "Deleting a food removes it from the browse list but does not touch already logged entries because they store snapshots.",
+                    "All nutrition values are per 100g or 100mL; logged amounts scale from these bases."
+                )
+            )
+            HelpSection(
+                title = "Data and storage",
+                items = listOf(
+                    "DietSentry ships with a bundled `foods.db` copied on first run; there are no network fetches.",
+                    "Eaten items and edits live locally in the same database. Clearing app data or reinstalling removes your log.",
+                    "Keep device time accurate so timestamps and daily totals line up correctly."
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun HelpSection(title: String, items: List<String>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            items.forEach { bullet ->
+                Text("• $bullet", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HelpOverflowMenu(onHelpSelected: () -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(Icons.Filled.MoreVert, contentDescription = "More options")
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("Help / FAQ") },
+                leadingIcon = { Icon(Icons.Filled.HelpOutline, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    onHelpSelected()
+                }
+            )
+        }
+    }
+}
+
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -881,6 +1006,13 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
                     IconButton(onClick = { navController.navigate("eatenLog") }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "View Eaten Log")
                     }
+                    HelpOverflowMenu(
+                        onHelpSelected = {
+                            navController.navigate("help") {
+                                launchSingleTop = true
+                            }
+                        }
+                    )
                 }
             )
         }
@@ -1070,6 +1202,13 @@ fun EditFoodScreen(
             TopAppBar(
                 title = { Text(if (isLiquidFood) "Editing Liquid Food" else "Editing Solid Food", fontWeight = FontWeight.Bold) },
                 actions = {
+                    HelpOverflowMenu(
+                        onHelpSelected = {
+                            navController.navigate("help") {
+                                launchSingleTop = true
+                            }
+                        }
+                    )
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
@@ -1335,6 +1474,13 @@ fun InsertFoodScreen(
             TopAppBar(
                 title = { Text("Insert Food", fontWeight = FontWeight.Bold) },
                 actions = {
+                    HelpOverflowMenu(
+                        onHelpSelected = {
+                            navController.navigate("help") {
+                                launchSingleTop = true
+                            }
+                        }
+                    )
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
