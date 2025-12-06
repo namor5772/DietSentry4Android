@@ -483,12 +483,18 @@ fun EatenLogItem(
 
 @Composable
 fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Boolean = false) {
+    val amountLabel = when (unit.lowercase(Locale.getDefault())) {
+        "ml" -> "Amount (mL)"
+        "g" -> "Amount (g)"
+        "mixed units" -> "Amount (g or mL)"
+        else -> "Amount ($unit)"
+    }
     Column(modifier = Modifier.padding(top = 0.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(0.5f),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "Amount (g or mL)", style = MaterialTheme.typography.bodyMedium)
+            Text(text = amountLabel, style = MaterialTheme.typography.bodyMedium)
             Text(
                 text = "%.1f".format(eatenFood.amountEaten),
                 style = MaterialTheme.typography.bodyMedium,
