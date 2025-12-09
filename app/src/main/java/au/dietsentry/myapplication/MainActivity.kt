@@ -8,7 +8,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
@@ -108,7 +107,7 @@ fun EatenLogScreen(navController: NavController) {
     val initialDisplayDailyTotals = remember {
         sharedPreferences.getBoolean(KEY_DISPLAY_DAILY_TOTALS, false)
     }
-    var nutritionalInfoSelection by remember { mutableStateOf(initialEatenSelection) }
+    var nutritionalInfoSelection by remember { mutableIntStateOf(initialEatenSelection) }
     var showNutritionalInfo by remember { mutableStateOf(initialEatenSelection != 0) }
     val showExtraNutrients = nutritionalInfoSelection == 2
     var displayDailyTotals by remember { mutableStateOf(initialDisplayDailyTotals) }
@@ -123,7 +122,7 @@ fun EatenLogScreen(navController: NavController) {
             TopAppBar(
                 title = { Text("Eaten Table", fontWeight = FontWeight.Bold) },
                 actions = {
-                    val options = listOf("Hide", "Show", "Extra")
+                    val options = listOf("Min", "NIP", "All")
                     SingleChoiceSegmentedButtonRow(
                         modifier = Modifier.widthIn(max = 200.dp)
                     ) {
@@ -349,7 +348,7 @@ fun DailyTotalsCard(
     showExtraNutrients: Boolean
 ) {
     val amountUnitSuffix = when (totals.unitLabel) {
-        "mixed units" -> " (mixed units)"
+        "mixed units" -> " (g or mL)"
         else -> " ${totals.unitLabel}"
     }
     Card(
@@ -357,7 +356,7 @@ fun DailyTotalsCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Date: ${totals.date}", style = MaterialTheme.typography.bodySmall)
+            Text(totals.date, style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
             Text("Daily totals", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(2.dp))
@@ -365,13 +364,49 @@ fun DailyTotalsCard(
                 NutritionalInfo(
                     eatenFood = totals.toEatenFoodPlaceholder(),
                     unit = totals.unitLabel,
-                    showExtraNutrients = showExtraNutrients
+                    showExtraNutrients = showExtraNutrients,
+                    hideFibreAndCalcium = !showExtraNutrients
                 )
             } else {
+                val amountText = formatAmount(totals.amountEaten)
                 Text(
-                    "Amount: %.1f%s".format(totals.amountEaten, amountUnitSuffix),
+                    "$amountText$amountUnitSuffix",
                     style = MaterialTheme.typography.bodyMedium
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(0.5f),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Energy (kJ):", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = formatNumber(totals.energy),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.End
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(0.5f),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Fat, total (g):", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = formatNumber(totals.fatTotal),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.End
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(0.5f),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Dietary Fibre (g):", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = formatNumber(totals.dietaryFibre),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.End
+                    )
+                }
             }
         }
     }
@@ -435,7 +470,8 @@ fun DeleteEatenItemConfirmationDialog(
                 Text(eatenFood.foodDescription, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(2.dp))
                 val unit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(eatenFood.foodDescription)) "mL" else "g"
-                Text("Amount: ${eatenFood.amountEaten} $unit")
+                val amountText = formatAmount(eatenFood.amountEaten)
+                Text("Amount: $amountText $unit")
             }
         },
         confirmButton = {
@@ -467,21 +503,27 @@ fun EatenLogItem(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Date: ${eatenFood.dateEaten} ${eatenFood.timeEaten}", style = MaterialTheme.typography.bodySmall)
+            Text("${eatenFood.dateEaten} ${eatenFood.timeEaten}", style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(4.dp))
             Text(eatenFood.foodDescription, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(2.dp))
             if (showNutritionalInfo) {
                 NutritionalInfo(eatenFood = eatenFood, unit = unit, showExtraNutrients = showExtraNutrients)
             } else {
-                Text("Amount: ${eatenFood.amountEaten}$unit", style = MaterialTheme.typography.bodyMedium)
+                val amountText = formatAmount(eatenFood.amountEaten)
+                Text("$amountText$unit", style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
 }
 
 @Composable
-fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Boolean = false) {
+fun NutritionalInfo(
+    eatenFood: EatenFood,
+    unit: String,
+    showExtraNutrients: Boolean = false,
+    hideFibreAndCalcium: Boolean = false
+) {
     val amountLabel = when (unit.lowercase(Locale.getDefault())) {
         "ml" -> "Amount (mL)"
         "g" -> "Amount (g)"
@@ -495,7 +537,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
         ) {
             Text(text = amountLabel, style = MaterialTheme.typography.bodyMedium)
             Text(
-                text = "%.1f".format(eatenFood.amountEaten),
+                text = formatNumber(eatenFood.amountEaten),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.End
             )
@@ -506,7 +548,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
         ) {
             Text(text = "Energy (kJ):", style = MaterialTheme.typography.bodyMedium)
             Text(
-                text = "%.0f".format(eatenFood.energy),
+                text = formatNumber(eatenFood.energy),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.End
             )
@@ -517,7 +559,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
         ) {
             Text(text = "Protein (g):", style = MaterialTheme.typography.bodyMedium)
             Text(
-                text = "%.1f".format(eatenFood.protein),
+                text = formatNumber(eatenFood.protein),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.End
             )
@@ -528,7 +570,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
         ) {
             Text(text = "Fat, total (g):", style = MaterialTheme.typography.bodyMedium)
             Text(
-                text = "%.1f".format(eatenFood.fatTotal),
+                text = formatNumber(eatenFood.fatTotal),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.End
             )
@@ -539,7 +581,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
         ) {
             Text(text = "- Saturated (g):", style = MaterialTheme.typography.bodyMedium)
             Text(
-                text = "%.1f".format(eatenFood.saturatedFat),
+                text = formatNumber(eatenFood.saturatedFat),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.End
             )
@@ -551,7 +593,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "- Trans (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.transFat),
+                    text = formatNumber(eatenFood.transFat),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -562,7 +604,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "- Polyunsaturated (g):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.polyunsaturatedFat),
+                    text = formatNumber(eatenFood.polyunsaturatedFat),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -573,7 +615,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "- Monounsaturated (g):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.monounsaturatedFat),
+                    text = formatNumber(eatenFood.monounsaturatedFat),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -585,7 +627,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
         ) {
             Text(text = "Carbohydrate (g):", style = MaterialTheme.typography.bodyMedium)
             Text(
-                text = "%.1f".format(eatenFood.carbohydrate),
+                text = formatNumber(eatenFood.carbohydrate),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.End
             )
@@ -596,21 +638,23 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
         ) {
             Text(text = "- Sugars (g):", style = MaterialTheme.typography.bodyMedium)
             Text(
-                text = "%.1f".format(eatenFood.sugars),
+                text = formatNumber(eatenFood.sugars),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.End
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(0.5f),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = "Dietary Fibre (g):", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = "%.1f".format(eatenFood.dietaryFibre),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.End
-            )
+        if (!hideFibreAndCalcium) {
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Dietary Fibre (g):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = formatNumber(eatenFood.dietaryFibre),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
         }
         Row(
             modifier = Modifier.fillMaxWidth(0.5f),
@@ -618,7 +662,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
         ) {
             Text(text = "Sodium (mg):", style = MaterialTheme.typography.bodyMedium)
             Text(
-                text = "%.1f".format(eatenFood.sodiumNa),
+                text = formatNumber(eatenFood.sodiumNa),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.End
             )
@@ -630,7 +674,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "Calcium (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.calciumCa),
+                    text = formatNumber(eatenFood.calciumCa),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -641,7 +685,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "Potassium (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.potassiumK),
+                    text = formatNumber(eatenFood.potassiumK),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -652,7 +696,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "Thiamin B1 (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.thiaminB1),
+                    text = formatNumber(eatenFood.thiaminB1),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -663,7 +707,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "Riboflavin B2 (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.riboflavinB2),
+                    text = formatNumber(eatenFood.riboflavinB2),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -674,7 +718,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "Niacin B3 (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.niacinB3),
+                    text = formatNumber(eatenFood.niacinB3),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -685,7 +729,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "Folate (ug):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.folate),
+                    text = formatNumber(eatenFood.folate),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -696,7 +740,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "Iron (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.ironFe),
+                    text = formatNumber(eatenFood.ironFe),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -707,7 +751,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "Magnesium (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.magnesiumMg),
+                    text = formatNumber(eatenFood.magnesiumMg),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -718,7 +762,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "Vitamin C (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.vitaminC),
+                    text = formatNumber(eatenFood.vitaminC),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -729,7 +773,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "Caffeine (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.caffeine),
+                    text = formatNumber(eatenFood.caffeine),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -740,7 +784,7 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "Cholesterol (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.cholesterol),
+                    text = formatNumber(eatenFood.cholesterol),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -751,7 +795,30 @@ fun NutritionalInfo(eatenFood: EatenFood, unit: String, showExtraNutrients: Bool
             ) {
                 Text(text = "Alcohol (g):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "%.1f".format(eatenFood.alcohol),
+                    text = formatNumber(eatenFood.alcohol),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+        } else if (!hideFibreAndCalcium) {
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Calcium (mg):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = formatNumber(eatenFood.calciumCa),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Dietary Fibre (g):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = formatNumber(eatenFood.dietaryFibre),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
@@ -814,7 +881,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
             if (sharedPreferences.getBoolean(KEY_SHOW_NUTRITIONAL_INFO, false)) 1 else 0
         )
     }
-    var nutritionalInfoSelection by remember { mutableStateOf(initialFoodSelection) }
+    var nutritionalInfoSelection by remember { mutableIntStateOf(initialFoodSelection) }
     var showNutritionalInfo by remember { mutableStateOf(initialFoodSelection != 0) }
     var selectedFood by remember { mutableStateOf<Food?>(null) }
 
@@ -850,7 +917,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
             TopAppBar(
                 title = { Text("Foods Table", fontWeight = FontWeight.Bold) },
                 actions = {
-                    val options = listOf("Hide", "Show", "Extra")
+                    val options = listOf("Min", "NIP", "All")
                     SingleChoiceSegmentedButtonRow(
                         modifier = Modifier.widthIn(max = 200.dp)
                     ) {
