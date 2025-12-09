@@ -52,8 +52,8 @@ fun FoodList(
                     NutrientRow(label = "Carbohydrate (g):", value = food.carbohydrate)
                     NutrientRow(label = "- Sugars (g):", value = food.sugars)
                     if (showExtraNutrients) {
-                        NutrientRow(label = "Dietary Fibre (g):", value = food.dietaryFibre)
                         NutrientRow(label = "Sodium (mg):", value = food.sodium)
+                        NutrientRow(label = "Dietary Fibre (g):", value = food.dietaryFibre)
                         NutrientRow(label = "Calcium (mg):", value = food.calciumCa)
                         NutrientRow(label = "Potassium (mg):", value = food.potassiumK)
                         NutrientRow(label = "Thiamin B1 (mg):", value = food.thiaminB1)
@@ -68,7 +68,6 @@ fun FoodList(
                         NutrientRow(label = "Alcohol (g):", value = food.alcohol)
                     } else {
                         NutrientRow(label = "Sodium (mg):", value = food.sodium)
-                        NutrientRow(label = "Dietary Fibre (g):", value = food.dietaryFibre)
                     }
                 }
             }

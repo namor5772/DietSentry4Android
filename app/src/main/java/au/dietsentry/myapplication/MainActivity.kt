@@ -16,11 +16,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,7 +31,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
@@ -110,6 +118,16 @@ fun EatenLogScreen(navController: NavController) {
     var nutritionalInfoSelection by remember { mutableIntStateOf(initialEatenSelection) }
     var showNutritionalInfo by remember { mutableStateOf(initialEatenSelection != 0) }
     val showExtraNutrients = nutritionalInfoSelection == 2
+    var showHelpSheet by remember { mutableStateOf(false) }
+    val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val eatenHelpText = """
+# Eaten Table
+- Use the Min / NIP / All toggle to change how much nutrition detail is shown.
+- Tap a row to expand it; tap again to collapse.
+- Long press the selection actions to edit or delete the chosen entry.
+- Turn on “Display daily totals” to see aggregated amounts per day.
+- The Back arrow returns to the Foods Table.
+""".trimIndent()
     var displayDailyTotals by remember { mutableStateOf(initialDisplayDailyTotals) }
     val dailyTotals = remember(eatenFoods) { aggregateDailyTotals(eatenFoods) }
 
@@ -120,7 +138,7 @@ fun EatenLogScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Eaten Table", fontWeight = FontWeight.Bold) },
+                title = { Text("Eaten\nTable", fontWeight = FontWeight.Bold) },
                 actions = {
                     val options = listOf("Min", "NIP", "All")
                     SingleChoiceSegmentedButtonRow(
@@ -151,6 +169,7 @@ fun EatenLogScreen(navController: NavController) {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
+                    HelpIconButton(onClick = { showHelpSheet = true })
                 }
             )
         }
@@ -266,6 +285,14 @@ fun EatenLogScreen(navController: NavController) {
                 }
             )
         }
+    }
+
+    if (showHelpSheet) {
+        HelpBottomSheet(
+            helpText = eatenHelpText,
+            sheetState = helpSheetState,
+            onDismiss = { showHelpSheet = false }
+        )
     }
 }
 
@@ -410,6 +437,7 @@ fun DailyTotalsCard(
             }
         }
     }
+
 }
 
 private fun DailyTotals.toEatenFoodPlaceholder(): EatenFood {
@@ -643,29 +671,56 @@ fun NutritionalInfo(
                 textAlign = TextAlign.End
             )
         }
-        if (!hideFibreAndCalcium) {
+        if (showExtraNutrients) {
             Row(
                 modifier = Modifier.fillMaxWidth(0.5f),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(text = "Dietary Fibre (g):", style = MaterialTheme.typography.bodyMedium)
+                Text(text = "Sodium (mg):", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = formatNumber(eatenFood.dietaryFibre),
+                    text = formatNumber(eatenFood.sodiumNa),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.End
                 )
             }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(0.5f),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = "Sodium (mg):", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = formatNumber(eatenFood.sodiumNa),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.End
-            )
+            if (!hideFibreAndCalcium) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(0.5f),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Dietary Fibre (g):", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = formatNumber(eatenFood.dietaryFibre),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
+        } else {
+            if (!hideFibreAndCalcium) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(0.5f),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "Dietary Fibre (g):", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = formatNumber(eatenFood.dietaryFibre),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(0.5f),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Sodium (mg):", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = formatNumber(eatenFood.sodiumNa),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
         }
         if (showExtraNutrients) {
             Row(
@@ -881,6 +936,15 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
             if (sharedPreferences.getBoolean(KEY_SHOW_NUTRITIONAL_INFO, false)) 1 else 0
         )
     }
+    var showHelpSheet by remember { mutableStateOf(false) }
+    val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val foodsHelpText = """
+# Foods Table
+- Search to filter foods; clear the field to see everything again.
+- Tap a row to select it, then choose Edit, Delete, or log it to the Eaten Table.
+- Use Min / NIP / All to switch how much nutrition detail is shown for each food.
+- The arrow button opens the Eaten Table.
+""".trimIndent()
     var nutritionalInfoSelection by remember { mutableIntStateOf(initialFoodSelection) }
     var showNutritionalInfo by remember { mutableStateOf(initialFoodSelection != 0) }
     var selectedFood by remember { mutableStateOf<Food?>(null) }
@@ -943,6 +1007,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
                             }
                         }
                     }
+                    HelpIconButton(onClick = { showHelpSheet = true })
                     IconButton(onClick = { navController.navigate("eatenLog") }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "View Eaten Log")
                     }
@@ -1024,6 +1089,14 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
                 }
             )
         }
+    }
+
+    if (showHelpSheet) {
+        HelpBottomSheet(
+            helpText = foodsHelpText,
+            sheetState = helpSheetState,
+            onDismiss = { showHelpSheet = false }
+        )
     }
 }
 
@@ -1129,12 +1202,30 @@ fun EditFoodScreen(
     )
     val isLiquidFood = descriptionSuffix == " mL" || descriptionSuffix == " mL#"
     val isValid = description.isNotBlank() && numericEntries.all { it.toDoubleOrNull() != null }
+    var showHelpSheet by remember { mutableStateOf(false) }
+    val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val editHelpText = if (isLiquidFood) {
+        """
+# Editing Liquid Food
+- Enter values per 100 mL unless otherwise noted.
+- Keep the description clear; the app keeps the “mL” suffix for logging.
+- Use decimals where needed and tap Edit to save your changes.
+""".trimIndent()
+    } else {
+        """
+# Editing Solid Food
+- Enter values per 100 g unless otherwise noted.
+- Keep the description clear; the app keeps the “#” marker for serving size.
+- Use decimals where needed and tap Edit to save your changes.
+""".trimIndent()
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(if (isLiquidFood) "Editing Liquid Food" else "Editing Solid Food", fontWeight = FontWeight.Bold) },
                 actions = {
+                    HelpIconButton(onClick = { showHelpSheet = true })
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
@@ -1351,6 +1442,14 @@ fun EditFoodScreen(
             )
         }
     }
+
+    if (showHelpSheet) {
+        HelpBottomSheet(
+            helpText = editHelpText,
+            sheetState = helpSheetState,
+            onDismiss = { showHelpSheet = false }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1394,12 +1493,21 @@ fun InsertFoodScreen(
         riboflavinB2, niacinB3, folate, ironFe, magnesiumMg, vitaminC, caffeine, cholesterol, alcohol
     )
     val isValid = description.isNotBlank() && numericEntries.all { it.isBlank() || it.toDoubleOrNull() != null }
+    var showHelpSheet by remember { mutableStateOf(false) }
+    val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val insertHelpText = """
+# Insert Food
+- Choose Solid or Liquid; the app will append a serving marker automatically.
+- Enter nutrition values per 100 g or 100 mL; blanks are treated as zero.
+- Use decimal values where needed; tap Insert to save the new food.
+""".trimIndent()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Insert Food", fontWeight = FontWeight.Bold) },
                 actions = {
+                    HelpIconButton(onClick = { showHelpSheet = true })
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
@@ -1655,6 +1763,14 @@ fun InsertFoodScreen(
             )
         }
     }
+
+    if (showHelpSheet) {
+        HelpBottomSheet(
+            helpText = insertHelpText,
+            sheetState = helpSheetState,
+            onDismiss = { showHelpSheet = false }
+        )
+    }
 }
 
 @Composable
@@ -1709,14 +1825,18 @@ private fun CompactTextField(
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val colors = OutlinedTextFieldDefaults.colors()
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val colors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = textColor,
+        unfocusedTextColor = textColor
+    )
     val shape = OutlinedTextFieldDefaults.shape
 
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
         singleLine = true,
-        textStyle = MaterialTheme.typography.bodyLarge,
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = textColor),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         modifier = modifier
             .fillMaxWidth()
@@ -1740,6 +1860,132 @@ private fun CompactTextField(
             },
             colors = colors
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HelpBottomSheet(
+    helpText: String,
+    sheetState: SheetState,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        sheetState = sheetState,
+        onDismissRequest = onDismiss
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            MarkdownText(helpText)
+        }
+    }
+}
+
+@Composable
+private fun HelpIconButton(onClick: () -> Unit) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(32.dp),
+        colors = IconButtonDefaults.iconButtonColors(
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.Help,
+            contentDescription = "Help",
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+@Composable
+private fun MarkdownText(text: String, modifier: Modifier = Modifier) {
+    val lines = text.trim().lines()
+    Column(modifier = modifier.fillMaxWidth()) {
+        lines.forEachIndexed { index, line ->
+            when {
+                line.isBlank() -> Spacer(modifier = Modifier.height(8.dp))
+                line.startsWith("### ") -> Text(
+                    text = line.removePrefix("### "),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                line.startsWith("## ") -> Text(
+                    text = line.removePrefix("## "),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                line.startsWith("# ") -> Text(
+                    text = line.removePrefix("# "),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                line.trimStart().startsWith("- ") -> BulletRow(
+                    content = line.trimStart().removePrefix("- "),
+                    textStyle = MaterialTheme.typography.bodyMedium
+                )
+                else -> InlineMarkdownText(
+                    text = line,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            if (index != lines.lastIndex) {
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun InlineMarkdownText(text: String, style: TextStyle) {
+    Text(
+        text = buildInlineAnnotatedString(text),
+        style = style
+    )
+}
+
+private fun buildInlineAnnotatedString(text: String): AnnotatedString {
+    return buildAnnotatedString {
+        var index = 0
+        while (index < text.length) {
+            when {
+                text.startsWith("**", index) -> {
+                    val end = text.indexOf("**", startIndex = index + 2)
+                    if (end != -1) {
+                        val content = text.substring(index + 2, end)
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(content) }
+                        index = end + 2
+                        continue
+                    }
+                }
+                text.startsWith("*", index) -> {
+                    val end = text.indexOf("*", startIndex = index + 1)
+                    if (end != -1) {
+                        val content = text.substring(index + 1, end)
+                        withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(content) }
+                        index = end + 1
+                        continue
+                    }
+                }
+            }
+            append(text[index])
+            index++
+        }
+    }
+}
+
+@Composable
+private fun BulletRow(content: String, textStyle: TextStyle) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text("•", style = textStyle, modifier = Modifier.padding(end = 8.dp))
+        InlineMarkdownText(text = content, style = textStyle)
     }
 }
 
@@ -2004,11 +2250,11 @@ fun TimePickerDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
     content: @Composable () -> Unit,
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = MaterialTheme.shapes.extraLarge,
-            tonalElevation = 6.dp,
+    ) {
+        Dialog(onDismissRequest = onDismiss) {
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                tonalElevation = 6.dp,
             color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .width(IntrinsicSize.Min)
