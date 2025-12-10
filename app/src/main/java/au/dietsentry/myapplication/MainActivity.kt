@@ -9,9 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
@@ -33,17 +31,13 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -64,16 +58,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import au.dietsentry.myapplication.ui.theme.DietSentry4AndroidTheme
 import org.commonmark.Extension
-import org.commonmark.ext.autolink.AutolinkExtension
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
-import org.commonmark.ext.gfm.tables.TableBody
-import org.commonmark.ext.gfm.tables.TableBlock
-import org.commonmark.ext.gfm.tables.TableCell
-import org.commonmark.ext.gfm.tables.TableHead
-import org.commonmark.ext.gfm.tables.TableRow
-import org.commonmark.ext.gfm.tables.TablesExtension
-import org.commonmark.ext.task.list.items.TaskListItemsExtension
 import org.commonmark.node.BlockQuote
 import org.commonmark.node.BulletList
 import org.commonmark.node.Code
@@ -81,11 +67,7 @@ import org.commonmark.node.Emphasis
 import org.commonmark.node.FencedCodeBlock
 import org.commonmark.node.HardLineBreak
 import org.commonmark.node.Heading
-import org.commonmark.node.HtmlBlock
-import org.commonmark.node.HtmlInline
-import org.commonmark.node.Image
 import org.commonmark.node.IndentedCodeBlock
-import org.commonmark.node.Link
 import org.commonmark.node.ListItem
 import org.commonmark.node.Node
 import org.commonmark.node.OrderedList
@@ -723,16 +705,15 @@ Its purpose is to display a list of foods from the Foods table and allow interac
 The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
 - The **heading** of the screen is "Foods Table". 
 - A **segmented button** with three options (Min, NIP, All). The selection is persistent between app restarts. 
-  - **Min**: only displays the text description for food items.
-  - **NIP**: in addition displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in Australia on their Nutritional Information Panels (NIP)
-  - **All**: Displays all nutrient fields stored in the Foods table (23 which includes Energy)
+    - **Min**: only displays the text description for food items.
+    - **NIP**: in addition displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in Australia on their Nutritional Information Panels (NIP)
+    - **All**: Displays all nutrient fields stored in the Foods table (23 which includes Energy)
 - The **help button** `?` which displays this help screen.
 - The **navigation button** `->` which transfers you to the Eaten Table screen.
 - A **text field** which when empty displays the text "Enter food filter text"
-  - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
-  - It is NOT case sensitive
-- A **scrollable table viewer** which actually displays records from the Foods table.
-  - When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by four buttons below it:
+    - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
+    - It is NOT case sensitive
+- A **scrollable table viewer** which actually displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by four buttons below it:
     - **Eaten**: which logs the selected food into the Eaten Table.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
         - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible.
@@ -746,6 +727,30 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - It opens a dialog which warns you that you will be deleting the selected food from the Foods table.
         - This is irrevocable if you press the **Delete** button.
         - You can change you mind about doing this by just tapping anywhere outside the dialog box. This closes it.
+***
+2. test
+    - ttta
+    - sss
+1. tttt
+    - lkjlkjlkj
+        - kjhkjhkjhk
+1. hhhhhh
+    - kjhkj
+    - kjhkjhjkh
+    
+    
+***
+`MONO FONT'
+MONO FONT
+***
+```python
+un main() = println("hi")
+```
+***
+ > This is a quoted sentence.
+  >
+  > You can keep quoting across paragraphs.
+  >> And nest quotes by using two `>` characters.
 ***
 ## Foods table structure
 GFM table rules (so the app renders a table instead of stray characters):
@@ -1721,10 +1726,7 @@ private fun HelpBottomSheet(
 }
 
 private val markdownExtensions: List<Extension> = listOf(
-    AutolinkExtension.create(),
-    TablesExtension.create(),
-    StrikethroughExtension.create(),
-    TaskListItemsExtension.create()
+    StrikethroughExtension.create()
 )
 
 private val markdownParser: Parser = Parser.builder()
@@ -1737,8 +1739,6 @@ private fun MarkdownText(
     modifier: Modifier = Modifier
 ) {
     val document = remember(text) { markdownParser.parse(text) }
-    val uriHandler = LocalUriHandler.current
-    val linkColor = MaterialTheme.colorScheme.primary
     val codeBackground = MaterialTheme.colorScheme.surfaceVariant
     val codeTextColor = MaterialTheme.colorScheme.onSurface
 
@@ -1749,8 +1749,6 @@ private fun MarkdownText(
     ) {
         RenderMarkdownChildren(
             parent = document,
-            uriHandler = uriHandler,
-            linkColor = linkColor,
             codeBackground = codeBackground,
             codeTextColor = codeTextColor,
             indentLevel = 0
@@ -1761,8 +1759,6 @@ private fun MarkdownText(
 @Composable
 private fun RenderMarkdownChildren(
     parent: Node,
-    uriHandler: UriHandler,
-    linkColor: Color,
     codeBackground: Color,
     codeTextColor: Color,
     indentLevel: Int
@@ -1771,13 +1767,11 @@ private fun RenderMarkdownChildren(
     while (child != null) {
         RenderMarkdownNode(
             node = child,
-            uriHandler = uriHandler,
-            linkColor = linkColor,
             codeBackground = codeBackground,
             codeTextColor = codeTextColor,
             indentLevel = indentLevel
         )
-        if (child.next != null && parent !is ListItem && parent !is TableRow && parent !is TableHead && parent !is TableBody) {
+        if (child.next != null && parent !is ListItem) {
             Spacer(modifier = Modifier.height(8.dp))
         }
         child = child.next
@@ -1787,38 +1781,31 @@ private fun RenderMarkdownChildren(
 @Composable
 private fun RenderMarkdownNode(
     node: Node,
-    uriHandler: UriHandler,
-    linkColor: Color,
     codeBackground: Color,
     codeTextColor: Color,
     indentLevel: Int
 ) {
     when (node) {
-        is Heading -> RenderHeading(node, uriHandler, linkColor, codeBackground, codeTextColor)
-        is Paragraph -> RenderParagraph(node, uriHandler, linkColor, codeBackground, codeTextColor)
-        is BlockQuote -> RenderBlockQuote(node, uriHandler, linkColor, codeBackground, codeTextColor, indentLevel)
-        is BulletList -> RenderBulletList(node, uriHandler, linkColor, codeBackground, codeTextColor, indentLevel)
-        is OrderedList -> RenderOrderedList(node, uriHandler, linkColor, codeBackground, codeTextColor, indentLevel)
+        is Heading -> RenderHeading(node, codeBackground, codeTextColor)
+        is Paragraph -> RenderParagraph(node, codeBackground, codeTextColor)
+        is BlockQuote -> RenderBlockQuote(node, codeBackground, codeTextColor, indentLevel)
+        is BulletList -> RenderBulletList(node, codeBackground, codeTextColor, indentLevel)
+        is OrderedList -> RenderOrderedList(node, codeBackground, codeTextColor, indentLevel)
         is FencedCodeBlock -> RenderCodeBlock(node.literal, indentLevel, codeBackground, codeTextColor)
         is IndentedCodeBlock -> RenderCodeBlock(node.literal, indentLevel, codeBackground, codeTextColor)
         is ThematicBreak -> HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-        is TableBlock -> RenderTable(node, uriHandler, linkColor, codeBackground, codeTextColor, indentLevel)
-        is HtmlBlock -> RenderParagraph(Paragraph().apply { appendChild(MdText(node.literal.orEmpty())) }, uriHandler, linkColor, codeBackground, codeTextColor)
-        else -> RenderMarkdownChildren(node, uriHandler, linkColor, codeBackground, codeTextColor, indentLevel)
+        else -> RenderMarkdownChildren(node, codeBackground, codeTextColor, indentLevel)
     }
 }
 
 @Composable
 private fun RenderHeading(
     heading: Heading,
-    uriHandler: UriHandler,
-    linkColor: Color,
     codeBackground: Color,
     codeTextColor: Color
 ) {
     val annotatedString = buildAnnotatedStringFrom(
         node = heading,
-        linkColor = linkColor,
         codeBackground = codeBackground,
         codeTextColor = codeTextColor
     )
@@ -1828,35 +1815,29 @@ private fun RenderHeading(
         3 -> MaterialTheme.typography.titleSmall
         else -> MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
     }
-    MarkdownClickableText(annotatedString, style, uriHandler)
+    MarkdownTextContent(annotatedString, style)
 }
 
 @Composable
 private fun RenderParagraph(
     paragraph: Paragraph,
-    uriHandler: UriHandler,
-    linkColor: Color,
     codeBackground: Color,
     codeTextColor: Color
 ) {
     val annotatedString = buildAnnotatedStringFrom(
         node = paragraph,
-        linkColor = linkColor,
         codeBackground = codeBackground,
         codeTextColor = codeTextColor
     )
-    MarkdownClickableText(
+    MarkdownTextContent(
         annotatedString = annotatedString,
-        style = MaterialTheme.typography.bodyMedium,
-        uriHandler = uriHandler
+        style = MaterialTheme.typography.bodyMedium
     )
 }
 
 @Composable
 private fun RenderBlockQuote(
     blockQuote: BlockQuote,
-    uriHandler: UriHandler,
-    linkColor: Color,
     codeBackground: Color,
     codeTextColor: Color,
     indentLevel: Int
@@ -1879,8 +1860,6 @@ private fun RenderBlockQuote(
         Column(modifier = Modifier.weight(1f)) {
             RenderMarkdownChildren(
                 parent = blockQuote,
-                uriHandler = uriHandler,
-                linkColor = linkColor,
                 codeBackground = codeBackground,
                 codeTextColor = codeTextColor,
                 indentLevel = indentLevel + 1
@@ -1892,8 +1871,6 @@ private fun RenderBlockQuote(
 @Composable
 private fun RenderBulletList(
     list: BulletList,
-    uriHandler: UriHandler,
-    linkColor: Color,
     codeBackground: Color,
     codeTextColor: Color,
     indentLevel: Int
@@ -1901,30 +1878,18 @@ private fun RenderBulletList(
     Column(modifier = Modifier.padding(start = (indentLevel * 12).dp)) {
         var item = list.firstChild as? ListItem
         while (item != null) {
-            val taskChecked = taskListItemChecked(item)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top
             ) {
-                if (taskChecked != null) {
-                    Checkbox(
-                        checked = taskChecked,
-                        onCheckedChange = null,
-                        enabled = false,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                } else {
-                    Text(
-                        text = "•",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(end = 8.dp, top = 2.dp)
-                    )
-                }
+                Text(
+                    text = "•",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(end = 8.dp, top = 2.dp)
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     RenderMarkdownChildren(
                         parent = item,
-                        uriHandler = uriHandler,
-                        linkColor = linkColor,
                         codeBackground = codeBackground,
                         codeTextColor = codeTextColor,
                         indentLevel = indentLevel + 1
@@ -1942,8 +1907,6 @@ private fun RenderBulletList(
 @Composable
 private fun RenderOrderedList(
     list: OrderedList,
-    uriHandler: UriHandler,
-    linkColor: Color,
     codeBackground: Color,
     codeTextColor: Color,
     indentLevel: Int
@@ -1966,8 +1929,6 @@ private fun RenderOrderedList(
                 Column(modifier = Modifier.weight(1f)) {
                     RenderMarkdownChildren(
                         parent = item,
-                        uriHandler = uriHandler,
-                        linkColor = linkColor,
                         codeBackground = codeBackground,
                         codeTextColor = codeTextColor,
                         indentLevel = indentLevel + 1
@@ -2012,159 +1973,29 @@ private fun RenderCodeBlock(
 }
 
 @Composable
-private fun RenderTable(
-    tableBlock: TableBlock,
-    uriHandler: UriHandler,
-    linkColor: Color,
-    codeBackground: Color,
-    codeTextColor: Color,
-    indentLevel: Int
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = (indentLevel * 12).dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .horizontalScroll(rememberScrollState())
-    ) {
-        var section = tableBlock.firstChild
-        while (section != null) {
-            when (section) {
-                is TableHead -> RenderTableSection(
-                    section = section,
-                    isHeader = true,
-                    uriHandler = uriHandler,
-                    linkColor = linkColor,
-                    codeBackground = codeBackground,
-                    codeTextColor = codeTextColor
-                )
-                is TableBody -> RenderTableSection(
-                    section = section,
-                    isHeader = false,
-                    uriHandler = uriHandler,
-                    linkColor = linkColor,
-                    codeBackground = codeBackground,
-                    codeTextColor = codeTextColor
-                )
-            }
-            section = section.next
-        }
-    }
-}
-
-@Composable
-private fun RenderTableSection(
-    section: Node,
-    isHeader: Boolean,
-    uriHandler: UriHandler,
-    linkColor: Color,
-    codeBackground: Color,
-    codeTextColor: Color
-) {
-    var row = section.firstChild as? TableRow
-    while (row != null) {
-        RenderTableRow(
-            row = row,
-            isHeader = isHeader,
-            uriHandler = uriHandler,
-            linkColor = linkColor,
-            codeBackground = codeBackground,
-            codeTextColor = codeTextColor
-        )
-        row = row.next as? TableRow
-        if (row != null) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-        }
-    }
-}
-
-@Composable
-private fun RenderTableRow(
-    row: TableRow,
-    isHeader: Boolean,
-    uriHandler: UriHandler,
-    linkColor: Color,
-    codeBackground: Color,
-    codeTextColor: Color
-) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        var cell = row.firstChild as? TableCell
-        while (cell != null) {
-            val alignment = when (cell.alignment) {
-                TableCell.Alignment.CENTER -> TextAlign.Center
-                TableCell.Alignment.RIGHT -> TextAlign.End
-                else -> TextAlign.Start
-            }
-            val annotated = buildAnnotatedStringFrom(
-                node = cell,
-                linkColor = linkColor,
-                codeBackground = codeBackground,
-                codeTextColor = codeTextColor
-            )
-            val style = (if (isHeader) {
-                MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-            } else {
-                MaterialTheme.typography.bodyMedium
-            }).copy(textAlign = alignment)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                MarkdownClickableText(
-                    annotatedString = annotated,
-                    style = style,
-                    uriHandler = uriHandler
-                )
-            }
-            cell = cell.next as? TableCell
-        }
-    }
-}
-
-@Composable
-private fun MarkdownClickableText(
+private fun MarkdownTextContent(
     annotatedString: AnnotatedString,
-    style: TextStyle,
-    uriHandler: UriHandler
+    style: TextStyle
 ) {
-    var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     Text(
         text = annotatedString,
-        style = style.copy(color = MaterialTheme.colorScheme.onSurface),
-        modifier = Modifier.pointerInput(annotatedString) {
-            detectTapGestures { position ->
-                val offset = layoutResult?.getOffsetForPosition(position) ?: return@detectTapGestures
-                annotatedString
-                    .getStringAnnotations(tag = "URL", start = offset, end = offset)
-                    .firstOrNull()
-                    ?.let { annotation ->
-                        if (annotation.item.isNotBlank()) {
-                            uriHandler.openUri(annotation.item)
-                        }
-                    }
-            }
-        },
-        onTextLayout = { layoutResult = it }
+        style = style.copy(color = MaterialTheme.colorScheme.onSurface)
     )
 }
 
 private fun buildAnnotatedStringFrom(
     node: Node,
-    linkColor: Color,
     codeBackground: Color,
     codeTextColor: Color
 ): AnnotatedString {
     val builder = AnnotatedString.Builder()
-    appendInlineChildren(node, builder, linkColor, codeBackground, codeTextColor)
+    appendInlineChildren(node, builder, codeBackground, codeTextColor)
     return builder.toAnnotatedString()
 }
 
 private fun appendInlineChildren(
     node: Node,
     builder: AnnotatedString.Builder,
-    linkColor: Color,
     codeBackground: Color,
     codeTextColor: Color
 ) {
@@ -2172,11 +2003,11 @@ private fun appendInlineChildren(
     while (child != null) {
         when (child) {
             is MdText -> builder.append(child.literal)
-            is SoftLineBreak -> builder.append("\n")
+            is SoftLineBreak -> builder.append(" ")
             is HardLineBreak -> builder.append("\n")
             is Emphasis -> {
                 val start = builder.length
-                appendInlineChildren(child, builder, linkColor, codeBackground, codeTextColor)
+                appendInlineChildren(child, builder, codeBackground, codeTextColor)
                 builder.addStyle(
                     style = SpanStyle(fontStyle = FontStyle.Italic),
                     start = start,
@@ -2185,7 +2016,7 @@ private fun appendInlineChildren(
             }
             is StrongEmphasis -> {
                 val start = builder.length
-                appendInlineChildren(child, builder, linkColor, codeBackground, codeTextColor)
+                appendInlineChildren(child, builder, codeBackground, codeTextColor)
                 builder.addStyle(
                     style = SpanStyle(fontWeight = FontWeight.Bold),
                     start = start,
@@ -2205,48 +2036,19 @@ private fun appendInlineChildren(
                     end = builder.length
                 )
             }
-            is Link -> {
-                val start = builder.length
-                appendInlineChildren(child, builder, linkColor, codeBackground, codeTextColor)
-                val end = builder.length
-                child.destination?.takeIf { it.isNotBlank() }?.let {
-                    builder.addStringAnnotation(tag = "URL", annotation = it, start = start, end = end)
-                }
-                builder.addStyle(
-                    style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
-                    start = start,
-                    end = end
-                )
-            }
             is Strikethrough -> {
                 val start = builder.length
-                appendInlineChildren(child, builder, linkColor, codeBackground, codeTextColor)
+                appendInlineChildren(child, builder, codeBackground, codeTextColor)
                 builder.addStyle(
                     style = SpanStyle(textDecoration = TextDecoration.LineThrough),
                     start = start,
                     end = builder.length
                 )
             }
-            is Image -> {
-                builder.append(child.title?.takeIf { it.isNotBlank() } ?: child.destination ?: "[image]")
-            }
-            is HtmlInline -> builder.append(child.literal)
-            else -> appendInlineChildren(child, builder, linkColor, codeBackground, codeTextColor)
+            else -> appendInlineChildren(child, builder, codeBackground, codeTextColor)
         }
         child = child.next
     }
-}
-
-private fun taskListItemChecked(item: ListItem): Boolean? {
-    return runCatching {
-        val clazz = item::class.java
-        if (clazz.name == "org.commonmark.ext.task.list.items.TaskListItem") {
-            val method = clazz.getMethod("isChecked")
-            (method.invoke(item) as? Boolean) ?: false
-        } else {
-            null
-        }
-    }.getOrNull()
 }
 
 @Composable
