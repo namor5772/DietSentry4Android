@@ -1,0 +1,162 @@
+ou did a good job, but I would like some changes to the way the data is displayed in the more detailed option. Remove the text line "Nutritional Information:" , leaving the same spacing between the Amount row and the nutritional information rows below it. use the same font for the nutritional information rows as as for the amount row.
+
+Text("Nutritional Information:", fontWeight = FontWeight.Bold)
+
+I want to wire up the Edit button from the page titled "Foods Table", When the EDIT
+  button is pressed I would like a dialog to appear that displays all the current
+  fields (with labels to the left) of the selected record from the Foods table, except
+  for the FoodId field. I need to be able to edit any of the values of these fields by
+  typing in changes. At the bottom of this dailog there should be a
+
+I want to change the behaviour of this app when the Edit button is pressed on the
+  Foods Table screen. 1. If the food being edited is a solid type (identified by NOT
+  having " mL" or " mL#" at the end of its description string) then the heading of the
+  Edit Food Screen that appears should be changed to "Edit Solid Food", In addition
+  record/store whether the Description string ends in " mL", " mL#", " #" or ANYTHING
+  ELSE. Then strip " mL", " mL#" or " #", from the description if this is how it ends
+  before displaying it in the edit box. When the Edit button is pressed, update the
+  Foods record with the edit box fields as before but first append the recorded food
+  description ends (if any) back onto the food description string. 2. if the food being
+  edited
+  
+   a solid type (identified by NOT
+  having " mL" or " mL#" at the end of its description string) then the heading of the
+  Edit Food Screen that appears should be changed to "Edit Solid Food", In addition
+  record/store whether the Description string ends in " mL", " mL#", " #" or ANYTHING
+  ELSE. Then strip " mL", " mL#" or " #", from the description if this is how it ends
+  before displaying it in the edit box. When the Edit button is pressed, update the
+  Foods record with the edit box fields as before but first append the recorded food
+  description ends (if any) back onto the food description string.
+  
+  
+  
+  Markdown Features Supported
+
+  - Headings #–### (larger levels fall back to bold body), paragraphs, thematic breaks
+    (---), hard/soft line breaks.
+  - Inline styles: bold **...**, italic *...*, strikethrough ~~...~~, inline code
+    `code` with monospace background.
+  - Links [text](url) and autolinks (http://..., www...), clickable via UriHandler.
+  - Lists: bullet lists, ordered lists (start number respected), and task lists with
+    read-only checkboxes when the task-list extension is present.
+  - Code blocks: fenced and indented blocks, monospace on a colored surface.
+  - Blockquotes with a vertical accent bar; nested indentation supported.
+  - Tables (GFM): header/body rows, alignment per column, horizontal scrolling for
+    overflow.
+  - Images: show title/alt/destination text as fallback (no image loading).
+  - HTML inline/block is rendered as literal text content.
+  
+  Could you provide very detailed descriptions of the the supported markdown features,
+  including actual examles
+
+
+
+
+• Here’s what the renderer supports, with examples and notes on how it shows up:
+
+  - Headings & separators
+      - # Title, ## Section, ### Subsection; levels >3 render as bold body text.
+      - Horizontal rules: --- (or ***) draws a divider.
+  - Paragraphs & breaks
+      - Normal paragraphs flow as body text.
+      - Hard break: line 1  \nline 2 (two trailing spaces or backslash) forces a new
+        line inside a paragraph.
+      - Soft breaks keep words on the next line when text wraps.
+  - Inline styling
+      - Bold: **important**
+      - Italic: *emphasis*
+      - Strikethrough: ~~deprecated~~
+      - Inline code: `val x = 1` with monospace + shaded background.
+  - Links / autolinks
+      - [Open site](https://example.com) renders underlined in the primary color and
+        opens via UriHandler.
+      - https://example.com or www.example.com autolink to the URL.
+      - Blank destinations are ignored (no crash).
+  - Lists
+      - Bullets (nesting supported):
+
+        - Item A
+          - Nested A1
+      - Ordered lists with start numbers:
+
+        3. Third
+        4. Fourth
+      - Task lists (shows disabled checkboxes when the task-list extension is present):
+
+        - [ ] To do
+        - [x] Done
+        If the extension isn’t available, they fall back to bullets.
+  - Blockquotes
+      - > Quoted text shows with a vertical accent bar and indented content; nested
+        quotes indent further.
+  - Code blocks
+      - Fenced:
+
+        ```kotlin
+        fun main() = println("hi")
+
+      - Indented code blocks also work.
+      - Rendered with monospace font on a rounded, shaded surface; preserves spacing.
+  - Tables (GFM)
+      - Alignment respected; horizontally scrolls if wide:
+
+        | Food  | Qty | Energy |
+        |:------|:---:|------:|
+        | Apple | 1   |   52  |
+        | Bread | 2   |  200  |
+      - Header row bold; cells render inline markdown.
+  - Images
+      - ![Alt text](https://example.com/img.png "Title") shows fallback text (title/
+        alt/url); images are not loaded.
+  - HTML
+      - Inline/block HTML is shown as literal text; no HTML rendering or execution.
+
+
+  
+  
+# **Foods Table**
+This is the main screen of the app.
+
+Its purpose is to display a list of foods from the Foods table and allow interaction with a selected food.
+***
+## Explanation of GUI elements
+The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
+- The **heading** of the screen is "Foods Table". 
+- A **segmented button** with three options (Min, NIP, All). The selection is persistent between app restarts. 
+  - **Min**: only displays the text description for food items.
+  - **NIP**: in addition displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in Australia on their Nutritional Information Panels (NIP)
+  - **All**: Displays all nutrient fields stored in the Foods table (23 which includes Energy)
+- The **help button** `?` which displays this help screen.
+- The **navigation button** `->` which transfers you to the Eaten Table screen.
+- A **text field** which when empty displays the text "Enter food filter text"
+  - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
+  - It is NOT case sensitive
+- A **scrollable table viewer** which actually displays records from the Foods table.
+  - When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by four buttons below it:
+    - **Eaten**: which logs the selected food into the Eaten Table.
+        - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
+        - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible.
+        - You can abort this process by tapping anywhere outside the dialog box. This closes it.
+    - **Edit**: which allows you to edit the selected food.
+        - It opens a screen titled "Editing Solid Food" or "Editing Liquid Food", obviously depending on the type of food you have selected. 
+    - **Insert**: which allows you to add a new food record to the Foods table.
+        - It opens a screen titled "insert Food".
+        - The original selected food has no relevance to this activity. It is just a way for making the Insert button available.   
+    - **Delete**: which removes the selected food from the Foods table.
+        - It opens a dialog which warns you that you will be deleting the selected food from the Foods table.
+        - This is irrevocable if you press the **Delete** button.
+        - You can change you mind about doing this by just tapping anywhere outside the dialog box. This closes it.
+***
+## Foods table structure
+GFM table rules (so the app renders a table instead of stray characters):
+- Leave a blank line before the table.
+- Start and end each line with `|` and separate cells with `|`.
+- The separator row uses dashes (add `:` for alignment).
+- Do not indent the table with spaces or tabs.
+***
+
+| Heading 1 | Heading 2 | Heading 3 |
+|:----------|:---------:|----------:|
+| apple   | 2.54   | left    |
+| pear      | 2.70      | right     |
+| bananas   | 0.75      | **right** |
