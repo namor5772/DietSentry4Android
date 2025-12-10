@@ -431,8 +431,7 @@ fun DailyTotalsCard(
                 NutritionalInfo(
                     eatenFood = totals.toEatenFoodPlaceholder(),
                     unit = totals.unitLabel,
-                    showExtraNutrients = showExtraNutrients,
-                    hideFibreAndCalcium = !showExtraNutrients
+                    showExtraNutrients = showExtraNutrients
                 )
             } else {
                 val amountText = formatAmount(totals.amountEaten)
@@ -590,7 +589,7 @@ fun NutritionalInfo(
     eatenFood: EatenFood,
     unit: String,
     showExtraNutrients: Boolean = false,
-    hideFibreAndCalcium: Boolean = false
+    hideFibreAndCalcium: Boolean = !showExtraNutrients
 ) {
     val amountLabel = when (unit.lowercase(Locale.getDefault())) {
         "ml" -> "Amount (mL)"
@@ -598,327 +597,63 @@ fun NutritionalInfo(
         "mixed units" -> "Amount (g or mL)"
         else -> "Amount ($unit)"
     }
-    Column(modifier = Modifier.padding(top = 0.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(0.5f),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = amountLabel, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = formatNumber(eatenFood.amountEaten),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.End
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(0.5f),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = "Energy (kJ):", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = formatNumber(eatenFood.energy),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.End
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(0.5f),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = "Protein (g):", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = formatNumber(eatenFood.protein),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.End
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(0.5f),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = "Fat, total (g):", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = formatNumber(eatenFood.fatTotal),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.End
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(0.5f),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = "- Saturated (g):", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = formatNumber(eatenFood.saturatedFat),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.End
-            )
-        }
+    val nutrientRows = buildList {
+        add(amountLabel to eatenFood.amountEaten)
+        add("Energy (kJ):" to eatenFood.energy)
+        add("Protein (g):" to eatenFood.protein)
+        add("Fat, total (g):" to eatenFood.fatTotal)
+        add("- Saturated (g):" to eatenFood.saturatedFat)
         if (showExtraNutrients) {
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "- Trans (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.transFat),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "- Polyunsaturated (g):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.polyunsaturatedFat),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "- Monounsaturated (g):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.monounsaturatedFat),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
+            add("- Trans (mg):" to eatenFood.transFat)
+            add("- Polyunsaturated (g):" to eatenFood.polyunsaturatedFat)
+            add("- Monounsaturated (g):" to eatenFood.monounsaturatedFat)
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(0.5f),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = "Carbohydrate (g):", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = formatNumber(eatenFood.carbohydrate),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.End
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(0.5f),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = "- Sugars (g):", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = formatNumber(eatenFood.sugars),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.End
-            )
-        }
+        add("Carbohydrate (g):" to eatenFood.carbohydrate)
+        add("- Sugars (g):" to eatenFood.sugars)
         if (showExtraNutrients) {
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Sodium (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.sodiumNa),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
+            add("Sodium (mg):" to eatenFood.sodiumNa)
             if (!hideFibreAndCalcium) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(0.5f),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Dietary Fibre (g):", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = formatNumber(eatenFood.dietaryFibre),
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.End
-                    )
-                }
+                add("Dietary Fibre (g):" to eatenFood.dietaryFibre)
             }
+            add("Calcium (mg):" to eatenFood.calciumCa)
+            add("Potassium (mg):" to eatenFood.potassiumK)
+            add("Thiamin B1 (mg):" to eatenFood.thiaminB1)
+            add("Riboflavin B2 (mg):" to eatenFood.riboflavinB2)
+            add("Niacin B3 (mg):" to eatenFood.niacinB3)
+            add("Folate (ug):" to eatenFood.folate)
+            add("Iron (mg):" to eatenFood.ironFe)
+            add("Magnesium (mg):" to eatenFood.magnesiumMg)
+            add("Vitamin C (mg):" to eatenFood.vitaminC)
+            add("Caffeine (mg):" to eatenFood.caffeine)
+            add("Cholesterol (mg):" to eatenFood.cholesterol)
+            add("Alcohol (g):" to eatenFood.alcohol)
         } else {
+            add("Sodium (mg):" to eatenFood.sodiumNa)
             if (!hideFibreAndCalcium) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(0.5f),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Dietary Fibre (g):", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = formatNumber(eatenFood.dietaryFibre),
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.End
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Sodium (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.sodiumNa),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
+                add("Dietary Fibre (g):" to eatenFood.dietaryFibre)
+                add("Calcium (mg):" to eatenFood.calciumCa)
             }
         }
-        if (showExtraNutrients) {
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Calcium (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.calciumCa),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Potassium (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.potassiumK),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Thiamin B1 (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.thiaminB1),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Riboflavin B2 (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.riboflavinB2),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Niacin B3 (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.niacinB3),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Folate (ug):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.folate),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Iron (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.ironFe),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Magnesium (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.magnesiumMg),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Vitamin C (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.vitaminC),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Caffeine (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.caffeine),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Cholesterol (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.cholesterol),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Alcohol (g):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.alcohol),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-        } else if (!hideFibreAndCalcium) {
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Calcium (mg):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.calciumCa),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(0.5f),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Dietary Fibre (g):", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = formatNumber(eatenFood.dietaryFibre),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.End
-                )
-            }
+    }
+    Column(modifier = Modifier.padding(top = 0.dp)) {
+        nutrientRows.forEach { (label, value) ->
+            NutrientRow(label = label, value = value)
         }
+    }
+}
+
+@Composable
+private fun NutrientRow(label: String, value: Double) {
+    Row(
+        modifier = Modifier.fillMaxWidth(0.5f),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = formatNumber(value),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.End
+        )
     }
 }
 
@@ -979,30 +714,46 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
     var showHelpSheet by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val foodsHelpText = """
-DietSentry4Android
-***
-# Foods Table
+# **Foods Table**
 This is the main screen of the app.
 
-It purpose is to display a list of foods in the database, and allow interaction with a selected food.
+Its purpose is to display a list of foods from the Foods table and allow interaction with a selected food.
 ***
+## Explanation of GUI elements
 The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
-- The `heading`/name of the screen: "Foods Table". 
-- A `segmented button` with three options (Min, NIP, All). The selection is persistent between app restarts. 
-  - Min: only displays the text description for food items.
-  - NIP: in addition displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in Australia on their Nutritional Information Panels (NIP)
-  - All: Displays all nutrient fields stored in the Foods table (23 which includes Energy)
-- The `help button` ? which displays this help screen.
-- The `navigation button` -> which transfers you to the Eaten Table screen.
-- A `text field` which when empty/reset displays the text "Enter food filter text"
-  - Type any text in the field (and press the Enter key or equivalent) to filter the list of foods visible below by their Description.
+- The **heading** of the screen is "Foods Table". 
+- A **segmented button** with three options (Min, NIP, All). The selection is persistent between app restarts. 
+  - **Min**: only displays the text description for food items.
+  - **NIP**: in addition displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in Australia on their Nutritional Information Panels (NIP)
+  - **All**: Displays all nutrient fields stored in the Foods table (23 which includes Energy)
+- The **help button** `?` which displays this help screen.
+- The **navigation button** `->` which transfers you to the Eaten Table screen.
+- A **text field** which when empty displays the text "Enter food filter text"
+  - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
   - It is NOT case sensitive
-- A `scrollable table viewer` which display records from the Foods table.
-  - When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food and four buttons:
-    - Eaten: which logs the selected food to the Eaten Table.
-    - Edit: which allows you to edit the selected food.
-    - Insert: which allows you to insert a new food.
-    - Delete: which deletes the selected food.
+- A **scrollable table viewer** which actually displays records from the Foods table.
+  - When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by four buttons below it:
+    - **Eaten**: which logs the selected food into the Eaten Table.
+        - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
+        - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible.
+        - You can abort this process by tapping anywhere outside the dialog box. This closes it.
+    - **Edit**: which allows you to edit the selected food.
+        - It opens a screen titled "Editing Solid Food" or "Editing Liquid Food", obviously depending on the type of food you have selected. 
+    - **Insert**: which allows you to add a new food record to the Foods table.
+        - It opens a screen titled "insert Food".
+        - The original selected food has no relevance to this activity. It is just a way for making the Insert button available.   
+    - **Delete**: which removes the selected food from the Foods table.
+        - It opens a dialog which warns you that you will be deleting the selected food from the Foods table.
+        - This is irrevocable if you press the **Delete** button.
+        - You can change you mind about doing this by just tapping anywhere outside the dialog box. This closes it.
+***
+## Foods table structure
+GFM table rules (so the app renders a table instead of stray characters):
+- Leave a blank line before the table.
+- Start and end each line with `|` and separate cells with `|`.
+- The separator row uses dashes (add `:` for alignment).
+- Do not indent the table with spaces or tabs.
+***
 """.trimIndent()
     var nutritionalInfoSelection by remember { mutableIntStateOf(initialFoodSelection) }
     var showNutritionalInfo by remember { mutableStateOf(initialFoodSelection != 0) }
