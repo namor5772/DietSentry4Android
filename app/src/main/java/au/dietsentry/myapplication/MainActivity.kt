@@ -143,6 +143,45 @@ fun EatenLogScreen(navController: NavController) {
     var showHelpSheet by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val eatenHelpText = """
+# **Eaten Table**
+The purpose of this screen is to display a log of the foods you have consumed.
+***
+## Explanation of GUI elements
+The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
+- The **heading** of the screen: "Eaten Table". 
+- A **segmented button** with three options (Min, NIP, All). The selection is persistent between app restarts. 
+    - **Min**: There are two case:
+        - when the Daily totals checkbox is **unchecked** logs for individual foods are displayed comprising three rows:
+            - The time stamp of the log (date+time)
+            - The food description
+            - The amount eaten (in g or mL d isplays the text description of food items.
+    - **NIP**: additionally displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in by FSANZ on Nutritional Information Panels (NIP)
+    - **All**: Displays all nutrient fields stored in the Foods table (there are 23, including Energy)
+- The **help button** `?` which displays this help screen.
+- The **navigation button** `<-` which transfers you back to the Foods Table screen.
+- A **check box** labeled "Daily totals"
+    - When unchecked logs of individual foods eaten are displayed
+    - When checked these logs are summed by day, giving you a daily total of each nutrient consumed (as well as Energy). 
+- The **help button** `?` which displays this help screen.     
+- A **text field** which when empty displays the text "Enter food filter text"
+    - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
+    - It is NOT case sensitive
+- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by four buttons below it:
+    - **Eaten**: logs the selected food into the Eaten Table.
+        - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
+        - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible.
+        - You can abort this process by tapping anywhere outside the dialog box. This closes it.
+    - **Edit**: allows editing of the selected food.
+        - It opens a screen titled "Editing Solid Food" or "Editing Liquid Food", obviously depending on the type of food you have selected. 
+    - **Insert**: adds a new food record to the Foods table.
+        - It opens a screen titled "insert Food".
+        - The original selected food has no relevance to this activity. It is just a way of making the Insert button available.   
+    - **Delete**: deletes the selected food from the Foods table.
+        - It opens a dialog which warns you that you will be deleting the selected food from the Foods table.
+        - This is irrevocable if you press the **Delete** button.
+        - You can change you mind about doing this by just tapping anywhere outside the dialog box. This closes it.
+***
+        
 # Eaten Table
 - Use the Min / NIP / All toggle to change how much nutrition detail is shown.
 - Tap a row to expand it; tap again to collapse.
@@ -223,7 +262,7 @@ fun EatenLogScreen(navController: NavController) {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Display daily totals",
+                        text = "Daily totals",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -703,61 +742,96 @@ Its purpose is to display a list of foods from the Foods table and allow interac
 ***
 ## Explanation of GUI elements
 The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
-- The **heading** of the screen is "Foods Table". 
+- The **heading** of the screen: "Foods Table". 
 - A **segmented button** with three options (Min, NIP, All). The selection is persistent between app restarts. 
-    - **Min**: only displays the text description for food items.
-    - **NIP**: in addition displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in Australia on their Nutritional Information Panels (NIP)
-    - **All**: Displays all nutrient fields stored in the Foods table (23 which includes Energy)
+    - **Min**: only displays the text description of food items.
+    - **NIP**: additionally displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in by FSANZ on Nutritional Information Panels (NIP)
+    - **All**: Displays all nutrient fields stored in the Foods table (there are 23, including Energy)
 - The **help button** `?` which displays this help screen.
 - The **navigation button** `->` which transfers you to the Eaten Table screen.
 - A **text field** which when empty displays the text "Enter food filter text"
     - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
     - It is NOT case sensitive
-- A **scrollable table viewer** which actually displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by four buttons below it:
-    - **Eaten**: which logs the selected food into the Eaten Table.
+- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by four buttons below it:
+    - **Eaten**: logs the selected food into the Eaten Table.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
         - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible.
         - You can abort this process by tapping anywhere outside the dialog box. This closes it.
-    - **Edit**: which allows you to edit the selected food.
+    - **Edit**: allows editing of the selected food.
         - It opens a screen titled "Editing Solid Food" or "Editing Liquid Food", obviously depending on the type of food you have selected. 
-    - **Insert**: which allows you to add a new food record to the Foods table.
+    - **Insert**: adds a new food record to the Foods table.
         - It opens a screen titled "insert Food".
-        - The original selected food has no relevance to this activity. It is just a way for making the Insert button available.   
-    - **Delete**: which removes the selected food from the Foods table.
+        - The original selected food has no relevance to this activity. It is just a way of making the Insert button available.   
+    - **Delete**: deletes the selected food from the Foods table.
         - It opens a dialog which warns you that you will be deleting the selected food from the Foods table.
         - This is irrevocable if you press the **Delete** button.
         - You can change you mind about doing this by just tapping anywhere outside the dialog box. This closes it.
 ***
-2. test
-    - ttta
-    - sss
-1. tttt
-    - lkjlkjlkj
-        - kjhkjhkjhk
-1. hhhhhh
-    - kjhkj
-    - kjhkjhjkh
-    
-    
-***
-`MONO FONT'
-MONO FONT
-***
-```python
-un main() = println("hi")
+## Foods table structure etc.
 ```
-***
- > This is a quoted sentence.
-  >
-  > You can keep quoting across paragraphs.
-  >> And nest quotes by using two `>` characters.
-***
-## Foods table structure
-GFM table rules (so the app renders a table instead of stray characters):
-- Leave a blank line before the table.
-- Start and end each line with `|` and separate cells with `|`.
-- The separator row uses dashes (add `:` for alignment).
-- Do not indent the table with spaces or tabs.
+Field name          Type    Units
+
+FoodId              INTEGER	
+FoodDescription     TEXT	
+Energy              REAL    kJ
+Protein             REAL    g
+FatTotal            REAL    g
+SaturatedFat        REAL    g
+TransFat            REAL    mg
+PolyunsaturatedFat  REAL    g
+MonounsaturatedFat  REAL    g
+Carbohydrate        REAL    g
+Sugars              REAL    g
+DietaryFibre        REAL    g
+SodiumNa            REAL    mg
+CalciumCa           REAL    mg
+PotassiumK          REAL    mg
+ThiaminB1           REAL    mg
+RiboflavinB2        REAL    mg
+NiacinB3            REAL    mg
+Folate              REAL    µg
+IronFe              REAL    mg
+MagnesiumMg         REAL    mg
+VitaminC            REAL    mg
+Caffeine            REAL    mg
+Cholesterol         REAL    mg
+Alcohol             REAL    g
+```
+The FoodId field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
+The values of nutrients are per 100g or 100mL as appropriate and the units are as mandated in the FSANZ code.
+
+**If a FoodDescription ends in the characters " mL" or " mL#" nutrient values are per 100mL, otherwise they are per 100g**  
+
+### **Mandatory Nutrients on a NIP**
+Under Standard 1.2.8 of the FSANZ Food Standards Code, most packaged foods must display a NIP showing:
+- Energy (in kilojoules, and optionally kilocalories)
+- Protein
+- Fat (total)
+- Saturated fat (listed separately from total fat)
+- Carbohydrate (total)
+- Sugars (listed separately from total carbohydrate)
+- Sodium (a component of salt)
+These values must be shown per serving and per 100 g (or 100 mL for liquids).
+The Foods table includes these mandatory nutrients.
+ 
+### **When More Nutrients Are Required**
+Additional nutrients must be declared if a nutrition claim is made. For example:
+- If a product claims to be a “good source of fibre,” then dietary fibre must be listed.
+- If a claim is made about specific fats (e.g., omega-3, cholesterol, trans fats), those must also be included.
+- The Foods table includes most such possible additional nutrients.
+
+### **Formatting Rules**
+- Significant figures: Values must be reported to no more than three significant figures.
+- Decimal places: Protein, fat, saturated fat, carbohydrate, and sugars are rounded to 1 decimal place if under 100 g. Energy and sodium are reported as whole numbers (no decimals).
+- Serving size: Determined by the food business, but must be clearly stated.
+- The Foods table does not explicitly consider servings, though it might be noted implicitly in the FoodDescription field. 
+
+### **Exemptions**
+Some foods don’t require a NIP unless a nutrition claim is made:
+- Unpackaged foods (e.g., fresh fruit, vegetables)
+- Foods made and packaged at point of sale (e.g., bakery bread)
+- Herbs, spices, tea, coffee, and packaged water (no significant nutritional value)
+- **Notwithstanding the above this database includes many such foods**
 ***
 """.trimIndent()
     var nutritionalInfoSelection by remember { mutableIntStateOf(initialFoodSelection) }
@@ -2390,7 +2464,7 @@ fun SelectionPanel(
                     .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Button(onClick = onSelect) { Text("Eaten") }
+                Button(onClick = onSelect) { Text("LOG") }
                 Button(onClick = onEdit) { Text("Edit") }
                 Button(onClick = onInsert) { Text("Insert") }
                 Button(onClick = onDelete) { Text("Delete") }
