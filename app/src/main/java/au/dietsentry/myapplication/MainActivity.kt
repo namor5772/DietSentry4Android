@@ -206,7 +206,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - It opens a screen titled "Add Food".
         - The original selected food has no relevance to this activity. It is just a way of making the Add button available.   
     - **Copy**: opens a Copying Solid/Liquid Food screen with all fields pre-filled and the description suffix removed.
-    - **Convert**: reserved for future use.
+    - **Convert**: converts a liquid food to a solid entry by entering density (g/mL); a new food is added with converted per-100g values.
     - **Delete**: deletes the selected food from the Foods table.
         - It opens a dialog which warns you that you will be deleting the selected food from the Foods table.
         - This is irrevocable if you press the **Delete** button.
@@ -794,7 +794,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - It opens a screen titled "Add Food".
         - The original selected food has no relevance to this activity. It is just a way of making the Add button available.
     - **Copy**: opens a Copying Solid/Liquid Food screen with values pre-filled and the description suffix removed.
-    - **Convert**: reserved for future use.
+    - **Convert**: converts a liquid food to a solid entry by entering density (g/mL); a new food is added with converted per-100g values.
     - **Delete**: deletes the selected food from the Foods table.
         - It opens a dialog which warns you that you will be deleting the selected food from the Foods table.
         - This is irrevocable if you press the **Confirm** button.
@@ -881,6 +881,7 @@ Some foods don’t require a NIP unless a nutrition claim is made:
     // State to control the visibility of our new dialog
     var showSelectDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showConvertDialog by remember { mutableStateOf(false) }
 
     navController.currentBackStackEntry?.savedStateHandle?.let { savedStateHandle ->
         val foodUpdated = savedStateHandle.get<Boolean>("foodUpdated") ?: false
@@ -986,6 +987,14 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                         onEdit = { navController.navigate("editFood/${food.foodId}") },
                         onAdd = { navController.navigate("insertFood") },
                         onCopy = { navController.navigate("copyFood/${food.foodId}") },
+                        onConvert = {
+                            val isLiquid = Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(food.foodDescription)
+                            if (isLiquid) {
+                                showConvertDialog = true
+                            } else {
+                                Toast.makeText(context, "Convert is only available for liquid foods", Toast.LENGTH_SHORT).show()
+                            }
+                        },
                         onDelete = { showDeleteDialog = true }
                     )
                 }
@@ -1016,6 +1025,58 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                     foods = dbHelper.readFoodsFromDatabase()
                     selectedFood = null
                     showDeleteDialog = false
+                }
+            )
+        }
+    }
+
+    if (showConvertDialog) {
+        selectedFood?.let { food ->
+            ConvertFoodDialog(
+                food = food,
+                onDismiss = { showConvertDialog = false },
+                onConfirm = { density ->
+                    val (baseDescription, _) = extractDescriptionParts(food.foodDescription)
+                    val densityText = density.toString().trimEnd('0').trimEnd('.')
+                    val newDescription = "$baseDescription {density=$densityText" + "g/mL} #"
+
+                    val newFood = food.copy(
+                        foodId = 0,
+                        foodDescription = newDescription,
+                        energy = food.energy / density,
+                        protein = food.protein / density,
+                        fatTotal = food.fatTotal / density,
+                        saturatedFat = food.saturatedFat / density,
+                        transFat = food.transFat / density,
+                        polyunsaturatedFat = food.polyunsaturatedFat / density,
+                        monounsaturatedFat = food.monounsaturatedFat / density,
+                        carbohydrate = food.carbohydrate / density,
+                        sugars = food.sugars / density,
+                        dietaryFibre = food.dietaryFibre / density,
+                        sodium = food.sodium / density,
+                        calciumCa = food.calciumCa / density,
+                        potassiumK = food.potassiumK / density,
+                        thiaminB1 = food.thiaminB1 / density,
+                        riboflavinB2 = food.riboflavinB2 / density,
+                        niacinB3 = food.niacinB3 / density,
+                        folate = food.folate / density,
+                        ironFe = food.ironFe / density,
+                        magnesiumMg = food.magnesiumMg / density,
+                        vitaminC = food.vitaminC / density,
+                        caffeine = food.caffeine / density,
+                        cholesterol = food.cholesterol / density,
+                        alcohol = food.alcohol / density
+                    )
+
+                    val inserted = dbHelper.insertFood(newFood)
+                    if (inserted) {
+                        foods = dbHelper.readFoodsFromDatabase()
+                        selectedFood = null
+                        showConvertDialog = false
+                        Toast.makeText(context, "Converted food added", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Failed to convert food", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
         }
@@ -1494,9 +1555,14 @@ fun CopyFoodScreen(
             ) {
                 Button(
                     onClick = {
-                        val processedDescription = buildString {
-                            append(description)
-                            if (isLiquidFood) append(" mL#") else append(" #")
+                        val baseDescription = description.trimEnd()
+                        val withUnit = if (isLiquidFood) "$baseDescription mL" else baseDescription
+                        val processedDescription = if (withUnit.trimEnd().endsWith("#")) {
+                            withUnit
+                        } else if (isLiquidFood) {
+                            "$withUnit#"
+                        } else {
+                            "$withUnit #"
                         }
 
                         val newFood = Food(
@@ -2730,6 +2796,62 @@ fun SelectAmountDialog(
                         onConfirm(finalAmount, selectedDateTime)
                     },
                     enabled = amount.isNotBlank()
+                ) {
+                    Text("Confirm")
+                }
+            }
+        },
+        dismissButton = {}
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ConvertFoodDialog(
+    food: Food,
+    onDismiss: () -> Unit,
+    onConfirm: (density: Double) -> Unit
+) {
+    var densityText by remember { mutableStateOf("") }
+    val isValid = densityText.toDoubleOrNull()?.let { it > 0 } == true
+    val displayName = food.foodDescription.replace(Regex(" #$| mL#?$", RegexOption.IGNORE_CASE), "")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Enter density to convert this liquid into a solid food.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextField(
+                        value = densityText,
+                        onValueChange = { densityText = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                        label = { Text("Density") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = "g/mL")
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(
+                    onClick = {
+                        val density = densityText.toDoubleOrNull() ?: return@Button
+                        onConfirm(density)
+                    },
+                    enabled = isValid
                 ) {
                     Text("Confirm")
                 }
