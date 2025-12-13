@@ -144,7 +144,7 @@ fun EatenLogScreen(navController: NavController) {
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val eatenHelpText = """
 # **Eaten Table**
-The purpose of this screen is to display a log of the foods you have consumed.
+The purpose of this screen is to display a log of the foods you have consumed as well as modify it to some degree.
 ***
 ## Explanation of GUI elements
 The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
@@ -154,7 +154,11 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - when the Daily totals checkbox is **unchecked** logs for individual foods are displayed comprising three rows:
             - The time stamp of the log (date+time)
             - The food description
-            - The amount eaten (in g or mL d isplays the text description of food items.
+            - The amount consumed (in g or mL as appropriate).
+        - when the Daily totals checkbox is **checked** logs consolidated by date are displayed comprising six row:
+            - The date of the foods time stamp
+            - The text "Daily totals"
+            - The total amount consumed on the day, where the amounts are summed irrespective of units. This is a bit misleading but accurate enough if the density of the liquid foods is not too far away from 1.0 
     - **NIP**: additionally displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in by FSANZ on Nutritional Information Panels (NIP)
     - **All**: Displays all nutrient fields stored in the Foods table (there are 23, including Energy)
 - The **help button** `?` which displays this help screen.
@@ -568,7 +572,7 @@ fun DeleteEatenItemConfirmationDialog(
                 horizontalArrangement = Arrangement.Center
             ) {
                 Button(onClick = onConfirm) {
-                    Text("Delete")
+                    Text("Confirm")
                 }
             }
         },
@@ -740,7 +744,7 @@ This is the main screen of the app.
 
 Its purpose is to display a list of foods from the Foods table and allow interaction with a selected food.
 ***
-## Explanation of GUI elements
+# **Explanation of GUI elements**
 The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
 - The **heading** of the screen: "Foods Table". 
 - A **segmented button** with three options (Min, NIP, All). The selection is persistent between app restarts. 
@@ -753,21 +757,21 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
     - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
     - It is NOT case sensitive
 - A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by four buttons below it:
-    - **Eaten**: logs the selected food into the Eaten Table.
+    - **LOG**: logs the selected food into the Eaten Table.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
         - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible.
         - You can abort this process by tapping anywhere outside the dialog box. This closes it.
     - **Edit**: allows editing of the selected food.
         - It opens a screen titled "Editing Solid Food" or "Editing Liquid Food", obviously depending on the type of food you have selected. 
     - **Insert**: adds a new food record to the Foods table.
-        - It opens a screen titled "insert Food".
+        - It opens a screen titled "Insert Food".
         - The original selected food has no relevance to this activity. It is just a way of making the Insert button available.   
     - **Delete**: deletes the selected food from the Foods table.
         - It opens a dialog which warns you that you will be deleting the selected food from the Foods table.
-        - This is irrevocable if you press the **Delete** button.
+        - This is irrevocable if you press the **Confirm** button.
         - You can change you mind about doing this by just tapping anywhere outside the dialog box. This closes it.
 ***
-## Foods table structure etc.
+# **Foods table structure**
 ```
 Field name          Type    Units
 
@@ -800,7 +804,9 @@ Alcohol             REAL    g
 The FoodId field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
 The values of nutrients are per 100g or 100mL as appropriate and the units are as mandated in the FSANZ code.
 
-**If a FoodDescription ends in the characters " mL" or " mL#" nutrient values are per 100mL, otherwise they are per 100g**  
+- **If a FoodDescription ends in the characters " mL" or " mL#" nutrient values are per 100mL, otherwise they are per 100g**
+
+- **If a FoodDescription ends in the characters " #" or " mL#" the food has been added manually to the database at some stage, otherwise it was part of the original base food data**   
 
 ### **Mandatory Nutrients on a NIP**
 Under Standard 1.2.8 of the FSANZ Food Standards Code, most packaged foods must display a NIP showing:
@@ -811,27 +817,32 @@ Under Standard 1.2.8 of the FSANZ Food Standards Code, most packaged foods must 
 - Carbohydrate (total)
 - Sugars (listed separately from total carbohydrate)
 - Sodium (a component of salt)
+
 These values must be shown per serving and per 100 g (or 100 mL for liquids).
-The Foods table includes these mandatory nutrients.
+
+- **The Foods table includes these mandatory nutrients.**
  
 ### **When More Nutrients Are Required**
 Additional nutrients must be declared if a nutrition claim is made. For example:
 - If a product claims to be a “good source of fibre,” then dietary fibre must be listed.
 - If a claim is made about specific fats (e.g., omega-3, cholesterol, trans fats), those must also be included.
-- The Foods table includes most such possible additional nutrients.
+
+- **The Foods table includes most such possible additional nutrients.**
 
 ### **Formatting Rules**
 - Significant figures: Values must be reported to no more than three significant figures.
 - Decimal places: Protein, fat, saturated fat, carbohydrate, and sugars are rounded to 1 decimal place if under 100 g. Energy and sodium are reported as whole numbers (no decimals).
 - Serving size: Determined by the food business, but must be clearly stated.
-- The Foods table does not explicitly consider servings, though it might be noted implicitly in the FoodDescription field. 
+
+- **The Foods table does not explicitly consider servings, though it might be noted in the FoodDescription text field.** 
 
 ### **Exemptions**
 Some foods don’t require a NIP unless a nutrition claim is made:
 - Unpackaged foods (e.g., fresh fruit, vegetables)
 - Foods made and packaged at point of sale (e.g., bakery bread)
 - Herbs, spices, tea, coffee, and packaged water (no significant nutritional value)
-- **Notwithstanding the above this database includes many such foods**
+
+- **Notwithstanding the above the Foods table includes many such items**
 ***
 """.trimIndent()
     var nutritionalInfoSelection by remember { mutableIntStateOf(initialFoodSelection) }
@@ -1018,7 +1029,7 @@ fun DeleteConfirmationDialog(
                 horizontalArrangement = Arrangement.Center
             ) {
                 Button(onClick = onConfirm) {
-                    Text("Delete")
+                    Text("Confirm")
                 }
             }
         },
@@ -1100,38 +1111,38 @@ fun EditFoodScreen(
 ### Editing Liquid Food
 - Enter *values* per 100 mL *unless* otherwise ~~noted~~.
 - Keep the description clear; the app keeps the “mL” suffix for logging.
-- Use decimals where `needed` and tap Edit to save your changes.
+- Use decimals where `needed` and tap Confirm to save your changes.
 # Editing Liquid Food
 ## Editing Liquid Food
 ### Editing Liquid Food
 - Enter *values* per 100 mL *unless* otherwise ~~noted~~.
 - Keep the description clear; the app keeps the “mL” suffix for logging.
-- Use decimals where `needed` and tap Edit to save your changes.
+- Use decimals where `needed` and tap Confirm to save your changes.
 # Editing Liquid Food
 ## Editing Liquid Food
 ### Editing Liquid Food
 - Enter *values* per 100 mL *unless* otherwise ~~noted~~.
 - Keep the description clear; the app keeps the “mL” suffix for logging.
-- Use decimals where `needed` and tap Edit to save your changes.
+- Use decimals where `needed` and tap Confirm to save your changes.
 # Editing Liquid Food
 ## Editing Liquid Food
 ### Editing Liquid Food
 - Enter *values* per 100 mL *unless* otherwise ~~noted~~.
 - Keep the description clear; the app keeps the “mL” suffix for logging.
-- Use decimals where `needed` and tap Edit to save your changes.
+- Use decimals where `needed` and tap Confirm to save your changes.
 # Editing Liquid Food
 ## Editing Liquid Food
 ### Editing Liquid Food
 - Enter *values* per 100 mL *unless* otherwise ~~noted~~.
 - Keep the description clear; the app keeps the “mL” suffix for logging.
-- Use decimals where `needed` and tap Edit to save your changes.
+- Use decimals where `needed` and tap Confirm to save your changes.
 """.trimIndent()
     } else {
         """
 # Editing Solid Food
 - Enter values per 100 g unless otherwise noted.
 - Keep the description clear; the app keeps the “#” marker for serving size.
-- Use decimals where needed and tap Edit to save your changes.
+- Use decimals where needed and tap Confirm to save your changes.
 """.trimIndent()
     }
 
@@ -1196,7 +1207,7 @@ fun EditFoodScreen(
                     },
                     enabled = isValid
                 ) {
-                    Text("Edit")
+                    Text("Confirm")
                 }
             }
         }
@@ -1414,7 +1425,7 @@ fun InsertFoodScreen(
 # Insert Food
 - Choose Solid or Liquid; the app will append a serving marker automatically.
 - Enter nutrition values per 100 g or 100 mL; blanks are treated as zero.
-- Use decimal values where needed; tap Insert to save the new food.
+- Use decimal values where needed; tap Confirm to save the new food.
 """.trimIndent()
 
     Scaffold(
@@ -1490,7 +1501,7 @@ fun InsertFoodScreen(
                     },
                     enabled = isValid
                 ) {
-                    Text("Insert")
+                    Text("Confirm")
                 }
             }
         }
