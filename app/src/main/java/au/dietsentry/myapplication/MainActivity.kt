@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
@@ -107,6 +108,13 @@ class MainActivity : ComponentActivity() {
                         val foodId = backStackEntry.arguments?.getInt("foodId") ?: return@composable
                         EditFoodScreen(navController = navController, foodId = foodId)
                     }
+                    composable(
+                        route = "copyFood/{foodId}",
+                        arguments = listOf(navArgument("foodId") { type = NavType.IntType })
+                    ) { backStackEntry ->
+                        val foodId = backStackEntry.arguments?.getInt("foodId") ?: return@composable
+                        CopyFoodScreen(navController = navController, foodId = foodId)
+                    }
                     composable("insertFood") {
                         InsertFoodScreen(navController = navController)
                     }
@@ -150,36 +158,55 @@ The purpose of this screen is to display a log of the foods you have consumed as
 The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
 - The **heading** of the screen: "Eaten Table". 
 - A **segmented button** with three options (Min, NIP, All). The selection is persistent between app restarts. 
-    - **Min**: There are two case:
-        - when the Daily totals checkbox is **unchecked** logs for individual foods are displayed comprising three rows:
+    - **Min**: There are two cases:
+        - when the Daily totals checkbox is **unchecked**, logs for individual foods are displayed comprising three rows:
             - The time stamp of the log (date+time)
             - The food description
-            - The amount consumed (in g or mL as appropriate).
-        - when the Daily totals checkbox is **checked** logs consolidated by date are displayed comprising six row:
+            - The amount consumed (in g or mL as appropriate)
+        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising six rows:
             - The date of the foods time stamp
             - The text "Daily totals"
-            - The total amount consumed on the day, where the amounts are summed irrespective of units. This is a bit misleading but accurate enough if the density of the liquid foods is not too far away from 1.0 
-    - **NIP**: additionally displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in by FSANZ on Nutritional Information Panels (NIP)
-    - **All**: Displays all nutrient fields stored in the Foods table (there are 23, including Energy)
+            - The total amount consumed on the day, where the amounts are summed irrespective of units. This is a bit misleading but accurate enough if the density of the liquid foods is not too far away from 1 
+    - **NIP**: There are two cases:
+        - when the Daily totals checkbox is **unchecked**, logs for individual foods are displayed comprising ten rows:
+            - The time stamp of the log (date+time)
+            - The food description
+            - The amount consumed (in g or mL as appropriate)
+            - The seven quantities mandated by FSANZ as the minimum required in a NIP 
+        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising ten rows:
+            - The date of the foods time stamp
+            - The text "Daily totals"
+            - The total amount consumed on the day, where as before the amounts are summed irrespective of units.
+            - The seven quantities mandated by FSANZ as the minimum required in a NIP, summed across all of the days food item logs.
+    - **All**: There are two cases:
+        - when the Daily totals checkbox is **unchecked**, logs for individual foods are displayed comprising 26 rows:
+            - The time stamp of the log (date+time)
+            - The food description
+            - The amount consumed (in g or mL as appropriate)
+            - The 23 nutrient quantities we can record in the Foods table (including Energy) 
+        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising 26 rows:
+            - The date of the foods time stamp
+            - The text "Daily totals"
+            - The total amount consumed on the day, where as before the amounts are summed irrespective of units.
+            - The 23 nutrient quantities we can record in the Foods table (including Energy), summed across all of the days food item logs.
 - The **help button** `?` which displays this help screen.
 - The **navigation button** `<-` which transfers you back to the Foods Table screen.
 - A **check box** labeled "Daily totals"
-    - When unchecked logs of individual foods eaten are displayed
-    - When checked these logs are summed by day, giving you a daily total of each nutrient consumed (as well as Energy). 
+    - When **unchecked** logs of individual foods eaten are displayed
+    - When **checked** these logs are summed by day, giving you a daily total of each nutrient consumed (as well as Energy), even though which ones are displayed is determined by which segmented button (Min, NIP, All) is pressed. 
 - The **help button** `?` which displays this help screen.     
-- A **text field** which when empty displays the text "Enter food filter text"
-    - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
-    - It is NOT case sensitive
-- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by four buttons below it:
+- A **scrollable table viewer** which displays records (possibly consolidated by date) from the Eaten table. If a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food log followed by buttons below it:
     - **Eaten**: logs the selected food into the Eaten Table.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
         - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible.
         - You can abort this process by tapping anywhere outside the dialog box. This closes it.
     - **Edit**: allows editing of the selected food.
         - It opens a screen titled "Editing Solid Food" or "Editing Liquid Food", obviously depending on the type of food you have selected. 
-    - **Insert**: adds a new food record to the Foods table.
-        - It opens a screen titled "insert Food".
-        - The original selected food has no relevance to this activity. It is just a way of making the Insert button available.   
+    - **Add**: adds a new food record to the Foods table.
+        - It opens a screen titled "Add Food".
+        - The original selected food has no relevance to this activity. It is just a way of making the Add button available.   
+    - **Copy**: opens a Copying Solid/Liquid Food screen with all fields pre-filled and the description suffix removed.
+    - **Convert**: reserved for future use.
     - **Delete**: deletes the selected food from the Foods table.
         - It opens a dialog which warns you that you will be deleting the selected food from the Foods table.
         - This is irrevocable if you press the **Delete** button.
@@ -756,16 +783,18 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
 - A **text field** which when empty displays the text "Enter food filter text"
     - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
     - It is NOT case sensitive
-- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by four buttons below it:
+- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by six buttons below it:
     - **LOG**: logs the selected food into the Eaten Table.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
         - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible.
         - You can abort this process by tapping anywhere outside the dialog box. This closes it.
     - **Edit**: allows editing of the selected food.
         - It opens a screen titled "Editing Solid Food" or "Editing Liquid Food", obviously depending on the type of food you have selected. 
-    - **Insert**: adds a new food record to the Foods table.
-        - It opens a screen titled "Insert Food".
-        - The original selected food has no relevance to this activity. It is just a way of making the Insert button available.   
+    - **Add**: adds a new food record to the Foods table.
+        - It opens a screen titled "Add Food".
+        - The original selected food has no relevance to this activity. It is just a way of making the Add button available.
+    - **Copy**: opens a Copying Solid/Liquid Food screen with values pre-filled and the description suffix removed.
+    - **Convert**: reserved for future use.
     - **Delete**: deletes the selected food from the Foods table.
         - It opens a dialog which warns you that you will be deleting the selected food from the Foods table.
         - This is irrevocable if you press the **Confirm** button.
@@ -955,7 +984,8 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                         food = food,
                         onSelect = { showSelectDialog = true }, // Show the dialog on click
                         onEdit = { navController.navigate("editFood/${food.foodId}") },
-                        onInsert = { navController.navigate("insertFood") },
+                        onAdd = { navController.navigate("insertFood") },
+                        onCopy = { navController.navigate("copyFood/${food.foodId}") },
                         onDelete = { showDeleteDialog = true }
                     )
                 }
@@ -1380,6 +1410,307 @@ fun EditFoodScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun CopyFoodScreen(
+    navController: NavController,
+    foodId: Int
+) {
+    val context = LocalContext.current
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
+    var food by remember { mutableStateOf(dbHelper.getFoodById(foodId)) }
+
+    if (food == null) {
+        LaunchedEffect(Unit) {
+            Toast.makeText(context, "Food not found", Toast.LENGTH_SHORT).show()
+            navController.popBackStack()
+        }
+        return
+    }
+
+    val (initialDescription, descriptionSuffix) = remember(food) {
+        extractDescriptionParts(food!!.foodDescription)
+    }
+    val isLiquidFood = descriptionSuffix == " mL" || descriptionSuffix == " mL#"
+
+    var description by remember(food) { mutableStateOf(initialDescription) }
+    var energy by remember(food) { mutableStateOf(formatOneDecimal(food!!.energy)) }
+    var protein by remember(food) { mutableStateOf(formatOneDecimal(food!!.protein)) }
+    var fatTotal by remember(food) { mutableStateOf(formatOneDecimal(food!!.fatTotal)) }
+    var saturatedFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.saturatedFat)) }
+    var transFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.transFat)) }
+    var polyunsaturatedFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.polyunsaturatedFat)) }
+    var monounsaturatedFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.monounsaturatedFat)) }
+    var carbohydrate by remember(food) { mutableStateOf(formatOneDecimal(food!!.carbohydrate)) }
+    var sugars by remember(food) { mutableStateOf(formatOneDecimal(food!!.sugars)) }
+    var dietaryFibre by remember(food) { mutableStateOf(formatOneDecimal(food!!.dietaryFibre)) }
+    var sodium by remember(food) { mutableStateOf(formatOneDecimal(food!!.sodium)) }
+    var calciumCa by remember(food) { mutableStateOf(formatOneDecimal(food!!.calciumCa)) }
+    var potassiumK by remember(food) { mutableStateOf(formatOneDecimal(food!!.potassiumK)) }
+    var thiaminB1 by remember(food) { mutableStateOf(formatOneDecimal(food!!.thiaminB1)) }
+    var riboflavinB2 by remember(food) { mutableStateOf(formatOneDecimal(food!!.riboflavinB2)) }
+    var niacinB3 by remember(food) { mutableStateOf(formatOneDecimal(food!!.niacinB3)) }
+    var folate by remember(food) { mutableStateOf(formatOneDecimal(food!!.folate)) }
+    var ironFe by remember(food) { mutableStateOf(formatOneDecimal(food!!.ironFe)) }
+    var magnesiumMg by remember(food) { mutableStateOf(formatOneDecimal(food!!.magnesiumMg)) }
+    var vitaminC by remember(food) { mutableStateOf(formatOneDecimal(food!!.vitaminC)) }
+    var caffeine by remember(food) { mutableStateOf(formatOneDecimal(food!!.caffeine)) }
+    var cholesterol by remember(food) { mutableStateOf(formatOneDecimal(food!!.cholesterol)) }
+    var alcohol by remember(food) { mutableStateOf(formatOneDecimal(food!!.alcohol)) }
+
+    val scrollState = rememberScrollState()
+    val numericEntries = listOf(
+        energy, protein, fatTotal, saturatedFat, transFat, polyunsaturatedFat, monounsaturatedFat,
+        carbohydrate, sugars, dietaryFibre, sodium, calciumCa, potassiumK, thiaminB1,
+        riboflavinB2, niacinB3, folate, ironFe, magnesiumMg, vitaminC, caffeine, cholesterol, alcohol
+    )
+    val isValid = description.isNotBlank() && numericEntries.all { it.toDoubleOrNull() != null }
+    var showHelpSheet by remember { mutableStateOf(false) }
+    val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val copyHelpText = """
+# Copy Food
+- Review values and adjust if needed.
+- The description shown omits manual markers; they are re-applied when saving.
+- Tap Confirm to create a new food entry.
+""".trimIndent()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(if (isLiquidFood) "Copying Liquid Food" else "Copying Solid Food", fontWeight = FontWeight.Bold) },
+                actions = {
+                    HelpIconButton(onClick = { showHelpSheet = true })
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .navigationBarsPadding(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(
+                    onClick = {
+                        val processedDescription = buildString {
+                            append(description)
+                            if (isLiquidFood) append(" mL#") else append(" #")
+                        }
+
+                        val newFood = Food(
+                            foodId = 0,
+                            foodDescription = processedDescription,
+                            energy = energy.toDouble(),
+                            protein = protein.toDouble(),
+                            fatTotal = fatTotal.toDouble(),
+                            saturatedFat = saturatedFat.toDouble(),
+                            transFat = transFat.toDouble(),
+                            polyunsaturatedFat = polyunsaturatedFat.toDouble(),
+                            monounsaturatedFat = monounsaturatedFat.toDouble(),
+                            carbohydrate = carbohydrate.toDouble(),
+                            sugars = sugars.toDouble(),
+                            dietaryFibre = dietaryFibre.toDouble(),
+                            sodium = sodium.toDouble(),
+                            calciumCa = calciumCa.toDouble(),
+                            potassiumK = potassiumK.toDouble(),
+                            thiaminB1 = thiaminB1.toDouble(),
+                            riboflavinB2 = riboflavinB2.toDouble(),
+                            niacinB3 = niacinB3.toDouble(),
+                            folate = folate.toDouble(),
+                            ironFe = ironFe.toDouble(),
+                            magnesiumMg = magnesiumMg.toDouble(),
+                            vitaminC = vitaminC.toDouble(),
+                            caffeine = caffeine.toDouble(),
+                            cholesterol = cholesterol.toDouble(),
+                            alcohol = alcohol.toDouble()
+                        )
+                        val inserted = dbHelper.insertFood(newFood)
+                        if (inserted) {
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("foodInserted", true)
+                            navController.popBackStack()
+                        } else {
+                            Toast.makeText(context, "Failed to copy food", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    enabled = isValid
+                ) {
+                    Text("Confirm")
+                }
+            }
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(innerPadding)
+                .padding(16.dp)
+        ) {
+            LabeledValueField(
+                label = "Description",
+                value = description,
+                onValueChange = { description = it },
+                wrapLabel = true,
+                labelSpacing = 8.dp,
+                valueFillFraction = 1f
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            LabeledValueField(
+                label = "Energy (kJ)",
+                value = energy,
+                onValueChange = { energy = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Protein (g)",
+                value = protein,
+                onValueChange = { protein = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Fat, Total (g)",
+                value = fatTotal,
+                onValueChange = { fatTotal = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "- Saturated (g)",
+                value = saturatedFat,
+                onValueChange = { saturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "- Trans (mg)",
+                value = transFat,
+                onValueChange = { transFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "- Polyunsaturated (g)",
+                value = polyunsaturatedFat,
+                onValueChange = { polyunsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "- Monounsaturated (g)",
+                value = monounsaturatedFat,
+                onValueChange = { monounsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Carbohydrate (g)",
+                value = carbohydrate,
+                onValueChange = { carbohydrate = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "- Sugars (g)",
+                value = sugars,
+                onValueChange = { sugars = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Dietary Fibre (g)",
+                value = dietaryFibre,
+                onValueChange = { dietaryFibre = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Sodium (mg)",
+                value = sodium,
+                onValueChange = { sodium = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Calcium (mg)",
+                value = calciumCa,
+                onValueChange = { calciumCa = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Potassium (mg)",
+                value = potassiumK,
+                onValueChange = { potassiumK = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Thiamin B1 (mg)",
+                value = thiaminB1,
+                onValueChange = { thiaminB1 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Riboflavin B2 (mg)",
+                value = riboflavinB2,
+                onValueChange = { riboflavinB2 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Niacin B3 (mg)",
+                value = niacinB3,
+                onValueChange = { niacinB3 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Folate (ug)",
+                value = folate,
+                onValueChange = { folate = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Iron (mg)",
+                value = ironFe,
+                onValueChange = { ironFe = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Magnesium (mg)",
+                value = magnesiumMg,
+                onValueChange = { magnesiumMg = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Vitamin C (mg)",
+                value = vitaminC,
+                onValueChange = { vitaminC = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Caffeine (mg)",
+                value = caffeine,
+                onValueChange = { caffeine = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Cholesterol (mg)",
+                value = cholesterol,
+                onValueChange = { cholesterol = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+            LabeledValueField(
+                label = "Alcohol (g)",
+                value = alcohol,
+                onValueChange = { alcohol = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                keyboardType = KeyboardType.Decimal
+            )
+        }
+    }
+
+    if (showHelpSheet) {
+        HelpBottomSheet(
+            helpText = copyHelpText,
+            sheetState = helpSheetState,
+            onDismiss = { showHelpSheet = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun InsertFoodScreen(
     navController: NavController
 ) {
@@ -1422,7 +1753,7 @@ fun InsertFoodScreen(
     var showHelpSheet by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val insertHelpText = """
-# Insert Food
+# Add Food
 - Choose Solid or Liquid; the app will append a serving marker automatically.
 - Enter nutrition values per 100 g or 100 mL; blanks are treated as zero.
 - Use decimal values where needed; tap Confirm to save the new food.
@@ -1431,7 +1762,7 @@ fun InsertFoodScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Insert Food", fontWeight = FontWeight.Bold) },
+                title = { Text("Add Food", fontWeight = FontWeight.Bold) },
                 actions = {
                     HelpIconButton(onClick = { showHelpSheet = true })
                     IconButton(onClick = { navController.popBackStack() }) {
@@ -2457,8 +2788,10 @@ fun SelectionPanel(
     food: Food,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
-    onInsert: () -> Unit,
-    onDelete: () -> Unit
+    onAdd: () -> Unit,
+    onDelete: () -> Unit,
+    onCopy: () -> Unit = {},
+    onConvert: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -2472,12 +2805,15 @@ fun SelectionPanel(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                    .padding(top = 8.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(onClick = onSelect) { Text("LOG") }
                 Button(onClick = onEdit) { Text("Edit") }
-                Button(onClick = onInsert) { Text("Insert") }
+                Button(onClick = onAdd) { Text("Add") }
+                Button(onClick = onCopy) { Text("Copy") }
+                Button(onClick = onConvert) { Text("Convert") }
                 Button(onClick = onDelete) { Text("Delete") }
             }
         }
