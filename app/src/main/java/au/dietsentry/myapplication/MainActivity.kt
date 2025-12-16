@@ -118,6 +118,9 @@ class MainActivity : ComponentActivity() {
                     composable("insertFood") {
                         InsertFoodScreen(navController = navController)
                     }
+                    composable("addRecipe") {
+                        AddRecipeScreen(navController = navController)
+                    }
                 }
             }
         }
@@ -1848,8 +1851,7 @@ fun InsertFoodScreen(
                 Button(
                     onClick = {
                         if (selectedType == "Recipe") {
-                            Toast.makeText(context, "To be implemented", Toast.LENGTH_SHORT).show()
-                            navController.popBackStack()
+                            navController.navigate("addRecipe")
                             return@Button
                         }
 
@@ -1930,8 +1932,7 @@ fun InsertFoodScreen(
                         selected = selectedType == "Recipe",
                         onClick = {
                             selectedType = "Recipe"
-                            Toast.makeText(context, "To be implemented", Toast.LENGTH_SHORT).show()
-                            navController.popBackStack()
+                            navController.navigate("addRecipe")
                         }
                     )
                     Text("Recipe", style = MaterialTheme.typography.bodyLarge)
@@ -2093,6 +2094,176 @@ fun InsertFoodScreen(
             sheetState = helpSheetState,
             onDismiss = { showHelpSheet = false }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddRecipeScreen(navController: NavController) {
+    val context = LocalContext.current
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
+    var showHelpSheet by remember { mutableStateOf(false) }
+    val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val recipeHelpText = """
+# Add Recipe
+- Placeholder help for recipe creation.
+- More detailed guidance will be added when the feature is implemented.
+""".trimIndent()
+
+    var description by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
+    var foods by remember { mutableStateOf(dbHelper.readFoodsFromDatabase()) }
+    var selectedFood by remember { mutableStateOf<Food?>(null) }
+    var showSelectDialog by remember { mutableStateOf(false) }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(navController.currentBackStackEntry) {
+        navController.currentBackStackEntry?.savedStateHandle?.let { savedStateHandle ->
+            val foodUpdated = savedStateHandle.get<Boolean>("foodUpdated") ?: false
+            val foodInserted = savedStateHandle.get<Boolean>("foodInserted") ?: false
+            if (foodUpdated || foodInserted) {
+                foods = dbHelper.readFoodsFromDatabase()
+                selectedFood = if (foodUpdated) foods.find { it.foodId == selectedFood?.foodId } else null
+                savedStateHandle.remove<Boolean>("foodUpdated")
+                savedStateHandle.remove<Boolean>("foodInserted")
+            }
+        }
+    }
+
+    BackHandler(enabled = selectedFood != null) {
+        selectedFood = null
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Add Recipe", fontWeight = FontWeight.Bold) },
+                actions = {
+                    HelpIconButton(onClick = { showHelpSheet = true })
+                    IconButton(onClick = { navController.popBackStack("foodSearch", inclusive = false) }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .navigationBarsPadding(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(onClick = {
+                    navController.navigate("foodSearch") {
+                        popUpTo("foodSearch") { inclusive = true }
+                    }
+                }) {
+                    Text("Confirm")
+                }
+            }
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            verticalArrangement = Arrangement.Top
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                LabeledValueField(
+                    label = "Description",
+                    value = description,
+                    onValueChange = { description = it },
+                    wrapLabel = true,
+                    labelSpacing = 8.dp,
+                    valueFillFraction = 1f
+                )
+            }
+            TextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = { Text("Enter food filter text") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = {
+                    foods = if (searchQuery.isNotBlank()) {
+                        dbHelper.searchFoods(searchQuery)
+                    } else {
+                        dbHelper.readFoodsFromDatabase()
+                    }
+                    keyboardController?.hide()
+                }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                FoodList(
+                    foods = foods,
+                    onFoodClicked = { food ->
+                        selectedFood = if (selectedFood == food) null else food
+                    },
+                    showNutritionalInfo = false,
+                    showExtraNutrients = false,
+                    modifier = Modifier.fillMaxHeight(0.5f)
+                )
+                selectedFood?.let { food ->
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .fillMaxHeight(0.5f),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        RecipeSelectionPanel(food = food)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showHelpSheet) {
+        HelpBottomSheet(
+            helpText = recipeHelpText,
+            sheetState = helpSheetState,
+            onDismiss = { showHelpSheet = false }
+        )
+    }
+
+    // Future recipe-specific actions will be wired here when defined.
+}
+
+@Composable
+private fun RecipeSelectionPanel(food: Food) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = food.foodDescription,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Recipe actions will be added here.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 

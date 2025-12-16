@@ -160,3 +160,60 @@ GFM table rules (so the app renders a table instead of stray characters):
 | apple   | 2.54   | left    |
 | pear      | 2.70      | right     |
 | bananas   | 0.75      | **right** |
+
+
+
+
+
+
+
+    
+
+
+The markdown renderer`that is used in this app i am pretty sure supports the following features, confirm this:
+
+  - Headings & separators
+      - # Title, ## Section, ### Subsection; levels >3 render as bold body text.
+      - Horizontal rules: --- (or ***) draws a divider.
+  - Paragraphs & breaks
+      - Normal paragraphs flow as body text.
+      - Hard break: line 1  \nline 2 (two trailing spaces or backslash) forces a new
+        line inside a paragraph.
+      - Soft breaks keep words on the next line when text wraps.
+  - Inline styling
+      - Bold: **important**
+      - Italic: *emphasis*
+      - Strikethrough: ~~deprecated~~
+      - Inline code: `val x = 1` with monospace + shaded background.
+  - Lists
+      - Bullets (nesting supported):
+
+        - Item A
+          - Nested A1
+      - Ordered lists with start numbers:
+
+        3. Third
+        4. Fourth
+  - Blockquotes
+      - > Quoted text shows with a vertical accent bar and indented content; nested
+        quotes indent further.
+  - Code blocks
+      - Fenced:
+
+        ```kotlin
+        fun main() = println("hi")
+
+      - Indented code blocks also work.
+      - Rendered with monospace font on a rounded, shaded surface; preserves spacing.
+
+To simplify the code remove any other rendering features that you already have if that is possible.
+
+
+Used foods.db
+
+
+C:\Users\grobl\AppData\Local\Apps\2.0\A0WOLGB4.9YV\J81N8L7C.32C\diet..tion_0000000000000000_0002.0000_53548df2350299b6
+
+In the Recipe Table of foods.db
+The FoodId field refers to an existing entry in the Foods table
+The RecipeId Field is just the auto generated index field for records in the Recip table 
