@@ -96,6 +96,10 @@ private const val KEY_SHOW_NUTRITIONAL_INFO = "showNutritionalInfo" // legacy bo
 private const val KEY_NUTRITION_SELECTION_FOOD = "nutritionSelectionFood"
 private const val KEY_NUTRITION_SELECTION_EATEN = "nutritionSelectionEaten"
 private const val KEY_DISPLAY_DAILY_TOTALS = "displayDailyTotals"
+private const val KEY_FILTER_EATEN_BY_DATE = "filterEatenByDate"
+
+// Session-scoped in-memory state (persists while app stays alive)
+private var sessionSelectedFilterDateMillis: Long? = null
 
 private val mlSuffixRegex = Regex("mL#?$", RegexOption.IGNORE_CASE)
 private val trailingMarkersRegex = Regex(" #$| mL#?$", RegexOption.IGNORE_CASE)
@@ -183,6 +187,9 @@ fun EatenLogScreen(navController: NavController) {
     val initialDisplayDailyTotals = remember {
         sharedPreferences.getBoolean(KEY_DISPLAY_DAILY_TOTALS, false)
     }
+    val initialFilterByDate = remember {
+        sharedPreferences.getBoolean(KEY_FILTER_EATEN_BY_DATE, false)
+    }
     var nutritionalInfoSelection by remember { mutableIntStateOf(initialEatenSelection) }
     var showNutritionalInfo by remember { mutableStateOf(initialEatenSelection != 0) }
     val showExtraNutrients = nutritionalInfoSelection == 2
@@ -256,10 +263,28 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
 - Tap a row to expand it; tap again to collapse.
 - Long press the selection actions to edit or delete the chosen entry.
 - Turn on “Display daily totals” to see aggregated amounts per day.
+- Turn on “Filter by date” to show only entries for the selected day.
 - The Back arrow returns to the Foods Table.
 """.trimIndent()
     var displayDailyTotals by remember { mutableStateOf(initialDisplayDailyTotals) }
-    val dailyTotals = remember(eatenFoods) { aggregateDailyTotals(eatenFoods) }
+    var filterByDate by remember { mutableStateOf(initialFilterByDate) }
+    val initialFilterDate = remember { sessionSelectedFilterDateMillis ?: System.currentTimeMillis() }
+    var selectedFilterDateMillis by remember { mutableLongStateOf(initialFilterDate) }
+    val filterDateFormatter = remember { SimpleDateFormat("d-MMM-yy", Locale.getDefault()) }
+    val filterDateDisplayFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+    val filteredEatenFoods = remember(eatenFoods, filterByDate, selectedFilterDateMillis) {
+        if (!filterByDate) eatenFoods else {
+            val matchDate = filterDateFormatter.format(Date(selectedFilterDateMillis))
+            eatenFoods.filter { it.dateEaten == matchDate }
+        }
+    }
+    val dailyTotals = remember(filteredEatenFoods) { aggregateDailyTotals(filteredEatenFoods) }
+    var showFilterDatePicker by remember { mutableStateOf(false) }
+    val filterDatePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedFilterDateMillis)
+    LaunchedEffect(selectedFilterDateMillis) {
+        filterDatePickerState.selectedDateMillis = selectedFilterDateMillis
+        sessionSelectedFilterDateMillis = selectedFilterDateMillis
+    }
 
     BackHandler(enabled = selectedEatenFood != null) {
         selectedEatenFood = null
@@ -312,10 +337,11 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(8.dp)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Checkbox(
                         checked = displayDailyTotals,
@@ -329,13 +355,32 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
                             }
                         }
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Daily totals",
                         style = MaterialTheme.typography.bodyMedium
                     )
+                    Checkbox(
+                        checked = filterByDate,
+                        onCheckedChange = {
+                            filterByDate = it
+                            sharedPreferences.edit {
+                                putBoolean(KEY_FILTER_EATEN_BY_DATE, it)
+                            }
+                            if (it) selectedEatenFood = null
+                        }
+                    )
+                    Text(
+                        text = "Filter by date",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    TextButton(onClick = { showFilterDatePicker = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
+                        Text(
+                            filterDateDisplayFormatter.format(Date(selectedFilterDateMillis)),
+                            maxLines = 1
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 if (displayDailyTotals) {
                     LazyColumn(
                         modifier = Modifier
@@ -357,7 +402,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
                             .fillMaxWidth()
                             .weight(1f)
                     ) {
-                        items(eatenFoods) { eatenFood ->
+                        items(filteredEatenFoods) { eatenFood ->
                             EatenLogItem(
                                 eatenFood = eatenFood,
                                 onClick = {
@@ -423,6 +468,29 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
             sheetState = helpSheetState,
             onDismiss = { showHelpSheet = false }
         )
+    }
+
+    if (showFilterDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showFilterDatePicker = false },
+            confirmButton = {
+                Button(onClick = {
+                    filterDatePickerState.selectedDateMillis?.let { millis ->
+                        selectedFilterDateMillis = millis
+                    }
+                    showFilterDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showFilterDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = filterDatePickerState)
+        }
     }
 }
 
