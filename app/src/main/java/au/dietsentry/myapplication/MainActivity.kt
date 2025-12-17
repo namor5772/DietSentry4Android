@@ -2643,6 +2643,13 @@ fun CopyRecipeScreen(navController: NavController, foodId: Int) {
         removeRecipeMarker(food!!.foodDescription)
     }
 
+    LaunchedEffect(foodId) {
+        val duplicated = dbHelper.duplicateRecipesToFoodIdZero(foodId)
+        if (!duplicated) {
+            showPlainToast(context, "Unable to prepare recipe items for copying")
+        }
+    }
+
     AddRecipeScreen(
         navController = navController,
         screenTitle = "Copying Recipe",

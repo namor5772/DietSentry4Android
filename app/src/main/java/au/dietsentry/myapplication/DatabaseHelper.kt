@@ -372,6 +372,34 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
         }
     }
 
+    fun duplicateRecipesToFoodIdZero(foodId: Int): Boolean {
+        return try {
+            db.beginTransaction()
+            db.delete("Recipe", "FoodId = 0 AND CopyFg = 0", null)
+            db.rawQuery(
+                "SELECT * FROM Recipe WHERE FoodId = ?",
+                arrayOf(foodId.toString())
+            ).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    do {
+                        val recipe = createRecipeFromCursor(cursor)
+                        val values = ContentValues().apply {
+                            putRecipeFields(recipe.copy(foodId = 0, copyFg = 0))
+                        }
+                        db.insert("Recipe", null, values)
+                    } while (cursor.moveToNext())
+                }
+            }
+            db.setTransactionSuccessful()
+            true
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error duplicating recipes for copy flow", e)
+            false
+        } finally {
+            runCatching { db.endTransaction() }
+        }
+    }
+
     fun replaceOriginalRecipesWithCopies(foodId: Int): Boolean {
         return try {
             db.beginTransaction()
