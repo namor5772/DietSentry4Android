@@ -88,6 +88,13 @@ private const val KEY_NUTRITION_SELECTION_FOOD = "nutritionSelectionFood"
 private const val KEY_NUTRITION_SELECTION_EATEN = "nutritionSelectionEaten"
 private const val KEY_DISPLAY_DAILY_TOTALS = "displayDailyTotals"
 
+private val mlSuffixRegex = Regex("mL#?$", RegexOption.IGNORE_CASE)
+private val trailingMarkersRegex = Regex(" #$| mL#?$", RegexOption.IGNORE_CASE)
+
+private fun isLiquidDescription(description: String): Boolean = mlSuffixRegex.containsMatchIn(description)
+private fun descriptionUnit(description: String): String = if (isLiquidDescription(description)) "mL" else "g"
+private fun descriptionDisplayName(description: String): String = description.replace(trailingMarkersRegex, "")
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -422,12 +429,11 @@ data class DailyTotals(
 )
 
 private fun aggregateDailyTotals(eatenFoods: List<EatenFood>): List<DailyTotals> {
-    val mlRegex = Regex("mL#?$", RegexOption.IGNORE_CASE)
     return eatenFoods
         .groupBy { it.dateEaten }
         .map { (date, items) ->
-            val allMl = items.all { mlRegex.containsMatchIn(it.foodDescription) }
-            val allGrams = items.all { !mlRegex.containsMatchIn(it.foodDescription) }
+            val allMl = items.all { isLiquidDescription(it.foodDescription) }
+            val allGrams = items.all { !isLiquidDescription(it.foodDescription) }
             val unitLabel = when {
                 allMl -> "mL"
                 allGrams -> "g"
@@ -592,7 +598,7 @@ fun DeleteEatenItemConfirmationDialog(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(eatenFood.foodDescription, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(2.dp))
-                val unit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(eatenFood.foodDescription)) "mL" else "g"
+                val unit = descriptionUnit(eatenFood.foodDescription)
                 val amountText = formatAmount(eatenFood.amountEaten)
                 Text("Amount: $amountText $unit")
             }
@@ -618,7 +624,7 @@ fun EatenLogItem(
     showNutritionalInfo: Boolean,
     showExtraNutrients: Boolean = false
 ) {
-    val unit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(eatenFood.foodDescription)) "mL" else "g"
+    val unit = descriptionUnit(eatenFood.foodDescription)
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1001,7 +1007,7 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                         onAdd = { navController.navigate("insertFood") },
                         onCopy = { navController.navigate("copyFood/${food.foodId}") },
                         onConvert = {
-                            val isLiquid = Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(food.foodDescription)
+                            val isLiquid = isLiquidDescription(food.foodDescription)
                             if (isLiquid) {
                                 showConvertDialog = true
                             } else {
@@ -2338,8 +2344,7 @@ fun AddRecipeScreen(navController: NavController) {
                     onFoodClicked = { food ->
                         selectedFood = food
                         selectedRecipe = null
-                        val isLiquid = food.foodDescription.endsWith(" mL", ignoreCase = true) ||
-                                food.foodDescription.endsWith(" mL#", ignoreCase = true)
+                        val isLiquid = isLiquidDescription(food.foodDescription)
                         if (isLiquid) {
                             showCannotAddDialog = true
                             showRecipeAmountDialog = false
@@ -3062,8 +3067,8 @@ fun EditEatenItemDialog(
         initialMinute = calendarForTime.get(Calendar.MINUTE)
     )
 
-    val foodUnit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(eatenFood.foodDescription)) "mL" else "g"
-    val displayName = eatenFood.foodDescription.replace(Regex(" #$| mL#?$", RegexOption.IGNORE_CASE), "")
+    val foodUnit = descriptionUnit(eatenFood.foodDescription)
+    val displayName = descriptionDisplayName(eatenFood.foodDescription)
 
     // --- Date Picker Dialog ---
     if (showDatePicker) {
@@ -3185,8 +3190,8 @@ fun SelectAmountDialog(
         initialMinute = calendarForTime.get(Calendar.MINUTE)
     )
 
-    val foodUnit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(food.foodDescription)) "mL" else "g"
-    val displayName = food.foodDescription.replace(Regex(" #$| mL#?$", RegexOption.IGNORE_CASE), "")
+    val foodUnit = descriptionUnit(food.foodDescription)
+    val displayName = descriptionDisplayName(food.foodDescription)
 
     // --- Date Picker Dialog ---
     if (showDatePicker) {
@@ -3290,8 +3295,8 @@ fun RecipeAmountDialog(
     onConfirm: (amount: Float) -> Unit
 ) {
     var amount by remember { mutableStateOf("") }
-    val foodUnit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(food.foodDescription)) "mL" else "g"
-    val displayName = food.foodDescription.replace(Regex(" #$| mL#?$", RegexOption.IGNORE_CASE), "")
+    val foodUnit = descriptionUnit(food.foodDescription)
+    val displayName = descriptionDisplayName(food.foodDescription)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -3338,7 +3343,7 @@ fun ConvertFoodDialog(
 ) {
     var densityText by remember { mutableStateOf("") }
     val isValid = densityText.toDoubleOrNull()?.let { it > 0 } == true
-    val displayName = food.foodDescription.replace(Regex(" #$| mL#?$", RegexOption.IGNORE_CASE), "")
+    val displayName = descriptionDisplayName(food.foodDescription)
 
     AlertDialog(
         onDismissRequest = onDismiss,

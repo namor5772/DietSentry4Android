@@ -11,6 +11,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToInt
 
+private const val REFERENCE_TIMESTAMP_SECONDS = 1672491600L // Adjusted by 460 minutes
+
 class DatabaseHelper private constructor(context: Context, private val databaseName: String) {
 
     private val db: SQLiteDatabase
@@ -37,6 +39,120 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
     
     private fun Double.roundToTwoDecimalPlaces(): Double = (this * 100).roundToInt() / 100.0
 
+    private fun ContentValues.putFoodNutrients(food: Food) {
+        put("FoodDescription", food.foodDescription)
+        put("Energy", food.energy)
+        put("Protein", food.protein)
+        put("FatTotal", food.fatTotal)
+        put("SaturatedFat", food.saturatedFat)
+        put("TransFat", food.transFat)
+        put("PolyunsaturatedFat", food.polyunsaturatedFat)
+        put("MonounsaturatedFat", food.monounsaturatedFat)
+        put("Carbohydrate", food.carbohydrate)
+        put("Sugars", food.sugars)
+        put("DietaryFibre", food.dietaryFibre)
+        put("SodiumNa", food.sodium)
+        put("CalciumCa", food.calciumCa)
+        put("PotassiumK", food.potassiumK)
+        put("ThiaminB1", food.thiaminB1)
+        put("RiboflavinB2", food.riboflavinB2)
+        put("NiacinB3", food.niacinB3)
+        put("Folate", food.folate)
+        put("IronFe", food.ironFe)
+        put("MagnesiumMg", food.magnesiumMg)
+        put("VitaminC", food.vitaminC)
+        put("Caffeine", food.caffeine)
+        put("Cholesterol", food.cholesterol)
+        put("Alcohol", food.alcohol)
+    }
+
+    private fun ContentValues.putScaledFoodNutrients(food: Food, scale: Double) {
+        put("Energy", (food.energy * scale).roundToTwoDecimalPlaces())
+        put("Protein", (food.protein * scale).roundToTwoDecimalPlaces())
+        put("FatTotal", (food.fatTotal * scale).roundToTwoDecimalPlaces())
+        put("SaturatedFat", (food.saturatedFat * scale).roundToTwoDecimalPlaces())
+        put("TransFat", (food.transFat * scale).roundToTwoDecimalPlaces())
+        put("PolyunsaturatedFat", (food.polyunsaturatedFat * scale).roundToTwoDecimalPlaces())
+        put("MonounsaturatedFat", (food.monounsaturatedFat * scale).roundToTwoDecimalPlaces())
+        put("Carbohydrate", (food.carbohydrate * scale).roundToTwoDecimalPlaces())
+        put("Sugars", (food.sugars * scale).roundToTwoDecimalPlaces())
+        put("DietaryFibre", (food.dietaryFibre * scale).roundToTwoDecimalPlaces())
+        put("SodiumNa", (food.sodium * scale).roundToTwoDecimalPlaces())
+        put("CalciumCa", (food.calciumCa * scale).roundToTwoDecimalPlaces())
+        put("PotassiumK", (food.potassiumK * scale).roundToTwoDecimalPlaces())
+        put("ThiaminB1", (food.thiaminB1 * scale).roundToTwoDecimalPlaces())
+        put("RiboflavinB2", (food.riboflavinB2 * scale).roundToTwoDecimalPlaces())
+        put("NiacinB3", (food.niacinB3 * scale).roundToTwoDecimalPlaces())
+        put("Folate", (food.folate * scale).roundToTwoDecimalPlaces())
+        put("IronFe", (food.ironFe * scale).roundToTwoDecimalPlaces())
+        put("MagnesiumMg", (food.magnesiumMg * scale).roundToTwoDecimalPlaces())
+        put("VitaminC", (food.vitaminC * scale).roundToTwoDecimalPlaces())
+        put("Caffeine", (food.caffeine * scale).roundToTwoDecimalPlaces())
+        put("Cholesterol", (food.cholesterol * scale).roundToTwoDecimalPlaces())
+        put("Alcohol", (food.alcohol * scale).roundToTwoDecimalPlaces())
+    }
+
+    private fun ContentValues.putScaledEatenNutrients(eatenFood: EatenFood, scale: Double) {
+        put("Energy", (eatenFood.energy * scale).roundToTwoDecimalPlaces())
+        put("Protein", (eatenFood.protein * scale).roundToTwoDecimalPlaces())
+        put("FatTotal", (eatenFood.fatTotal * scale).roundToTwoDecimalPlaces())
+        put("SaturatedFat", (eatenFood.saturatedFat * scale).roundToTwoDecimalPlaces())
+        put("TransFat", (eatenFood.transFat * scale).roundToTwoDecimalPlaces())
+        put("PolyunsaturatedFat", (eatenFood.polyunsaturatedFat * scale).roundToTwoDecimalPlaces())
+        put("MonounsaturatedFat", (eatenFood.monounsaturatedFat * scale).roundToTwoDecimalPlaces())
+        put("Carbohydrate", (eatenFood.carbohydrate * scale).roundToTwoDecimalPlaces())
+        put("Sugars", (eatenFood.sugars * scale).roundToTwoDecimalPlaces())
+        put("DietaryFibre", (eatenFood.dietaryFibre * scale).roundToTwoDecimalPlaces())
+        put("SodiumNa", (eatenFood.sodiumNa * scale).roundToTwoDecimalPlaces())
+        put("CalciumCa", (eatenFood.calciumCa * scale).roundToTwoDecimalPlaces())
+        put("PotassiumK", (eatenFood.potassiumK * scale).roundToTwoDecimalPlaces())
+        put("ThiaminB1", (eatenFood.thiaminB1 * scale).roundToTwoDecimalPlaces())
+        put("RiboflavinB2", (eatenFood.riboflavinB2 * scale).roundToTwoDecimalPlaces())
+        put("NiacinB3", (eatenFood.niacinB3 * scale).roundToTwoDecimalPlaces())
+        put("Folate", (eatenFood.folate * scale).roundToTwoDecimalPlaces())
+        put("IronFe", (eatenFood.ironFe * scale).roundToTwoDecimalPlaces())
+        put("MagnesiumMg", (eatenFood.magnesiumMg * scale).roundToTwoDecimalPlaces())
+        put("VitaminC", (eatenFood.vitaminC * scale).roundToTwoDecimalPlaces())
+        put("Caffeine", (eatenFood.caffeine * scale).roundToTwoDecimalPlaces())
+        put("Cholesterol", (eatenFood.cholesterol * scale).roundToTwoDecimalPlaces())
+        put("Alcohol", (eatenFood.alcohol * scale).roundToTwoDecimalPlaces())
+    }
+
+    private fun ContentValues.putRecipeFields(recipe: RecipeItem) {
+        put("FoodId", recipe.foodId)
+        put("CopyFg", recipe.copyFg)
+        put("Amount", recipe.amount)
+        put("FoodDescription", recipe.foodDescription)
+        put("Energy", recipe.energy)
+        put("Protein", recipe.protein)
+        put("FatTotal", recipe.fatTotal)
+        put("SaturatedFat", recipe.saturatedFat)
+        put("TransFat", recipe.transFat)
+        put("PolyunsaturatedFat", recipe.polyunsaturatedFat)
+        put("MonounsaturatedFat", recipe.monounsaturatedFat)
+        put("Carbohydrate", recipe.carbohydrate)
+        put("Sugars", recipe.sugars)
+        put("DietaryFibre", recipe.dietaryFibre)
+        put("SodiumNa", recipe.sodiumNa)
+        put("CalciumCa", recipe.calciumCa)
+        put("PotassiumK", recipe.potassiumK)
+        put("ThiaminB1", recipe.thiaminB1)
+        put("RiboflavinB2", recipe.riboflavinB2)
+        put("NiacinB3", recipe.niacinB3)
+        put("Folate", recipe.folate)
+        put("IronFe", recipe.ironFe)
+        put("MagnesiumMg", recipe.magnesiumMg)
+        put("VitaminC", recipe.vitaminC)
+        put("Caffeine", recipe.caffeine)
+        put("Cholesterol", recipe.cholesterol)
+        put("Alcohol", recipe.alcohol)
+    }
+
+    private fun calculateEatenTimestampMinutes(dateTime: Long): Int {
+        val eatenTimestampSeconds = dateTime / 1000
+        return ((eatenTimestampSeconds - REFERENCE_TIMESTAMP_SECONDS) / 60).toInt()
+    }
+
     fun insertRecipeFromFood(food: Food, amount: Float): Boolean {
         return try {
             val values = ContentValues().apply {
@@ -45,29 +161,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
                 put("Amount", amount)
                 put("FoodDescription", food.foodDescription)
                 val scale = amount / 100.0
-                put("Energy", (food.energy * scale).roundToTwoDecimalPlaces())
-                put("Protein", (food.protein * scale).roundToTwoDecimalPlaces())
-                put("FatTotal", (food.fatTotal * scale).roundToTwoDecimalPlaces())
-                put("SaturatedFat", (food.saturatedFat * scale).roundToTwoDecimalPlaces())
-                put("TransFat", (food.transFat * scale).roundToTwoDecimalPlaces())
-                put("PolyunsaturatedFat", (food.polyunsaturatedFat * scale).roundToTwoDecimalPlaces())
-                put("MonounsaturatedFat", (food.monounsaturatedFat * scale).roundToTwoDecimalPlaces())
-                put("Carbohydrate", (food.carbohydrate * scale).roundToTwoDecimalPlaces())
-                put("Sugars", (food.sugars * scale).roundToTwoDecimalPlaces())
-                put("DietaryFibre", (food.dietaryFibre * scale).roundToTwoDecimalPlaces())
-                put("SodiumNa", (food.sodium * scale).roundToTwoDecimalPlaces())
-                put("CalciumCa", (food.calciumCa * scale).roundToTwoDecimalPlaces())
-                put("PotassiumK", (food.potassiumK * scale).roundToTwoDecimalPlaces())
-                put("ThiaminB1", (food.thiaminB1 * scale).roundToTwoDecimalPlaces())
-                put("RiboflavinB2", (food.riboflavinB2 * scale).roundToTwoDecimalPlaces())
-                put("NiacinB3", (food.niacinB3 * scale).roundToTwoDecimalPlaces())
-                put("Folate", (food.folate * scale).roundToTwoDecimalPlaces())
-                put("IronFe", (food.ironFe * scale).roundToTwoDecimalPlaces())
-                put("MagnesiumMg", (food.magnesiumMg * scale).roundToTwoDecimalPlaces())
-                put("VitaminC", (food.vitaminC * scale).roundToTwoDecimalPlaces())
-                put("Caffeine", (food.caffeine * scale).roundToTwoDecimalPlaces())
-                put("Cholesterol", (food.cholesterol * scale).roundToTwoDecimalPlaces())
-                put("Alcohol", (food.alcohol * scale).roundToTwoDecimalPlaces())
+                putScaledFoodNutrients(food, scale)
             }
             db.insert("Recipe", null, values) != -1L
         } catch (e: Exception) {
@@ -84,37 +178,12 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
                 put("TimeEaten", SimpleDateFormat("HH:mm", Locale.getDefault()).format(date))
 
                 // Correct EatenTs calculation
-                val referenceTimestampSeconds = 1672491600L // Adjusted by 460 minutes
-                val eatenTimestampSeconds = dateTime / 1000
-                val eatenTsInMinutes = (eatenTimestampSeconds - referenceTimestampSeconds) / 60
-                put("EatenTs", eatenTsInMinutes.toInt())
+                put("EatenTs", calculateEatenTimestampMinutes(dateTime))
 
                 put("AmountEaten", amount)
                 put("FoodDescription", food.foodDescription)
                 val scale = amount / 100.0
-                put("Energy", (food.energy * scale).roundToTwoDecimalPlaces())
-                put("Protein", (food.protein * scale).roundToTwoDecimalPlaces())
-                put("FatTotal", (food.fatTotal * scale).roundToTwoDecimalPlaces())
-                put("SaturatedFat", (food.saturatedFat * scale).roundToTwoDecimalPlaces())
-                put("TransFat", (food.transFat * scale).roundToTwoDecimalPlaces())
-                put("PolyunsaturatedFat", (food.polyunsaturatedFat * scale).roundToTwoDecimalPlaces())
-                put("MonounsaturatedFat", (food.monounsaturatedFat * scale).roundToTwoDecimalPlaces())
-                put("Carbohydrate", (food.carbohydrate * scale).roundToTwoDecimalPlaces())
-                put("Sugars", (food.sugars * scale).roundToTwoDecimalPlaces())
-                put("DietaryFibre", (food.dietaryFibre * scale).roundToTwoDecimalPlaces())
-                put("SodiumNa", (food.sodium * scale).roundToTwoDecimalPlaces())
-                put("CalciumCa", (food.calciumCa * scale).roundToTwoDecimalPlaces())
-                put("PotassiumK", (food.potassiumK * scale).roundToTwoDecimalPlaces())
-                put("ThiaminB1", (food.thiaminB1 * scale).roundToTwoDecimalPlaces())
-                put("RiboflavinB2", (food.riboflavinB2 * scale).roundToTwoDecimalPlaces())
-                put("NiacinB3", (food.niacinB3 * scale).roundToTwoDecimalPlaces())
-                put("Folate", (food.folate * scale).roundToTwoDecimalPlaces())
-                put("IronFe", (food.ironFe * scale).roundToTwoDecimalPlaces())
-                put("MagnesiumMg", (food.magnesiumMg * scale).roundToTwoDecimalPlaces())
-                put("VitaminC", (food.vitaminC * scale).roundToTwoDecimalPlaces())
-                put("Caffeine", (food.caffeine * scale).roundToTwoDecimalPlaces())
-                put("Cholesterol", (food.cholesterol * scale).roundToTwoDecimalPlaces())
-                put("Alcohol", (food.alcohol * scale).roundToTwoDecimalPlaces())
+                putScaledFoodNutrients(food, scale)
             }
             db.insert("Eaten", null, values) != -1L
         } catch (e: Exception) {
@@ -132,36 +201,11 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             values.put("DateEaten", SimpleDateFormat("d-MMM-yy", Locale.getDefault()).format(date))
             values.put("TimeEaten", SimpleDateFormat("HH:mm", Locale.getDefault()).format(date))
 
-            val referenceTimestampSeconds = 1672491600L
-            val eatenTimestampSeconds = newDateTime / 1000
-            val eatenTsInMinutes = (eatenTimestampSeconds - referenceTimestampSeconds) / 60
-            values.put("EatenTs", eatenTsInMinutes.toInt())
+            values.put("EatenTs", calculateEatenTimestampMinutes(newDateTime))
 
             values.put("AmountEaten", newAmount)
 
-            values.put("Energy", (eatenFood.energy * scale).roundToTwoDecimalPlaces())
-            values.put("Protein", (eatenFood.protein * scale).roundToTwoDecimalPlaces())
-            values.put("FatTotal", (eatenFood.fatTotal * scale).roundToTwoDecimalPlaces())
-            values.put("SaturatedFat", (eatenFood.saturatedFat * scale).roundToTwoDecimalPlaces())
-            values.put("TransFat", (eatenFood.transFat * scale).roundToTwoDecimalPlaces())
-            values.put("PolyunsaturatedFat", (eatenFood.polyunsaturatedFat * scale).roundToTwoDecimalPlaces())
-            values.put("MonounsaturatedFat", (eatenFood.monounsaturatedFat * scale).roundToTwoDecimalPlaces())
-            values.put("Carbohydrate", (eatenFood.carbohydrate * scale).roundToTwoDecimalPlaces())
-            values.put("Sugars", (eatenFood.sugars * scale).roundToTwoDecimalPlaces())
-            values.put("DietaryFibre", (eatenFood.dietaryFibre * scale).roundToTwoDecimalPlaces())
-            values.put("SodiumNa", (eatenFood.sodiumNa * scale).roundToTwoDecimalPlaces())
-            values.put("CalciumCa", (eatenFood.calciumCa * scale).roundToTwoDecimalPlaces())
-            values.put("PotassiumK", (eatenFood.potassiumK * scale).roundToTwoDecimalPlaces())
-            values.put("ThiaminB1", (eatenFood.thiaminB1 * scale).roundToTwoDecimalPlaces())
-            values.put("RiboflavinB2", (eatenFood.riboflavinB2 * scale).roundToTwoDecimalPlaces())
-            values.put("NiacinB3", (eatenFood.niacinB3 * scale).roundToTwoDecimalPlaces())
-            values.put("Folate", (eatenFood.folate * scale).roundToTwoDecimalPlaces())
-            values.put("IronFe", (eatenFood.ironFe * scale).roundToTwoDecimalPlaces())
-            values.put("MagnesiumMg", (eatenFood.magnesiumMg * scale).roundToTwoDecimalPlaces())
-            values.put("VitaminC", (eatenFood.vitaminC * scale).roundToTwoDecimalPlaces())
-            values.put("Caffeine", (eatenFood.caffeine * scale).roundToTwoDecimalPlaces())
-            values.put("Cholesterol", (eatenFood.cholesterol * scale).roundToTwoDecimalPlaces())
-            values.put("Alcohol", (eatenFood.alcohol * scale).roundToTwoDecimalPlaces())
+            values.putScaledEatenNutrients(eatenFood, scale)
 
             db.update("Eaten", values, "EatenId = ?", arrayOf(eatenFood.eatenId.toString())) > 0
         } catch (e: Exception) {
@@ -182,30 +226,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
     fun updateFood(food: Food): Boolean {
         return try {
             val values = ContentValues().apply {
-                put("FoodDescription", food.foodDescription)
-                put("Energy", food.energy)
-                put("Protein", food.protein)
-                put("FatTotal", food.fatTotal)
-                put("SaturatedFat", food.saturatedFat)
-                put("TransFat", food.transFat)
-                put("PolyunsaturatedFat", food.polyunsaturatedFat)
-                put("MonounsaturatedFat", food.monounsaturatedFat)
-                put("Carbohydrate", food.carbohydrate)
-                put("Sugars", food.sugars)
-                put("DietaryFibre", food.dietaryFibre)
-                put("SodiumNa", food.sodium)
-                put("CalciumCa", food.calciumCa)
-                put("PotassiumK", food.potassiumK)
-                put("ThiaminB1", food.thiaminB1)
-                put("RiboflavinB2", food.riboflavinB2)
-                put("NiacinB3", food.niacinB3)
-                put("Folate", food.folate)
-                put("IronFe", food.ironFe)
-                put("MagnesiumMg", food.magnesiumMg)
-                put("VitaminC", food.vitaminC)
-                put("Caffeine", food.caffeine)
-                put("Cholesterol", food.cholesterol)
-                put("Alcohol", food.alcohol)
+                putFoodNutrients(food)
             }
             db.update("Foods", values, "FoodId = ?", arrayOf(food.foodId.toString())) > 0
         } catch (e: Exception) {
@@ -216,32 +237,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
 
     fun insertFood(food: Food): Boolean {
         return try {
-            val values = ContentValues().apply {
-                put("FoodDescription", food.foodDescription)
-                put("Energy", food.energy)
-                put("Protein", food.protein)
-                put("FatTotal", food.fatTotal)
-                put("SaturatedFat", food.saturatedFat)
-                put("TransFat", food.transFat)
-                put("PolyunsaturatedFat", food.polyunsaturatedFat)
-                put("MonounsaturatedFat", food.monounsaturatedFat)
-                put("Carbohydrate", food.carbohydrate)
-                put("Sugars", food.sugars)
-                put("DietaryFibre", food.dietaryFibre)
-                put("SodiumNa", food.sodium)
-                put("CalciumCa", food.calciumCa)
-                put("PotassiumK", food.potassiumK)
-                put("ThiaminB1", food.thiaminB1)
-                put("RiboflavinB2", food.riboflavinB2)
-                put("NiacinB3", food.niacinB3)
-                put("Folate", food.folate)
-                put("IronFe", food.ironFe)
-                put("MagnesiumMg", food.magnesiumMg)
-                put("VitaminC", food.vitaminC)
-                put("Caffeine", food.caffeine)
-                put("Cholesterol", food.cholesterol)
-                put("Alcohol", food.alcohol)
-            }
+            val values = ContentValues().apply { putFoodNutrients(food) }
             db.insert("Foods", null, values) != -1L
         } catch (e: Exception) {
             Log.e("DatabaseHelper", "Error inserting food", e)
@@ -251,32 +247,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
 
     fun insertFoodReturningId(food: Food): Int? {
         return try {
-            val values = ContentValues().apply {
-                put("FoodDescription", food.foodDescription)
-                put("Energy", food.energy)
-                put("Protein", food.protein)
-                put("FatTotal", food.fatTotal)
-                put("SaturatedFat", food.saturatedFat)
-                put("TransFat", food.transFat)
-                put("PolyunsaturatedFat", food.polyunsaturatedFat)
-                put("MonounsaturatedFat", food.monounsaturatedFat)
-                put("Carbohydrate", food.carbohydrate)
-                put("Sugars", food.sugars)
-                put("DietaryFibre", food.dietaryFibre)
-                put("SodiumNa", food.sodium)
-                put("CalciumCa", food.calciumCa)
-                put("PotassiumK", food.potassiumK)
-                put("ThiaminB1", food.thiaminB1)
-                put("RiboflavinB2", food.riboflavinB2)
-                put("NiacinB3", food.niacinB3)
-                put("Folate", food.folate)
-                put("IronFe", food.ironFe)
-                put("MagnesiumMg", food.magnesiumMg)
-                put("VitaminC", food.vitaminC)
-                put("Caffeine", food.caffeine)
-                put("Cholesterol", food.cholesterol)
-                put("Alcohol", food.alcohol)
-            }
+            val values = ContentValues().apply { putFoodNutrients(food) }
             val rowId = db.insert("Foods", null, values)
             if (rowId == -1L) null else rowId.toInt()
         } catch (e: Exception) {
@@ -377,35 +348,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
 
     fun updateRecipe(recipe: RecipeItem): Boolean {
         return try {
-            val values = ContentValues().apply {
-                put("FoodId", recipe.foodId)
-                put("CopyFg", recipe.copyFg)
-                put("Amount", recipe.amount)
-                put("FoodDescription", recipe.foodDescription)
-                put("Energy", recipe.energy)
-                put("Protein", recipe.protein)
-                put("FatTotal", recipe.fatTotal)
-                put("SaturatedFat", recipe.saturatedFat)
-                put("TransFat", recipe.transFat)
-                put("PolyunsaturatedFat", recipe.polyunsaturatedFat)
-                put("MonounsaturatedFat", recipe.monounsaturatedFat)
-                put("Carbohydrate", recipe.carbohydrate)
-                put("Sugars", recipe.sugars)
-                put("DietaryFibre", recipe.dietaryFibre)
-                put("SodiumNa", recipe.sodiumNa)
-                put("CalciumCa", recipe.calciumCa)
-                put("PotassiumK", recipe.potassiumK)
-                put("ThiaminB1", recipe.thiaminB1)
-                put("RiboflavinB2", recipe.riboflavinB2)
-                put("NiacinB3", recipe.niacinB3)
-                put("Folate", recipe.folate)
-                put("IronFe", recipe.ironFe)
-                put("MagnesiumMg", recipe.magnesiumMg)
-                put("VitaminC", recipe.vitaminC)
-                put("Caffeine", recipe.caffeine)
-                put("Cholesterol", recipe.cholesterol)
-                put("Alcohol", recipe.alcohol)
-            }
+            val values = ContentValues().apply { putRecipeFields(recipe) }
             db.update("Recipe", values, "RecipeId = ?", arrayOf(recipe.recipeId.toString())) > 0
         } catch (e: Exception) {
             Log.e("DatabaseHelper", "Error updating recipe item", e)
