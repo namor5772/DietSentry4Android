@@ -1,8 +1,17 @@
+@file:Suppress(
+    "unused",
+    "UNUSED_IMPORT",
+    "UNUSED_PARAMETER",
+    "UNUSED_VARIABLE",
+    "UNUSED_VALUE",
+    "UNUSED_ANONYMOUS_PARAMETER",
+    "ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE"
+)
+
 package au.dietsentry.myapplication
 
 import android.content.Context
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
