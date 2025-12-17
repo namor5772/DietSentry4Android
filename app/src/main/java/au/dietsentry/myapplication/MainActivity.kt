@@ -90,10 +90,12 @@ private const val KEY_DISPLAY_DAILY_TOTALS = "displayDailyTotals"
 
 private val mlSuffixRegex = Regex("mL#?$", RegexOption.IGNORE_CASE)
 private val trailingMarkersRegex = Regex(" #$| mL#?$", RegexOption.IGNORE_CASE)
+private val recipeMarkerRegex = Regex("\\{recipe=[^}]+\\}", RegexOption.IGNORE_CASE)
 
 private fun isLiquidDescription(description: String): Boolean = mlSuffixRegex.containsMatchIn(description)
 private fun descriptionUnit(description: String): String = if (isLiquidDescription(description)) "mL" else "g"
 private fun descriptionDisplayName(description: String): String = description.replace(trailingMarkersRegex, "")
+private fun isRecipeDescription(description: String): Boolean = recipeMarkerRegex.containsMatchIn(description)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -128,6 +130,13 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("addRecipe") {
                         AddRecipeScreen(navController = navController)
+                    }
+                    composable(
+                        route = "editRecipe/{foodId}",
+                        arguments = listOf(navArgument("foodId") { type = NavType.IntType })
+                    ) { backStackEntry ->
+                        val foodId = backStackEntry.arguments?.getInt("foodId") ?: return@composable
+                        EditRecipeScreen(navController = navController, foodId = foodId)
                     }
                 }
             }
@@ -799,7 +808,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible.
         - You can abort this process by tapping anywhere outside the dialog box. This closes it.
     - **Edit**: allows editing of the selected food.
-        - It opens a screen titled "Editing Solid Food" or "Editing Liquid Food", obviously depending on the type of food you have selected. 
+        - It opens "Editing Solid Food" or "Editing Liquid Food" unless the description contains `{recipe=...g}`, in which case it opens "Editing Recipe".
     - **Add**: adds a new food record to the Foods table.
         - It opens a screen titled "Add Food".
         - The original selected food has no relevance to this activity. It is just a way of making the Add button available.
@@ -1002,7 +1011,11 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                         food = food,
                         onSelect = { showSelectDialog = true }, // Show the dialog on click
                         onEdit = {
-                            navController.navigate("editFood/${food.foodId}")
+                            if (isRecipeDescription(food.foodDescription)) {
+                                navController.navigate("editRecipe/${food.foodId}")
+                            } else {
+                                navController.navigate("editFood/${food.foodId}")
+                            }
                         },
                         onAdd = { navController.navigate("insertFood") },
                         onCopy = { navController.navigate("copyFood/${food.foodId}") },
@@ -1040,7 +1053,7 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                 food = food,
                 onDismiss = { showDeleteDialog = false },
                 onConfirm = {
-                    val isRecipeFood = Regex("\\{recipe=[^}]+\\}", RegexOption.IGNORE_CASE).containsMatchIn(food.foodDescription)
+                    val isRecipeFood = isRecipeDescription(food.foodDescription)
                     val deletedFood = dbHelper.deleteFood(food.foodId)
                     if (isRecipeFood) {
                         dbHelper.deleteRecipesByFoodId(food.foodId)
@@ -2122,7 +2135,10 @@ fun InsertFoodScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddRecipeScreen(navController: NavController) {
+fun AddRecipeScreen(
+    navController: NavController,
+    screenTitle: String = "Add Recipe"
+) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     var showHelpSheet by remember { mutableStateOf(false) }
@@ -2183,7 +2199,7 @@ fun AddRecipeScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add Recipe", fontWeight = FontWeight.Bold) },
+                title = { Text(screenTitle, fontWeight = FontWeight.Bold) },
                 actions = {
                     HelpIconButton(onClick = { showHelpSheet = true })
                     IconButton(onClick = exitAddRecipe) {
@@ -2516,6 +2532,12 @@ fun AddRecipeScreen(navController: NavController) {
             )
         }
     }
+}
+
+@Suppress("UNUSED_PARAMETER")
+@Composable
+fun EditRecipeScreen(navController: NavController, foodId: Int) {
+    AddRecipeScreen(navController = navController, screenTitle = "Editing Recipe")
 }
 
 @Composable
