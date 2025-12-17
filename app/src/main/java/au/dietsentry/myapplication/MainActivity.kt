@@ -96,6 +96,8 @@ private fun isLiquidDescription(description: String): Boolean = mlSuffixRegex.co
 private fun descriptionUnit(description: String): String = if (isLiquidDescription(description)) "mL" else "g"
 private fun descriptionDisplayName(description: String): String = description.replace(trailingMarkersRegex, "")
 private fun isRecipeDescription(description: String): Boolean = recipeMarkerRegex.containsMatchIn(description)
+private fun removeRecipeMarker(description: String): String =
+    recipeMarkerRegex.replace(description, "").trimEnd()
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -2137,7 +2139,8 @@ fun InsertFoodScreen(
 @Composable
 fun AddRecipeScreen(
     navController: NavController,
-    screenTitle: String = "Add Recipe"
+    screenTitle: String = "Add Recipe",
+    initialDescription: String = ""
 ) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
@@ -2149,7 +2152,7 @@ fun AddRecipeScreen(
 - More detailed guidance will be added when the feature is implemented.
 """.trimIndent()
 
-    var description by remember { mutableStateOf("") }
+    var description by remember(initialDescription) { mutableStateOf(initialDescription) }
     var searchQuery by remember { mutableStateOf("") }
     var foods by remember { mutableStateOf(dbHelper.readFoodsFromDatabase()) }
     var recipes by remember { mutableStateOf(dbHelper.readRecipes()) }
@@ -2534,10 +2537,29 @@ fun AddRecipeScreen(
     }
 }
 
-@Suppress("UNUSED_PARAMETER")
 @Composable
 fun EditRecipeScreen(navController: NavController, foodId: Int) {
-    AddRecipeScreen(navController = navController, screenTitle = "Editing Recipe")
+    val context = LocalContext.current
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
+    var food by remember { mutableStateOf(dbHelper.getFoodById(foodId)) }
+
+    if (food == null) {
+        LaunchedEffect(Unit) {
+            showPlainToast(context, "Food not found")
+            navController.popBackStack()
+        }
+        return
+    }
+
+    val initialDescription = remember(food) {
+        removeRecipeMarker(food!!.foodDescription)
+    }
+
+    AddRecipeScreen(
+        navController = navController,
+        screenTitle = "Editing Recipe",
+        initialDescription = initialDescription
+    )
 }
 
 @Composable
