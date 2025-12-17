@@ -345,7 +345,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
     fun copyRecipesForFood(foodId: Int): Boolean {
         return try {
             db.beginTransaction()
-            db.delete("Recipe", "FoodId = ? AND CopyFg = 1", arrayOf(foodId.toString()))
+            deleteCopiedRecipes(foodId)
 
             db.rawQuery(
                 "SELECT * FROM Recipe WHERE FoodId = ? AND CopyFg != 1",
@@ -393,6 +393,24 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             db.delete("Recipe", "FoodId = ?", arrayOf(foodId.toString())) >= 0
         } catch (e: Exception) {
             Log.e("DatabaseHelper", "Error deleting recipes for foodId=$foodId", e)
+            false
+        }
+    }
+
+    fun deleteCopiedRecipes(foodId: Int): Boolean {
+        return try {
+            db.delete("Recipe", "FoodId = ? AND CopyFg = 1", arrayOf(foodId.toString())) >= 0
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error deleting copied recipes for foodId=$foodId", e)
+            false
+        }
+    }
+
+    fun deleteAllCopiedRecipes(): Boolean {
+        return try {
+            db.delete("Recipe", "CopyFg = 1", null) >= 0
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error deleting all copied recipes", e)
             false
         }
     }

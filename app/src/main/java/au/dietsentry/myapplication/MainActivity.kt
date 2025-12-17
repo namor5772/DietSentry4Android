@@ -2171,6 +2171,7 @@ fun AddRecipeScreen(
 
     val exitAddRecipe: () -> Unit = {
         dbHelper.deleteRecipesWithFoodIdZero()
+        dbHelper.deleteAllCopiedRecipes()
         val popped = navController.popBackStack("foodSearch", inclusive = false)
         if (!popped) {
             navController.popBackStack()
