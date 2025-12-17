@@ -806,7 +806,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
 # **Foods Table**
 This is the main screen of the app.
 
-Its purpose is to display a list of foods from the Foods table and allow interaction with a selected food.
+Its purpose is to display a list of foods from the Foods table and allow interaction with a selected food. The primary purpose being to **LOG** the selected food.
 ***
 # **Explanation of GUI elements**
 The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
@@ -823,19 +823,26 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
 - A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by six buttons below it:
     - **LOG**: logs the selected food into the Eaten Table.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
-        - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible.
+        - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible. Read the help on thet Screen for more help.
         - You can abort this process by tapping anywhere outside the dialog box. This closes it.
     - **Edit**: allows editing of the selected food.
         - It opens "Editing Solid Food" or "Editing Liquid Food" unless the description contains `{recipe=...g}`, in which case it opens "Editing Recipe".
-    - **Add**: adds a new food record to the Foods table.
-        - It opens a screen titled "Add Food".
+    - **Add**: adds a new food to the database.
+        - It opens a screen titled "Add Food". Press the help button on that screen for more help.
         - The original selected food has no relevance to this activity. It is just a way of making the Add button available.
-    - **Copy**: opens a Copying Solid/Liquid Food screen with values pre-filled and the description suffix removed.
-    - **Convert**: converts a liquid food to a solid entry by entering density (g/mL); a new food is added with converted per-100g values.
-    - **Delete**: deletes the selected food from the Foods table.
-        - It opens a dialog which warns you that you will be deleting the selected food from the Foods table.
+    - **Copy**: makes a copy of the selected food.
+        - If the selected food is a Solid it opens a screen titled "Copying Solid Food"
+        - If the selected food is a Liquid it opens a screen titled "Copying Liquid Food"
+        - If the selected food is a Recipe it opens a screen titled "Copying Recipe"
+        The type of a food (Solid, Liquid or Recipe) is coded in its description field, as explained in the next section.
+    - **Convert**: converts a liquid food to a solid. 
+        - If the food is a liquid it displays a dialog that enables the foods density to be input in g/mL
+        - A new solid food is then created on a per 100g basis.
+        - The description of this new food looses the liquids indicator " mL" near its end.
+    - **Delete**: deletes the selected food from the database.
+        - It opens a dialog which warns you that you will be deleting the selected food.
         - This is irrevocable if you press the **Confirm** button.
-        - You can change you mind about doing this by just tapping anywhere outside the dialog box. This closes it.
+        - You can change your mind about doing this by just tapping anywhere outside the dialog box. This closes it.
 ***
 # **Foods table structure**
 ```
@@ -870,9 +877,11 @@ Alcohol             REAL    g
 The FoodId field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
 The values of nutrients are per 100g or 100mL as appropriate and the units are as mandated in the FSANZ code.
 
-- **If a FoodDescription ends in the characters " mL" or " mL#" nutrient values are per 100mL, otherwise they are per 100g**
+- **If a FoodDescription ends in the characters " mL" or " mL#"** the food is considered a Liquid, and nutrient values are per 100mL, The "#" character indicates that it is not part of the original database of foods.
 
-- **If a FoodDescription ends in the characters " #" or " mL#" the food has been added manually to the database at some stage, otherwise it was part of the original base food data**   
+- **If a FoodDescription ends in the characters " {recipe=[weight]g} #" or " {recipe=[weight]g}"** the food is considered a Recipe and can only be made up of solids and thus its nutrient values are per 100g. It is also never a part of the original database.
+
+- **If a FoodDescription ends in any other pattern of characters than those specified above** the food is considered a Solid, and nutrient values are per 100g. If additionally it ends in "#" then it is also never a part of the original database.
 
 ### **Mandatory Nutrients on a NIP**
 Under Standard 1.2.8 of the FSANZ Food Standards Code, most packaged foods must display a NIP showing:
@@ -900,7 +909,7 @@ Additional nutrients must be declared if a nutrition claim is made. For example:
 - Decimal places: Protein, fat, saturated fat, carbohydrate, and sugars are rounded to 1 decimal place if under 100 g. Energy and sodium are reported as whole numbers (no decimals).
 - Serving size: Determined by the food business, but must be clearly stated.
 
-- **The Foods table does not explicitly consider servings, though it might be noted in the FoodDescription text field.** 
+- **The Foods table does not explicitly consider servings, though they might be noted in the FoodDescription text field.** 
 
 ### **Exemptions**
 Some foods don’t require a NIP unless a nutrition claim is made:
