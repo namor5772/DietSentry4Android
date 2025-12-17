@@ -2140,7 +2140,8 @@ fun InsertFoodScreen(
 fun AddRecipeScreen(
     navController: NavController,
     screenTitle: String = "Add Recipe",
-    initialDescription: String = ""
+    initialDescription: String = "",
+    editingFoodId: Int? = null
 ) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
@@ -2155,7 +2156,12 @@ fun AddRecipeScreen(
     var description by remember(initialDescription) { mutableStateOf(initialDescription) }
     var searchQuery by remember { mutableStateOf("") }
     var foods by remember { mutableStateOf(dbHelper.readFoodsFromDatabase()) }
-    var recipes by remember { mutableStateOf(dbHelper.readRecipes()) }
+    val loadRecipes = remember(editingFoodId, dbHelper) {
+        {
+            editingFoodId?.let { dbHelper.readCopiedRecipes(it) } ?: dbHelper.readRecipes()
+        }
+    }
+    var recipes by remember(editingFoodId) { mutableStateOf(loadRecipes()) }
     var selectedFood by remember { mutableStateOf<Food?>(null) }
     var selectedRecipe by remember { mutableStateOf<RecipeItem?>(null) }
     var showCannotAddDialog by remember { mutableStateOf(false) }
@@ -2181,6 +2187,18 @@ fun AddRecipeScreen(
                 savedStateHandle.remove<Boolean>("foodUpdated")
                 savedStateHandle.remove<Boolean>("foodInserted")
             }
+        }
+    }
+
+    LaunchedEffect(editingFoodId) {
+        if (editingFoodId != null) {
+            val copied = dbHelper.copyRecipesForFood(editingFoodId)
+            if (!copied) {
+                showPlainToast(context, "Unable to prepare recipe items for editing")
+            }
+            recipes = loadRecipes()
+        } else {
+            recipes = loadRecipes()
         }
     }
 
@@ -2259,7 +2277,7 @@ fun AddRecipeScreen(
                     fun scaled(sum: Double) = sum * scale
 
                     val recipeWeightText = formatNumber(totalAmount, decimals = 0)
-                    val newFood = Food(
+                    val baseFood = Food(
                         foodId = 0,
                         foodDescription = "${description.trim()} {recipe=${recipeWeightText}g}",
                         energy = scaled(totalEnergy),
@@ -2287,28 +2305,53 @@ fun AddRecipeScreen(
                         alcohol = scaled(totalAlcohol)
                     )
 
-                    val newFoodId = dbHelper.insertFoodReturningId(newFood)
-                    if (newFoodId == null) {
-                        showPlainToast(context, "Unable to save recipe to Foods table")
-                        return@Button
-                    }
+                    if (editingFoodId == null) {
+                        val newFoodId = dbHelper.insertFoodReturningId(baseFood)
+                        if (newFoodId == null) {
+                            showPlainToast(context, "Unable to save recipe to Foods table")
+                            return@Button
+                        }
 
-                    val updated = dbHelper.updateRecipeFoodIdForTemporaryRecords(newFoodId)
-                    if (!updated) {
-                        showPlainToast(context, "Recipe items not linked to new food")
-                        dbHelper.deleteRecipesWithFoodIdZero()
-                    }
+                        val updated = dbHelper.updateRecipeFoodIdForTemporaryRecords(newFoodId)
+                        if (!updated) {
+                            showPlainToast(context, "Recipe items not linked to new food")
+                            dbHelper.deleteRecipesWithFoodIdZero()
+                        }
 
-                    // Refresh recipe list (should now be empty) and mark Foods screen to sort once.
-                    recipes = dbHelper.readRecipes()
-                    val foodSearchEntry = runCatching { navController.getBackStackEntry("foodSearch") }.getOrNull()
-                    foodSearchEntry?.savedStateHandle?.set("foodInserted", true)
-                    foodSearchEntry?.savedStateHandle?.set("sortFoodsDescOnce", true)
+                        // Refresh recipe list (should now be empty) and mark Foods screen to sort once.
+                        recipes = loadRecipes()
+                        val foodSearchEntry = runCatching { navController.getBackStackEntry("foodSearch") }.getOrNull()
+                        foodSearchEntry?.savedStateHandle?.set("foodInserted", true)
+                        foodSearchEntry?.savedStateHandle?.set("sortFoodsDescOnce", true)
 
-                    val popped = navController.popBackStack("foodSearch", inclusive = false)
-                    if (!popped) {
-                        navController.navigate("foodSearch") {
-                            popUpTo("foodSearch") { inclusive = true }
+                        val popped = navController.popBackStack("foodSearch", inclusive = false)
+                        if (!popped) {
+                            navController.navigate("foodSearch") {
+                                popUpTo("foodSearch") { inclusive = true }
+                            }
+                        }
+                    } else {
+                        val updatedFood = baseFood.copy(foodId = editingFoodId)
+                        val updatedFoodSuccess = dbHelper.updateFood(updatedFood)
+                        if (!updatedFoodSuccess) {
+                            showPlainToast(context, "Unable to update recipe food")
+                            return@Button
+                        }
+                        val replaced = dbHelper.replaceOriginalRecipesWithCopies(editingFoodId)
+                        if (!replaced) {
+                            showPlainToast(context, "Unable to update recipe items")
+                            return@Button
+                        }
+
+                        recipes = loadRecipes()
+                        val foodSearchEntry = runCatching { navController.getBackStackEntry("foodSearch") }.getOrNull()
+                        foodSearchEntry?.savedStateHandle?.set("foodUpdated", true)
+
+                        val popped = navController.popBackStack("foodSearch", inclusive = false)
+                        if (!popped) {
+                            navController.navigate("foodSearch") {
+                                popUpTo("foodSearch") { inclusive = true }
+                            }
                         }
                     }
                 }) {
@@ -2413,7 +2456,7 @@ fun AddRecipeScreen(
                             if (!deleted) {
                                 showPlainToast(context, "Unable to delete recipe item")
                             }
-                            recipes = dbHelper.readRecipes()
+                            recipes = loadRecipes()
                             selectedRecipe = null
                         }
                     )
@@ -2459,23 +2502,28 @@ fun AddRecipeScreen(
 
     if (showRecipeAmountDialog) {
         selectedFood?.let { food ->
-            RecipeAmountDialog(
-                food = food,
-                onDismiss = {
-                    showRecipeAmountDialog = false
-                    selectedFood = null
-                },
-                onConfirm = { amount ->
-                    val inserted = dbHelper.insertRecipeFromFood(food, amount)
-                    if (!inserted) {
-                        showPlainToast(context, "Unable to add item to recipe")
-                    } else {
-                        recipes = dbHelper.readRecipes()
-                        selectedRecipe = null
-                    }
-                    showRecipeAmountDialog = false
-                    selectedFood = null
-                }
+                    RecipeAmountDialog(
+                        food = food,
+                        onDismiss = {
+                            showRecipeAmountDialog = false
+                            selectedFood = null
+                        },
+                        onConfirm = { amount ->
+                            val inserted = dbHelper.insertRecipeFromFood(
+                                food = food,
+                                amount = amount,
+                                foodId = editingFoodId ?: 0,
+                                copyFlag = if (editingFoodId != null) 1 else 0
+                            )
+                            if (!inserted) {
+                                showPlainToast(context, "Unable to add item to recipe")
+                            } else {
+                                recipes = loadRecipes()
+                                selectedRecipe = null
+                            }
+                            showRecipeAmountDialog = false
+                            selectedFood = null
+                        }
             )
         }
     }
@@ -2528,7 +2576,7 @@ fun AddRecipeScreen(
                     if (!updated) {
                         showPlainToast(context, "Unable to update recipe item")
                     }
-                    recipes = dbHelper.readRecipes()
+                    recipes = loadRecipes()
                     selectedRecipe = null
                     showEditRecipeAmountDialog = false
                 }
@@ -2558,7 +2606,8 @@ fun EditRecipeScreen(navController: NavController, foodId: Int) {
     AddRecipeScreen(
         navController = navController,
         screenTitle = "Editing Recipe",
-        initialDescription = initialDescription
+        initialDescription = initialDescription,
+        editingFoodId = foodId
     )
 }
 

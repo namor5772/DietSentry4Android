@@ -153,11 +153,16 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
         return ((eatenTimestampSeconds - REFERENCE_TIMESTAMP_SECONDS) / 60).toInt()
     }
 
-    fun insertRecipeFromFood(food: Food, amount: Float): Boolean {
+    fun insertRecipeFromFood(
+        food: Food,
+        amount: Float,
+        foodId: Int = 0,
+        copyFlag: Int = 0
+    ): Boolean {
         return try {
             val values = ContentValues().apply {
-                put("FoodId", 0)
-                put("CopyFg", 0)
+                put("FoodId", foodId)
+                put("CopyFg", copyFlag)
                 put("Amount", amount)
                 put("FoodDescription", food.foodDescription)
                 val scale = amount / 100.0
@@ -337,6 +342,52 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
         }
     }
 
+    fun copyRecipesForFood(foodId: Int): Boolean {
+        return try {
+            db.beginTransaction()
+            db.delete("Recipe", "FoodId = ? AND CopyFg = 1", arrayOf(foodId.toString()))
+
+            db.rawQuery(
+                "SELECT * FROM Recipe WHERE FoodId = ? AND CopyFg != 1",
+                arrayOf(foodId.toString())
+            ).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    do {
+                        val recipe = createRecipeFromCursor(cursor)
+                        val values = ContentValues().apply {
+                            putRecipeFields(recipe.copy(copyFg = 1))
+                        }
+                        db.insert("Recipe", null, values)
+                    } while (cursor.moveToNext())
+                }
+            }
+
+            db.setTransactionSuccessful()
+            true
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error copying recipes for editing", e)
+            false
+        } finally {
+            runCatching { db.endTransaction() }
+        }
+    }
+
+    fun replaceOriginalRecipesWithCopies(foodId: Int): Boolean {
+        return try {
+            db.beginTransaction()
+            db.delete("Recipe", "FoodId = ? AND CopyFg = 0", arrayOf(foodId.toString()))
+            val values = ContentValues().apply { put("CopyFg", 0) }
+            db.update("Recipe", values, "FoodId = ? AND CopyFg = 1", arrayOf(foodId.toString()))
+            db.setTransactionSuccessful()
+            true
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error promoting copied recipes for foodId=$foodId", e)
+            false
+        } finally {
+            runCatching { db.endTransaction() }
+        }
+    }
+
     fun deleteRecipesByFoodId(foodId: Int): Boolean {
         return try {
             db.delete("Recipe", "FoodId = ?", arrayOf(foodId.toString())) >= 0
@@ -378,6 +429,26 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             }
         } catch (e: Exception) {
             Log.e("DatabaseHelper", "Error reading recipes", e)
+        }
+        return recipes
+    }
+
+    @SuppressLint("Range")
+    fun readCopiedRecipes(foodId: Int): List<RecipeItem> {
+        val recipes = mutableListOf<RecipeItem>()
+        try {
+            db.rawQuery(
+                "SELECT * FROM Recipe WHERE CopyFg = 1 AND FoodId = ? ORDER BY RecipeId DESC",
+                arrayOf(foodId.toString())
+            ).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    do {
+                        recipes.add(createRecipeFromCursor(cursor))
+                    } while (cursor.moveToNext())
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error reading copied recipes", e)
         }
         return recipes
     }
