@@ -80,6 +80,7 @@ import org.commonmark.node.Text as MdText
 import org.commonmark.parser.Parser
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
 
 private const val PREFS_NAME = "DietSentryPrefs"
 private const val KEY_SHOW_NUTRITIONAL_INFO = "showNutritionalInfo" // legacy boolean; kept for fallback
@@ -889,6 +890,7 @@ Some foods don’t require a NIP unless a nutrition claim is made:
     navController.currentBackStackEntry?.savedStateHandle?.let { savedStateHandle ->
         val foodUpdated = savedStateHandle.get<Boolean>("foodUpdated") ?: false
         val foodInserted = savedStateHandle.get<Boolean>("foodInserted") ?: false
+        val sortFoodsDescOnce = savedStateHandle.get<Boolean>("sortFoodsDescOnce") ?: false
         LaunchedEffect(foodUpdated) {
             if (foodUpdated) {
                 foods = dbHelper.readFoodsFromDatabase()
@@ -901,6 +903,12 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                 foods = dbHelper.readFoodsFromDatabase()
                 selectedFood = null
                 savedStateHandle.remove<Boolean>("foodInserted")
+            }
+        }
+        LaunchedEffect(sortFoodsDescOnce) {
+            if (sortFoodsDescOnce) {
+                foods = dbHelper.readFoodsSortedByIdDesc()
+                savedStateHandle.remove<Boolean>("sortFoodsDescOnce")
             }
         }
     }
@@ -987,7 +995,9 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                     SelectionPanel(
                         food = food,
                         onSelect = { showSelectDialog = true }, // Show the dialog on click
-                        onEdit = { navController.navigate("editFood/${food.foodId}") },
+                        onEdit = {
+                            navController.navigate("editFood/${food.foodId}")
+                        },
                         onAdd = { navController.navigate("insertFood") },
                         onCopy = { navController.navigate("copyFood/${food.foodId}") },
                         onConvert = {
@@ -995,7 +1005,7 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                             if (isLiquid) {
                                 showConvertDialog = true
                             } else {
-                                Toast.makeText(context, "Convert is only available for liquid foods", Toast.LENGTH_SHORT).show()
+                                showPlainToast(context, "Convert is only available for liquid foods")
                             }
                         },
                         onDelete = { showDeleteDialog = true }
@@ -1024,7 +1034,14 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                 food = food,
                 onDismiss = { showDeleteDialog = false },
                 onConfirm = {
-                    dbHelper.deleteFood(food.foodId)
+                    val isRecipeFood = Regex("\\{recipe=[^}]+\\}", RegexOption.IGNORE_CASE).containsMatchIn(food.foodDescription)
+                    val deletedFood = dbHelper.deleteFood(food.foodId)
+                    if (isRecipeFood) {
+                        dbHelper.deleteRecipesByFoodId(food.foodId)
+                    }
+                    if (!deletedFood) {
+                        showPlainToast(context, "Failed to delete food")
+                    }
                     foods = dbHelper.readFoodsFromDatabase()
                     selectedFood = null
                     showDeleteDialog = false
@@ -1076,9 +1093,9 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                         foods = dbHelper.readFoodsFromDatabase()
                         selectedFood = null
                         showConvertDialog = false
-                        Toast.makeText(context, "Converted food added", Toast.LENGTH_SHORT).show()
+                        showPlainToast(context, "Converted food added")
                     } else {
-                        Toast.makeText(context, "Failed to convert food", Toast.LENGTH_SHORT).show()
+                        showPlainToast(context, "Failed to convert food")
                     }
                 }
             )
@@ -1154,7 +1171,7 @@ fun EditFoodScreen(
 
     if (food == null) {
         LaunchedEffect(Unit) {
-            Toast.makeText(context, "Food not found", Toast.LENGTH_SHORT).show()
+            showPlainToast(context, "Food not found")
             navController.popBackStack()
         }
         return
@@ -1296,7 +1313,7 @@ fun EditFoodScreen(
                                 ?.set("foodUpdated", true)
                             navController.popBackStack()
                         } else {
-                            Toast.makeText(context, "Failed to update food", Toast.LENGTH_SHORT).show()
+                            showPlainToast(context, "Failed to update food")
                         }
                     },
                     enabled = isValid
@@ -1484,7 +1501,7 @@ fun CopyFoodScreen(
 
     if (food == null) {
         LaunchedEffect(Unit) {
-            Toast.makeText(context, "Food not found", Toast.LENGTH_SHORT).show()
+            showPlainToast(context, "Food not found")
             navController.popBackStack()
         }
         return
@@ -1602,7 +1619,7 @@ fun CopyFoodScreen(
                                 ?.set("foodInserted", true)
                             navController.popBackStack()
                         } else {
-                            Toast.makeText(context, "Failed to copy food", Toast.LENGTH_SHORT).show()
+                            showPlainToast(context, "Failed to copy food")
                         }
                     },
                     enabled = isValid
@@ -1895,7 +1912,7 @@ fun InsertFoodScreen(
                                 ?.set("foodInserted", true)
                             navController.popBackStack()
                         } else {
-                            Toast.makeText(context, "Failed to insert food", Toast.LENGTH_SHORT).show()
+                            showPlainToast(context, "Failed to insert food")
                         }
                     },
                     enabled = isValid
@@ -2113,9 +2130,21 @@ fun AddRecipeScreen(navController: NavController) {
     var description by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
     var foods by remember { mutableStateOf(dbHelper.readFoodsFromDatabase()) }
+    var recipes by remember { mutableStateOf(dbHelper.readRecipes()) }
     var selectedFood by remember { mutableStateOf<Food?>(null) }
-    var showSelectDialog by remember { mutableStateOf(false) }
+    var selectedRecipe by remember { mutableStateOf<RecipeItem?>(null) }
+    var showCannotAddDialog by remember { mutableStateOf(false) }
+    var showRecipeAmountDialog by remember { mutableStateOf(false) }
+    var showEditRecipeAmountDialog by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    val exitAddRecipe: () -> Unit = {
+        dbHelper.deleteRecipesWithFoodIdZero()
+        val popped = navController.popBackStack("foodSearch", inclusive = false)
+        if (!popped) {
+            navController.popBackStack()
+        }
+    }
 
     LaunchedEffect(navController.currentBackStackEntry) {
         navController.currentBackStackEntry?.savedStateHandle?.let { savedStateHandle ->
@@ -2130,8 +2159,19 @@ fun AddRecipeScreen(navController: NavController) {
         }
     }
 
-    BackHandler(enabled = selectedFood != null) {
-        selectedFood = null
+    BackHandler {
+        if (showHelpSheet) {
+            showHelpSheet = false
+        } else if (selectedFood != null) {
+            selectedFood = null
+            showCannotAddDialog = false
+            showRecipeAmountDialog = false
+        } else if (selectedRecipe != null) {
+            selectedRecipe = null
+            showEditRecipeAmountDialog = false
+        } else {
+            exitAddRecipe()
+        }
     }
 
     Scaffold(
@@ -2140,7 +2180,7 @@ fun AddRecipeScreen(navController: NavController) {
                 title = { Text("Add Recipe", fontWeight = FontWeight.Bold) },
                 actions = {
                     HelpIconButton(onClick = { showHelpSheet = true })
-                    IconButton(onClick = { navController.popBackStack("foodSearch", inclusive = false) }) {
+                    IconButton(onClick = exitAddRecipe) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
@@ -2155,8 +2195,96 @@ fun AddRecipeScreen(navController: NavController) {
                 horizontalArrangement = Arrangement.Center
             ) {
                 Button(onClick = {
-                    navController.navigate("foodSearch") {
-                        popUpTo("foodSearch") { inclusive = true }
+                    val currentRecipes = recipes
+                    val totalAmount = currentRecipes.sumOf { it.amount }
+                    if (description.isBlank()) {
+                        showPlainToast(context, "Please enter a description")
+                        return@Button
+                    }
+                    if (totalAmount <= 0.0) {
+                        showPlainToast(context, "Add at least one ingredient")
+                        return@Button
+                    }
+
+                    val totalEnergy = currentRecipes.sumOf { it.energy }
+                    val totalProtein = currentRecipes.sumOf { it.protein }
+                    val totalFat = currentRecipes.sumOf { it.fatTotal }
+                    val totalSaturated = currentRecipes.sumOf { it.saturatedFat }
+                    val totalTrans = currentRecipes.sumOf { it.transFat }
+                    val totalPoly = currentRecipes.sumOf { it.polyunsaturatedFat }
+                    val totalMono = currentRecipes.sumOf { it.monounsaturatedFat }
+                    val totalCarb = currentRecipes.sumOf { it.carbohydrate }
+                    val totalSugars = currentRecipes.sumOf { it.sugars }
+                    val totalFibre = currentRecipes.sumOf { it.dietaryFibre }
+                    val totalSodium = currentRecipes.sumOf { it.sodiumNa }
+                    val totalCalcium = currentRecipes.sumOf { it.calciumCa }
+                    val totalPotassium = currentRecipes.sumOf { it.potassiumK }
+                    val totalThiamin = currentRecipes.sumOf { it.thiaminB1 }
+                    val totalRiboflavin = currentRecipes.sumOf { it.riboflavinB2 }
+                    val totalNiacin = currentRecipes.sumOf { it.niacinB3 }
+                    val totalFolate = currentRecipes.sumOf { it.folate }
+                    val totalIron = currentRecipes.sumOf { it.ironFe }
+                    val totalMagnesium = currentRecipes.sumOf { it.magnesiumMg }
+                    val totalVitaminC = currentRecipes.sumOf { it.vitaminC }
+                    val totalCaffeine = currentRecipes.sumOf { it.caffeine }
+                    val totalCholesterol = currentRecipes.sumOf { it.cholesterol }
+                    val totalAlcohol = currentRecipes.sumOf { it.alcohol }
+
+                    val scale = 100.0 / totalAmount
+                    fun scaled(sum: Double) = sum * scale
+
+                    val recipeWeightText = formatNumber(totalAmount, decimals = 0)
+                    val newFood = Food(
+                        foodId = 0,
+                        foodDescription = "${description.trim()} {recipe=${recipeWeightText}g}",
+                        energy = scaled(totalEnergy),
+                        protein = scaled(totalProtein),
+                        fatTotal = scaled(totalFat),
+                        saturatedFat = scaled(totalSaturated),
+                        transFat = scaled(totalTrans),
+                        polyunsaturatedFat = scaled(totalPoly),
+                        monounsaturatedFat = scaled(totalMono),
+                        carbohydrate = scaled(totalCarb),
+                        sugars = scaled(totalSugars),
+                        dietaryFibre = scaled(totalFibre),
+                        sodium = scaled(totalSodium),
+                        calciumCa = scaled(totalCalcium),
+                        potassiumK = scaled(totalPotassium),
+                        thiaminB1 = scaled(totalThiamin),
+                        riboflavinB2 = scaled(totalRiboflavin),
+                        niacinB3 = scaled(totalNiacin),
+                        folate = scaled(totalFolate),
+                        ironFe = scaled(totalIron),
+                        magnesiumMg = scaled(totalMagnesium),
+                        vitaminC = scaled(totalVitaminC),
+                        caffeine = scaled(totalCaffeine),
+                        cholesterol = scaled(totalCholesterol),
+                        alcohol = scaled(totalAlcohol)
+                    )
+
+                    val newFoodId = dbHelper.insertFoodReturningId(newFood)
+                    if (newFoodId == null) {
+                        showPlainToast(context, "Unable to save recipe to Foods table")
+                        return@Button
+                    }
+
+                    val updated = dbHelper.updateRecipeFoodIdForTemporaryRecords(newFoodId)
+                    if (!updated) {
+                        showPlainToast(context, "Recipe items not linked to new food")
+                        dbHelper.deleteRecipesWithFoodIdZero()
+                    }
+
+                    // Refresh recipe list (should now be empty) and mark Foods screen to sort once.
+                    recipes = dbHelper.readRecipes()
+                    val foodSearchEntry = runCatching { navController.getBackStackEntry("foodSearch") }.getOrNull()
+                    foodSearchEntry?.savedStateHandle?.set("foodInserted", true)
+                    foodSearchEntry?.savedStateHandle?.set("sortFoodsDescOnce", true)
+
+                    val popped = navController.popBackStack("foodSearch", inclusive = false)
+                    if (!popped) {
+                        navController.navigate("foodSearch") {
+                            popUpTo("foodSearch") { inclusive = true }
+                        }
                     }
                 }) {
                     Text("Confirm")
@@ -2164,64 +2292,107 @@ fun AddRecipeScreen(navController: NavController) {
             }
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
-            verticalArrangement = Arrangement.Top
+                .padding(innerPadding)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Top
             ) {
-                LabeledValueField(
-                    label = "Description",
-                    value = description,
-                    onValueChange = { description = it },
-                    wrapLabel = true,
-                    labelSpacing = 8.dp,
-                    valueFillFraction = 1f
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    LabeledValueField(
+                        label = "Description",
+                        value = description,
+                        onValueChange = { description = it },
+                        wrapLabel = true,
+                        labelSpacing = 8.dp,
+                        valueFillFraction = 1f
+                    )
+                }
+                TextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Enter food filter text") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = {
+                        foods = if (searchQuery.isNotBlank()) {
+                            dbHelper.searchFoods(searchQuery)
+                        } else {
+                            dbHelper.readFoodsFromDatabase()
+                        }
+                        keyboardController?.hide()
+                    }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 )
-            }
-            TextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                label = { Text("Enter food filter text") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = {
-                    foods = if (searchQuery.isNotBlank()) {
-                        dbHelper.searchFoods(searchQuery)
-                    } else {
-                        dbHelper.readFoodsFromDatabase()
-                    }
-                    keyboardController?.hide()
-                }),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-            Box(modifier = Modifier.fillMaxSize()) {
                 FoodList(
                     foods = foods,
                     onFoodClicked = { food ->
-                        selectedFood = if (selectedFood == food) null else food
+                        selectedFood = food
+                        selectedRecipe = null
+                        val isLiquid = food.foodDescription.endsWith(" mL", ignoreCase = true) ||
+                                food.foodDescription.endsWith(" mL#", ignoreCase = true)
+                        if (isLiquid) {
+                            showCannotAddDialog = true
+                            showRecipeAmountDialog = false
+                        } else {
+                            showRecipeAmountDialog = true
+                            showCannotAddDialog = false
+                        }
                     },
                     showNutritionalInfo = false,
                     showExtraNutrients = false,
-                    modifier = Modifier.fillMaxHeight(0.5f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
                 )
-                selectedFood?.let { food ->
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .fillMaxHeight(0.5f),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        RecipeSelectionPanel(food = food)
-                    }
+                val totalRecipeAmount = recipes.sumOf { it.amount }
+                Text(
+                    text = "Ingredients ${formatAmount(totalRecipeAmount, decimals = 1)} (g) Total",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+                RecipeList(
+                    recipes = recipes,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    onRecipeClicked = { recipe ->
+                        selectedRecipe = if (selectedRecipe?.recipeId == recipe.recipeId) null else recipe
+                    },
+                    selectedRecipeId = selectedRecipe?.recipeId
+                )
+            }
+
+            AnimatedVisibility(
+                visible = selectedRecipe != null,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp)
+            ) {
+                selectedRecipe?.let { recipe ->
+                    RecipeSelectionPanel(
+                        recipe = recipe,
+                        onEdit = { showEditRecipeAmountDialog = true },
+                        onDelete = {
+                            val deleted = dbHelper.deleteRecipe(recipe.recipeId)
+                            if (!deleted) {
+                                showPlainToast(context, "Unable to delete recipe item")
+                            }
+                            recipes = dbHelper.readRecipes()
+                            selectedRecipe = null
+                        }
+                    )
                 }
             }
         }
@@ -2235,36 +2406,171 @@ fun AddRecipeScreen(navController: NavController) {
         )
     }
 
-    // Future recipe-specific actions will be wired here when defined.
-}
+    if (showCannotAddDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showCannotAddDialog = false
+                selectedFood = null
+            },
+            title = {
+                Text(
+                    text = "CANNOT ADD THIS FOOD",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = { Text("Only foods measured in grams can be added to a recipe") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCannotAddDialog = false
+                        selectedFood = null
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {}
+        )
+    }
 
-@Composable
-private fun RecipeSelectionPanel(food: Food) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = food.foodDescription,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Recipe actions will be added here.",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center
+    if (showRecipeAmountDialog) {
+        selectedFood?.let { food ->
+            RecipeAmountDialog(
+                food = food,
+                onDismiss = {
+                    showRecipeAmountDialog = false
+                    selectedFood = null
+                },
+                onConfirm = { amount ->
+                    val inserted = dbHelper.insertRecipeFromFood(food, amount)
+                    if (!inserted) {
+                        showPlainToast(context, "Unable to add item to recipe")
+                    } else {
+                        recipes = dbHelper.readRecipes()
+                        selectedRecipe = null
+                    }
+                    showRecipeAmountDialog = false
+                    selectedFood = null
+                }
             )
         }
     }
+
+    if (showEditRecipeAmountDialog) {
+        selectedRecipe?.let { recipe ->
+            RecipeAmountDialog(
+                food = recipe.toFoodPlaceholder(),
+                onDismiss = {
+                    showEditRecipeAmountDialog = false
+                    selectedRecipe = null
+                },
+                onConfirm = { newAmount ->
+                    val amountDouble = newAmount.toDouble()
+                    if (amountDouble <= 0.0) {
+                        showPlainToast(context, "Amount must be greater than zero")
+                        return@RecipeAmountDialog
+                    }
+                    val factor = if (recipe.amount == 0.0) 0.0 else amountDouble / recipe.amount
+                    fun Double.scale() = (this * factor * 100).roundToInt() / 100.0
+
+                    val updatedRecipe = recipe.copy(
+                        amount = amountDouble,
+                        energy = recipe.energy.scale(),
+                        protein = recipe.protein.scale(),
+                        fatTotal = recipe.fatTotal.scale(),
+                        saturatedFat = recipe.saturatedFat.scale(),
+                        transFat = recipe.transFat.scale(),
+                        polyunsaturatedFat = recipe.polyunsaturatedFat.scale(),
+                        monounsaturatedFat = recipe.monounsaturatedFat.scale(),
+                        carbohydrate = recipe.carbohydrate.scale(),
+                        sugars = recipe.sugars.scale(),
+                        dietaryFibre = recipe.dietaryFibre.scale(),
+                        sodiumNa = recipe.sodiumNa.scale(),
+                        calciumCa = recipe.calciumCa.scale(),
+                        potassiumK = recipe.potassiumK.scale(),
+                        thiaminB1 = recipe.thiaminB1.scale(),
+                        riboflavinB2 = recipe.riboflavinB2.scale(),
+                        niacinB3 = recipe.niacinB3.scale(),
+                        folate = recipe.folate.scale(),
+                        ironFe = recipe.ironFe.scale(),
+                        magnesiumMg = recipe.magnesiumMg.scale(),
+                        vitaminC = recipe.vitaminC.scale(),
+                        caffeine = recipe.caffeine.scale(),
+                        cholesterol = recipe.cholesterol.scale(),
+                        alcohol = recipe.alcohol.scale()
+                    )
+
+                    val updated = dbHelper.updateRecipe(updatedRecipe)
+                    if (!updated) {
+                        showPlainToast(context, "Unable to update recipe item")
+                    }
+                    recipes = dbHelper.readRecipes()
+                    selectedRecipe = null
+                    showEditRecipeAmountDialog = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun RecipeSelectionPanel(
+    recipe: RecipeItem,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(text = recipe.foodDescription, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Button(onClick = onEdit) { Text("Edit") }
+                Button(onClick = onDelete) { Text("Delete") }
+            }
+        }
+    }
+}
+
+private fun RecipeItem.toFoodPlaceholder(): Food {
+    return Food(
+        foodId = foodId,
+        foodDescription = foodDescription,
+        energy = energy,
+        protein = protein,
+        fatTotal = fatTotal,
+        saturatedFat = saturatedFat,
+        transFat = transFat,
+        polyunsaturatedFat = polyunsaturatedFat,
+        monounsaturatedFat = monounsaturatedFat,
+        carbohydrate = carbohydrate,
+        sugars = sugars,
+        dietaryFibre = dietaryFibre,
+        sodium = sodiumNa,
+        calciumCa = calciumCa,
+        potassiumK = potassiumK,
+        thiaminB1 = thiaminB1,
+        riboflavinB2 = riboflavinB2,
+        niacinB3 = niacinB3,
+        folate = folate,
+        ironFe = ironFe,
+        magnesiumMg = magnesiumMg,
+        vitaminC = vitaminC,
+        caffeine = caffeine,
+        cholesterol = cholesterol,
+        alcohol = alcohol
+    )
 }
 
 @Composable
@@ -2965,6 +3271,53 @@ fun SelectAmountDialog(
                     onClick = {
                         val finalAmount = amount.toFloatOrNull() ?: 0f
                         onConfirm(finalAmount, selectedDateTime)
+                    },
+                    enabled = amount.isNotBlank()
+                ) {
+                    Text("Confirm")
+                }
+            }
+        },
+        dismissButton = {}
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RecipeAmountDialog(
+    food: Food,
+    onDismiss: () -> Unit,
+    onConfirm: (amount: Float) -> Unit
+) {
+    var amount by remember { mutableStateOf("") }
+    val foodUnit = if (Regex("mL#?$", RegexOption.IGNORE_CASE).containsMatchIn(food.foodDescription)) "mL" else "g"
+    val displayName = food.foodDescription.replace(Regex(" #$| mL#?$", RegexOption.IGNORE_CASE), "")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold) },
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextField(
+                    value = amount,
+                    onValueChange = { amount = it.filter { char -> char.isDigit() || char == '.' } },
+                    label = { Text("Amount") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(text = foodUnit)
+            }
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(
+                    onClick = {
+                        val finalAmount = amount.toFloatOrNull() ?: 0f
+                        onConfirm(finalAmount)
                     },
                     enabled = amount.isNotBlank()
                 ) {
