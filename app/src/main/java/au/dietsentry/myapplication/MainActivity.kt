@@ -134,6 +134,13 @@ class MainActivity : ComponentActivity() {
                         AddRecipeScreen(navController = navController)
                     }
                     composable(
+                        route = "copyRecipe/{foodId}",
+                        arguments = listOf(navArgument("foodId") { type = NavType.IntType })
+                    ) { backStackEntry ->
+                        val foodId = backStackEntry.arguments?.getInt("foodId") ?: return@composable
+                        CopyRecipeScreen(navController = navController, foodId = foodId)
+                    }
+                    composable(
                         route = "editRecipe/{foodId}",
                         arguments = listOf(navArgument("foodId") { type = NavType.IntType })
                     ) { backStackEntry ->
@@ -1020,7 +1027,13 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                             }
                         },
                         onAdd = { navController.navigate("insertFood") },
-                        onCopy = { navController.navigate("copyFood/${food.foodId}") },
+                        onCopy = {
+                            if (isRecipeDescription(food.foodDescription)) {
+                                navController.navigate("copyRecipe/${food.foodId}")
+                            } else {
+                                navController.navigate("copyFood/${food.foodId}")
+                            }
+                        },
                         onConvert = {
                             val isLiquid = isLiquidDescription(food.foodDescription)
                             if (isLiquid) {
@@ -2609,6 +2622,31 @@ fun EditRecipeScreen(navController: NavController, foodId: Int) {
         screenTitle = "Editing Recipe",
         initialDescription = initialDescription,
         editingFoodId = foodId
+    )
+}
+
+@Composable
+fun CopyRecipeScreen(navController: NavController, foodId: Int) {
+    val context = LocalContext.current
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
+    var food by remember { mutableStateOf(dbHelper.getFoodById(foodId)) }
+
+    if (food == null) {
+        LaunchedEffect(Unit) {
+            showPlainToast(context, "Food not found")
+            navController.popBackStack()
+        }
+        return
+    }
+
+    val initialDescription = remember(food) {
+        removeRecipeMarker(food!!.foodDescription)
+    }
+
+    AddRecipeScreen(
+        navController = navController,
+        screenTitle = "Copying Recipe",
+        initialDescription = initialDescription
     )
 }
 
