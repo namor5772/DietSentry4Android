@@ -101,6 +101,38 @@ private const val KEY_FILTER_EATEN_BY_DATE = "filterEatenByDate"
 
 // Session-scoped in-memory state (persists while app stays alive)
 private var sessionSelectedFilterDateMillis: Long? = null
+private var sessionAddRecipeSearchQuery: String = ""
+private var sessionCopyRecipeSearchQuery: String = ""
+private var sessionEditRecipeSearchQuery: String = ""
+
+private enum class RecipeSearchMode {
+    ADD,
+    COPY,
+    EDIT
+}
+
+private fun resolveRecipeSearchMode(screenTitle: String, editingFoodId: Int?): RecipeSearchMode =
+    if (editingFoodId != null) {
+        RecipeSearchMode.EDIT
+    } else if (screenTitle == "Copying Recipe") {
+        RecipeSearchMode.COPY
+    } else {
+        RecipeSearchMode.ADD
+    }
+
+private fun loadRecipeSearchQuery(mode: RecipeSearchMode): String = when (mode) {
+    RecipeSearchMode.ADD -> sessionAddRecipeSearchQuery
+    RecipeSearchMode.COPY -> sessionCopyRecipeSearchQuery
+    RecipeSearchMode.EDIT -> sessionEditRecipeSearchQuery
+}
+
+private fun storeRecipeSearchQuery(mode: RecipeSearchMode, value: String) {
+    when (mode) {
+        RecipeSearchMode.ADD -> sessionAddRecipeSearchQuery = value
+        RecipeSearchMode.COPY -> sessionCopyRecipeSearchQuery = value
+        RecipeSearchMode.EDIT -> sessionEditRecipeSearchQuery = value
+    }
+}
 
 private val mlSuffixRegex = Regex("mL#?$", RegexOption.IGNORE_CASE)
 private val trailingMarkersRegex = Regex(" #$| mL#?$", RegexOption.IGNORE_CASE)
@@ -1301,30 +1333,30 @@ fun EditFoodScreen(
     val (initialDescription, descriptionSuffix) = remember(food) {
         extractDescriptionParts(food!!.foodDescription)
     }
-    var description by remember(food) { mutableStateOf(initialDescription) }
-    var energy by remember(food) { mutableStateOf(formatOneDecimal(food!!.energy)) }
-    var protein by remember(food) { mutableStateOf(formatOneDecimal(food!!.protein)) }
-    var fatTotal by remember(food) { mutableStateOf(formatOneDecimal(food!!.fatTotal)) }
-    var saturatedFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.saturatedFat)) }
-    var transFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.transFat)) }
-    var polyunsaturatedFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.polyunsaturatedFat)) }
-    var monounsaturatedFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.monounsaturatedFat)) }
-    var carbohydrate by remember(food) { mutableStateOf(formatOneDecimal(food!!.carbohydrate)) }
-    var sugars by remember(food) { mutableStateOf(formatOneDecimal(food!!.sugars)) }
-    var dietaryFibre by remember(food) { mutableStateOf(formatOneDecimal(food!!.dietaryFibre)) }
-    var sodium by remember(food) { mutableStateOf(formatOneDecimal(food!!.sodium)) }
-    var calciumCa by remember(food) { mutableStateOf(formatOneDecimal(food!!.calciumCa)) }
-    var potassiumK by remember(food) { mutableStateOf(formatOneDecimal(food!!.potassiumK)) }
-    var thiaminB1 by remember(food) { mutableStateOf(formatOneDecimal(food!!.thiaminB1)) }
-    var riboflavinB2 by remember(food) { mutableStateOf(formatOneDecimal(food!!.riboflavinB2)) }
-    var niacinB3 by remember(food) { mutableStateOf(formatOneDecimal(food!!.niacinB3)) }
-    var folate by remember(food) { mutableStateOf(formatOneDecimal(food!!.folate)) }
-    var ironFe by remember(food) { mutableStateOf(formatOneDecimal(food!!.ironFe)) }
-    var magnesiumMg by remember(food) { mutableStateOf(formatOneDecimal(food!!.magnesiumMg)) }
-    var vitaminC by remember(food) { mutableStateOf(formatOneDecimal(food!!.vitaminC)) }
-    var caffeine by remember(food) { mutableStateOf(formatOneDecimal(food!!.caffeine)) }
-    var cholesterol by remember(food) { mutableStateOf(formatOneDecimal(food!!.cholesterol)) }
-    var alcohol by remember(food) { mutableStateOf(formatOneDecimal(food!!.alcohol)) }
+    var description by rememberSaveable(food) { mutableStateOf(initialDescription) }
+    var energy by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.energy)) }
+    var protein by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.protein)) }
+    var fatTotal by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.fatTotal)) }
+    var saturatedFat by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.saturatedFat)) }
+    var transFat by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.transFat)) }
+    var polyunsaturatedFat by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.polyunsaturatedFat)) }
+    var monounsaturatedFat by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.monounsaturatedFat)) }
+    var carbohydrate by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.carbohydrate)) }
+    var sugars by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.sugars)) }
+    var dietaryFibre by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.dietaryFibre)) }
+    var sodium by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.sodium)) }
+    var calciumCa by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.calciumCa)) }
+    var potassiumK by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.potassiumK)) }
+    var thiaminB1 by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.thiaminB1)) }
+    var riboflavinB2 by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.riboflavinB2)) }
+    var niacinB3 by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.niacinB3)) }
+    var folate by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.folate)) }
+    var ironFe by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.ironFe)) }
+    var magnesiumMg by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.magnesiumMg)) }
+    var vitaminC by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.vitaminC)) }
+    var caffeine by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.caffeine)) }
+    var cholesterol by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.cholesterol)) }
+    var alcohol by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.alcohol)) }
 
     val scrollState = rememberScrollState()
     val numericEntries = listOf(
@@ -1633,30 +1665,30 @@ fun CopyFoodScreen(
     }
     val isLiquidFood = descriptionSuffix == " mL" || descriptionSuffix == " mL#"
 
-    var description by remember(food) { mutableStateOf(initialDescription) }
-    var energy by remember(food) { mutableStateOf(formatOneDecimal(food!!.energy)) }
-    var protein by remember(food) { mutableStateOf(formatOneDecimal(food!!.protein)) }
-    var fatTotal by remember(food) { mutableStateOf(formatOneDecimal(food!!.fatTotal)) }
-    var saturatedFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.saturatedFat)) }
-    var transFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.transFat)) }
-    var polyunsaturatedFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.polyunsaturatedFat)) }
-    var monounsaturatedFat by remember(food) { mutableStateOf(formatOneDecimal(food!!.monounsaturatedFat)) }
-    var carbohydrate by remember(food) { mutableStateOf(formatOneDecimal(food!!.carbohydrate)) }
-    var sugars by remember(food) { mutableStateOf(formatOneDecimal(food!!.sugars)) }
-    var dietaryFibre by remember(food) { mutableStateOf(formatOneDecimal(food!!.dietaryFibre)) }
-    var sodium by remember(food) { mutableStateOf(formatOneDecimal(food!!.sodium)) }
-    var calciumCa by remember(food) { mutableStateOf(formatOneDecimal(food!!.calciumCa)) }
-    var potassiumK by remember(food) { mutableStateOf(formatOneDecimal(food!!.potassiumK)) }
-    var thiaminB1 by remember(food) { mutableStateOf(formatOneDecimal(food!!.thiaminB1)) }
-    var riboflavinB2 by remember(food) { mutableStateOf(formatOneDecimal(food!!.riboflavinB2)) }
-    var niacinB3 by remember(food) { mutableStateOf(formatOneDecimal(food!!.niacinB3)) }
-    var folate by remember(food) { mutableStateOf(formatOneDecimal(food!!.folate)) }
-    var ironFe by remember(food) { mutableStateOf(formatOneDecimal(food!!.ironFe)) }
-    var magnesiumMg by remember(food) { mutableStateOf(formatOneDecimal(food!!.magnesiumMg)) }
-    var vitaminC by remember(food) { mutableStateOf(formatOneDecimal(food!!.vitaminC)) }
-    var caffeine by remember(food) { mutableStateOf(formatOneDecimal(food!!.caffeine)) }
-    var cholesterol by remember(food) { mutableStateOf(formatOneDecimal(food!!.cholesterol)) }
-    var alcohol by remember(food) { mutableStateOf(formatOneDecimal(food!!.alcohol)) }
+    var description by rememberSaveable(food) { mutableStateOf(initialDescription) }
+    var energy by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.energy)) }
+    var protein by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.protein)) }
+    var fatTotal by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.fatTotal)) }
+    var saturatedFat by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.saturatedFat)) }
+    var transFat by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.transFat)) }
+    var polyunsaturatedFat by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.polyunsaturatedFat)) }
+    var monounsaturatedFat by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.monounsaturatedFat)) }
+    var carbohydrate by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.carbohydrate)) }
+    var sugars by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.sugars)) }
+    var dietaryFibre by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.dietaryFibre)) }
+    var sodium by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.sodium)) }
+    var calciumCa by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.calciumCa)) }
+    var potassiumK by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.potassiumK)) }
+    var thiaminB1 by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.thiaminB1)) }
+    var riboflavinB2 by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.riboflavinB2)) }
+    var niacinB3 by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.niacinB3)) }
+    var folate by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.folate)) }
+    var ironFe by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.ironFe)) }
+    var magnesiumMg by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.magnesiumMg)) }
+    var vitaminC by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.vitaminC)) }
+    var caffeine by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.caffeine)) }
+    var cholesterol by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.cholesterol)) }
+    var alcohol by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.alcohol)) }
 
     val scrollState = rememberScrollState()
     val numericEntries = listOf(
@@ -1924,30 +1956,30 @@ fun InsertFoodScreen(
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
 
-    var description by remember { mutableStateOf("") }
-    var energy by remember { mutableStateOf("") }
-    var protein by remember { mutableStateOf("") }
-    var fatTotal by remember { mutableStateOf("") }
-    var saturatedFat by remember { mutableStateOf("") }
-    var transFat by remember { mutableStateOf("") }
-    var polyunsaturatedFat by remember { mutableStateOf("") }
-    var monounsaturatedFat by remember { mutableStateOf("") }
-    var carbohydrate by remember { mutableStateOf("") }
-    var sugars by remember { mutableStateOf("") }
-    var dietaryFibre by remember { mutableStateOf("") }
-    var sodium by remember { mutableStateOf("") }
-    var calciumCa by remember { mutableStateOf("") }
-    var potassiumK by remember { mutableStateOf("") }
-    var thiaminB1 by remember { mutableStateOf("") }
-    var riboflavinB2 by remember { mutableStateOf("") }
-    var niacinB3 by remember { mutableStateOf("") }
-    var folate by remember { mutableStateOf("") }
-    var ironFe by remember { mutableStateOf("") }
-    var magnesiumMg by remember { mutableStateOf("") }
-    var vitaminC by remember { mutableStateOf("") }
-    var caffeine by remember { mutableStateOf("") }
-    var cholesterol by remember { mutableStateOf("") }
-    var alcohol by remember { mutableStateOf("") }
+    var description by rememberSaveable { mutableStateOf("") }
+    var energy by rememberSaveable { mutableStateOf("") }
+    var protein by rememberSaveable { mutableStateOf("") }
+    var fatTotal by rememberSaveable { mutableStateOf("") }
+    var saturatedFat by rememberSaveable { mutableStateOf("") }
+    var transFat by rememberSaveable { mutableStateOf("") }
+    var polyunsaturatedFat by rememberSaveable { mutableStateOf("") }
+    var monounsaturatedFat by rememberSaveable { mutableStateOf("") }
+    var carbohydrate by rememberSaveable { mutableStateOf("") }
+    var sugars by rememberSaveable { mutableStateOf("") }
+    var dietaryFibre by rememberSaveable { mutableStateOf("") }
+    var sodium by rememberSaveable { mutableStateOf("") }
+    var calciumCa by rememberSaveable { mutableStateOf("") }
+    var potassiumK by rememberSaveable { mutableStateOf("") }
+    var thiaminB1 by rememberSaveable { mutableStateOf("") }
+    var riboflavinB2 by rememberSaveable { mutableStateOf("") }
+    var niacinB3 by rememberSaveable { mutableStateOf("") }
+    var folate by rememberSaveable { mutableStateOf("") }
+    var ironFe by rememberSaveable { mutableStateOf("") }
+    var magnesiumMg by rememberSaveable { mutableStateOf("") }
+    var vitaminC by rememberSaveable { mutableStateOf("") }
+    var caffeine by rememberSaveable { mutableStateOf("") }
+    var cholesterol by rememberSaveable { mutableStateOf("") }
+    var alcohol by rememberSaveable { mutableStateOf("") }
 
     var selectedType by remember { mutableStateOf("Solid") }
     val scrollState = rememberScrollState()
@@ -2253,8 +2285,14 @@ fun AddRecipeScreen(
 - More detailed guidance will be added when the feature is implemented.
 """.trimIndent()
 
-    var description by remember(initialDescription) { mutableStateOf(initialDescription) }
-    var searchQuery by remember { mutableStateOf("") }
+    var description by rememberSaveable(initialDescription) { mutableStateOf(initialDescription) }
+    val recipeSearchMode = remember(screenTitle, editingFoodId) {
+        resolveRecipeSearchMode(screenTitle, editingFoodId)
+    }
+    val initialSearchQuery = remember(recipeSearchMode) {
+        loadRecipeSearchQuery(recipeSearchMode)
+    }
+    var searchQuery by rememberSaveable(recipeSearchMode) { mutableStateOf(initialSearchQuery) }
     var foods by remember { mutableStateOf(dbHelper.readFoodsFromDatabase()) }
     val loadRecipes = remember(editingFoodId, dbHelper) {
         {
@@ -2268,6 +2306,10 @@ fun AddRecipeScreen(
     var showRecipeAmountDialog by remember { mutableStateOf(false) }
     var showEditRecipeAmountDialog by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(searchQuery, recipeSearchMode) {
+        storeRecipeSearchQuery(recipeSearchMode, searchQuery)
+    }
 
     val exitAddRecipe: () -> Unit = {
         dbHelper.deleteRecipesWithFoodIdZero()
@@ -3276,7 +3318,7 @@ fun EditEatenItemDialog(
         }
     }
 
-    var amount by remember { mutableStateOf(eatenFood.amountEaten.toString()) }
+    var amount by rememberSaveable(eatenFood) { mutableStateOf(eatenFood.amountEaten.toString()) }
     var selectedDateTime by remember { mutableLongStateOf(initialDateTime) }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
@@ -3398,7 +3440,7 @@ fun SelectAmountDialog(
     onDismiss: () -> Unit,
     onConfirm: (amount: Float, dateTime: Long) -> Unit
 ) {
-    var amount by remember { mutableStateOf("") }
+    var amount by rememberSaveable { mutableStateOf("") }
     val calendar = Calendar.getInstance()
     var selectedDateTime by remember { mutableLongStateOf(calendar.timeInMillis) }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
@@ -3520,7 +3562,7 @@ fun RecipeAmountDialog(
     onDismiss: () -> Unit,
     onConfirm: (amount: Float) -> Unit
 ) {
-    var amount by remember { mutableStateOf("") }
+    var amount by rememberSaveable { mutableStateOf("") }
     val foodUnit = descriptionUnit(food.foodDescription)
     val displayName = descriptionDisplayName(food.foodDescription)
 
@@ -3567,7 +3609,7 @@ fun ConvertFoodDialog(
     onDismiss: () -> Unit,
     onConfirm: (density: Double) -> Unit
 ) {
-    var densityText by remember { mutableStateOf("") }
+    var densityText by rememberSaveable { mutableStateOf("") }
     val isValid = densityText.toDoubleOrNull()?.let { it > 0 } == true
     val displayName = descriptionDisplayName(food.foodDescription)
 
