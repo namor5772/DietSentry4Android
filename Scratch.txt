@@ -217,3 +217,107 @@ C:\Users\grobl\AppData\Local\Apps\2.0\A0WOLGB4.9YV\J81N8L7C.32C\diet..tion_00000
 In the Recipe Table of foods.db
 The FoodId field refers to an existing entry in the Foods table
 The RecipeId Field is just the auto generated index field for records in the Recip table 
+
+UPDATE my_table
+SET new_field = 0
+WHERE new_field IS NULL;
+
+2025-12-17 14:55:09.801 19567-19567 VRI[Toast]@40fe1d0      au.dietsentry.myapplication          D  reportDrawFinished seqId=0
+2025-12-17 14:55:09.801 19567-19584 HWUI                    au.dietsentry.myapplication          D  HWUI - treat SMPTE_170M as sRGB
+2025-12-17 14:55:09.801  2153-2208  SurfaceComposerClient   system_server                        D  setCornerRadius ## 878c6d4 au.dietsentry.myapplication/au.dietsentry.myapplication.MainActivity#16835 cornerRadius=0.000000
+2025-12-17 14:55:09.803  2153-2208  SurfaceComposerClient   system_server                        D  setCornerRadius ## 878c6d4 au.dietsentry.myapplication/au.dietsentry.myapplication.MainActivity#16835 cornerRadius=0.000000
+2025-12-17 14:55:09.803  2153-2208  PowerManagerService     system_server                        D  [api] acquire WakeLock SCREEN_BRIGHT_WAKE_LOCK           'WindowManager/displayId:0' ON_AFTER_RELEASE (uid=1000 pid=2153 ws=WorkSource{10560 au.dietsentry.myapplication} displayId=0 lock=919f2ca)
+2025-12-17 14:55:09.813  2153-2208  SurfaceComposerClient   system_server                        D  setCornerRadius ## 878c6d4 au.dietsentry.myapplication/au.dietsentry.myapplication.MainActivity#16835 cornerRadius=0.000000
+2025-12-17 14:55:09.831  1854-1854  SurfaceFlinger          surfaceflinger                       D  Display 4630947093241269891 HWC layers:
+                                                                                                      SOLID_COLOR |                        0 | 00000000 | N/A          |    0.0    0.0    0.0    0.0 |    0    0 1080   76 | Letterbox - top#16829 (0)
+                                                                                                           DEVICE |           84039625080834 | 00002102 | RGBA_8888    |    0.0    0.0 1080.0 2241.0 |    0   75 1080 2316 | au.dietsentry.myapplication/au.diets[...]pplication.MainActivity$_19567#16836 (746)
+                                                                                                           DEVICE |           19898583485361 | 00002100 | RGBA_8888    |    0.0    0.0 1080.0   75.0 |    0    0 1080   75 | StatusBar$_4633#100 (20781)
+                                                                                                           DEVICE |           84039625080844 | 00002100 | RGBA_8888    |    0.0    0.0  633.0   98.0 |  223 1903  856 2001 | Toast$_19567#16857 (1)
+                                                                                                           DEVICE |           19898583485365 | 00002100 | RGBA_8888    |    0.0    0.0 1080.0  135.0 |    0 2181 1080 2316 | NavigationBar0$_4633#96 (34695)
+                                                                                                    
+2025-12-17 14:55:09.903 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=androidx.compose.ui.platform.AndroidComposeView{2f39811 VFED..... .F...... 0,0-1080,2241 aid=1073741824}, caller=android.view.ViewGroup.setRequestedFrameRate:9952 androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1949 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 
+2025-12-17 14:55:09.903 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=android.view.View{ea42710 V.ED..... ........ 0,0-0,0}, caller=androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1950 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 android.view.ViewGroup.recreateChildDisplayList:4794 
+2025-12-17 14:55:10.284 19567-19567 VRI[MainAc...y]@367b54a au.dietsentry.myapplication          I  updatePointerIcon : PointerIcon{type=NOT_SPECIFIED, hotspotX=0.0, hotspotY=0.0}
+2025-12-17 14:55:10.295 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=androidx.compose.ui.platform.AndroidComposeView{2f39811 VFED..... .F...... 0,0-1080,2241 aid=1073741824}, caller=android.view.ViewGroup.setRequestedFrameRate:9952 androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1949 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 
+2025-12-17 14:55:10.295 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=android.view.View{ea42710 V.ED..... ........ 0,0-0,0}, caller=androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1950 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 android.view.ViewGroup.recreateChildDisplayList:4794 
+2025-12-17 14:55:10.309 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=androidx.compose.ui.platform.AndroidComposeView{2f39811 VFED..... .F....ID 0,0-1080,2241 aid=1073741824}, caller=android.view.ViewGroup.setRequestedFrameRate:9952 androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1949 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 
+2025-12-17 14:55:10.309 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=-4.0, this=android.view.View{ea42710 V.ED..... ........ 0,0-0,0}, caller=androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1950 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 android.view.ViewGroup.recreateChildDisplayList:4794 
+2025-12-17 14:55:10.312  2153-2208  SurfaceComposerClient   system_server                        D  setCornerRadius ## 878c6d4 au.dietsentry.myapplication/au.dietsentry.myapplication.MainActivity#16835 cornerRadius=0.000000
+2025-12-17 14:55:10.317 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=androidx.compose.ui.platform.AndroidComposeView{2f39811 VFED..... .F...... 0,0-1080,2241 aid=1073741824}, caller=android.view.ViewGroup.setRequestedFrameRate:9952 androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1949 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 
+2025-12-17 14:55:10.317 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=android.view.View{ea42710 V.ED..... ........ 0,0-0,0}, caller=androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1950 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 android.view.ViewGroup.recreateChildDisplayList:4794 
+2025-12-17 14:55:10.320  2153-2208  SurfaceComposerClient   system_server                        D  setCornerRadius ## 878c6d4 au.dietsentry.myapplication/au.dietsentry.myapplication.MainActivity#16835 cornerRadius=0.000000
+2025-12-17 14:55:10.328  2153-3665  InputDispatcher         system_server                        I  Canceling pointers for device -1 in 878c6d4 au.dietsentry.myapplication/au.dietsentry.myapplication.MainActivity with event MotionEvent
+2025-12-17 14:55:10.330  2153-2208  SurfaceComposerClient   system_server                        D  setCornerRadius ## 878c6d4 au.dietsentry.myapplication/au.dietsentry.myapplication.MainActivity#16835 cornerRadius=0.000000
+2025-12-17 14:55:10.330 19567-19567 VRI[MainAc...y]@367b54a au.dietsentry.myapplication          I  updatePointerIcon : PointerIcon{type=ARROW, hotspotX=0.0, hotspotY=0.0}
+2025-12-17 14:55:10.406 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=androidx.compose.ui.platform.AndroidComposeView{2f39811 VFED..... .F...... 0,0-1080,2241 aid=1073741824}, caller=android.view.ViewGroup.setRequestedFrameRate:9952 androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1949 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 
+2025-12-17 14:55:10.406 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=android.view.View{ea42710 V.ED..... ........ 0,0-0,0}, caller=androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1950 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 android.view.ViewGroup.recreateChildDisplayList:4794 
+2025-12-17 14:55:10.454 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=androidx.compose.ui.platform.AndroidComposeView{2f39811 VFED..... .F...... 0,0-1080,2241 aid=1073741824}, caller=android.view.ViewGroup.setRequestedFrameRate:9952 androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1949 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 
+2025-12-17 14:55:10.454 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=android.view.View{ea42710 V.ED..... ........ 0,0-0,0}, caller=androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1950 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 android.view.ViewGroup.recreateChildDisplayList:4794 
+2025-12-17 14:55:10.465 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=androidx.compose.ui.platform.AndroidComposeView{2f39811 VFED..... .F...... 0,0-1080,2241 aid=1073741824}, caller=android.view.ViewGroup.setRequestedFrameRate:9952 androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1949 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 
+2025-12-17 14:55:10.465 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=android.view.View{ea42710 V.ED..... ........ 0,0-0,0}, caller=androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1950 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 android.view.ViewGroup.recreateChildDisplayList:4794 
+2025-12-17 14:55:10.581 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=androidx.compose.ui.platform.AndroidComposeView{2f39811 VFED..... .F...... 0,0-1080,2241 aid=1073741824}, caller=android.view.ViewGroup.setRequestedFrameRate:9952 androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1949 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 
+2025-12-17 14:55:10.581 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=-4.0, this=android.view.View{ea42710 V.ED..... ........ 0,0-0,0}, caller=androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1950 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 android.view.ViewGroup.recreateChildDisplayList:4794 
+2025-12-17 14:55:10.904 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=androidx.compose.ui.platform.AndroidComposeView{2f39811 VFED..... .F...... 0,0-1080,2241 aid=1073741824}, caller=android.view.ViewGroup.setRequestedFrameRate:9952 androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1949 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 
+2025-12-17 14:55:10.904 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=android.view.View{ea42710 V.ED..... ........ 0,0-0,0}, caller=androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1950 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 android.view.ViewGroup.recreateChildDisplayList:4794 
+2025-12-17 14:55:11.405 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=androidx.compose.ui.platform.AndroidComposeView{2f39811 VFED..... .F...... 0,0-1080,2241 aid=1073741824}, caller=android.view.ViewGroup.setRequestedFrameRate:9952 androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1949 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 
+2025-12-17 14:55:11.405 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=android.view.View{ea42710 V.ED..... ........ 0,0-0,0}, caller=androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1950 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 android.view.ViewGroup.recreateChildDisplayList:4794 
+2025-12-17 14:55:11.750 19567-19567 WindowManager           au.dietsentry.myapplication          I  WindowManagerGlobal#removeView, ty=2005, view=android.widget.TextView{a55ad93 V.ED..... ........ 0,0-633,98}, caller=android.view.WindowManagerGlobal.removeView:654 android.view.WindowManagerImpl.removeViewImmediate:216 android.widget.ToastPresenter.hide:348 
+2025-12-17 14:55:11.753 19567-19567 VRI[Toast]@40fe1d0      au.dietsentry.myapplication          I  dispatchDetachedFromWindow
+2025-12-17 14:55:11.759  2153-6701  SurfaceComposerClient   system_server                        D  setCornerRadius ## 878c6d4 au.dietsentry.myapplication/au.dietsentry.myapplication.MainActivity#16835 cornerRadius=0.000000
+2025-12-17 14:55:11.759  2153-6701  SurfaceComposerClient   system_server                        D  setCornerRadius ## 878c6d4 au.dietsentry.myapplication/au.dietsentry.myapplication.MainActivity#16835 cornerRadius=0.000000
+2025-12-17 14:55:11.760 19567-19567 InputTransport          au.dietsentry.myapplication          D  Input channel destroyed: 'a3f9123', fd=141
+2025-12-17 14:55:11.760  2153-2208  SurfaceComposerClient   system_server                        D  setCornerRadius ## 878c6d4 au.dietsentry.myapplication/au.dietsentry.myapplication.MainActivity#16835 cornerRadius=0.000000
+2025-12-17 14:55:11.760  2153-4048  NotificationService     system_server                        W  Toast already killed. pkg=au.dietsentry.myapplication token=android.os.BinderProxy@c0dac02
+2025-12-17 14:55:11.773  2153-2208  SurfaceComposerClient   system_server                        D  setCornerRadius ## 878c6d4 au.dietsentry.myapplication/au.dietsentry.myapplication.MainActivity#16835 cornerRadius=0.000000
+2025-12-17 14:55:11.904 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=androidx.compose.ui.platform.AndroidComposeView{2f39811 VFED..... .F...... 0,0-1080,2241 aid=1073741824}, caller=android.view.ViewGroup.setRequestedFrameRate:9952 androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1949 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 
+2025-12-17 14:55:11.904 19567-19567 View                    au.dietsentry.myapplication          I  setRequestedFrameRate frameRate=NaN, this=android.view.View{ea42710 V.ED..... ........ 0,0-0,0}, caller=androidx.compose.ui.platform.Api35Impl.setRequestedFrameRate:3314 androidx.compose.ui.platform.AndroidComposeView.dispatchDraw:1950 android.view.View.draw:26345 android.view.View.updateDisplayListIfDirty:25175 android.view.ViewGroup.recreateChildDisplayList:4794 
+2025-12-17 14:55:12.271  2153-2208  SurfaceComposerClient   system_server                        D  setCornerRadius ## 878c6d4 au.dietsentry.myapplication/au.di
+
+You need Node.js (npm comes with it). Quickest Windows options:
+
+  - If you have Winget: run winget install OpenJS.NodeJS.LTS in an
+    elevated Command Prompt/PowerShell, then restart the terminal.
+  - If you use Chocolatey: choco install nodejs-lts (also elevate),
+    then restart.
+  - Or download and install the LTS Windows installer from nodejs.org,
+    then open a new terminal.
+
+  Then verify: node -v and npm -v. After that, any terminal (e.g., C:
+  \Users\grobl>) can run npm install -g @openai/codex.
+  
+  run npm install -g @openai/codex
+  
+  run npm install -g @openai/codex
+  
+  I tried to run the codex update as suggested here pressed
+  the button it sup and indicated successfull install but
+  this did not happen.
+  
+  
+  /mnt/c/Users/grobl/…/DietSentry4Android
+  
+  OpenAI Codex (v0.64.0)                                                  │
+│                                                                             │
+│ Visit https://chatgpt.com/codex/settings/usage for up-to-date               │
+│ information on rate limits and credits                                      │
+│                                                                             │
+│  Model:            gpt-5.1-codex-max (reasoning high, summaries auto)       │
+│  Directory:        /mnt/c/Users/…/AndroidStudioProjects/DietSentry4Android  │
+│  Approval:         on-request                                               │
+│  Sandbox:          workspace-write                                          │
+│  Agents.md:        AGENTS.md                                                │
+│  Account:          namor5772@gmail.com (Plus)                               │
+│  Session:          019b3382-6f41-7281-8f58-dd76779394c8                     │
+│                                                                             │
+│  Context window:   100% left (0 used / 272K)                                │
+│  5h limit:         [████████████████████] 98% left (resets 13:53)           │
+│  Weekly limit:     [██████████████████░░] 88% left (resets 14:14 on 24 Dec) │
+╰────────────────────────────────────────────────────────────────────────────
+  
+
+  
+cd /
+cd /mnt/c/users/grobl/AndroidStudioProjects/DietSentry4Android
+codex
+
+wsl.exe -d Ubuntu -- bash -c "cd /mnt/c/users/grobl/AndroidStudioProjects/DietSentry4Android && codex; exec bash"
