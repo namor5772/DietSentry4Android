@@ -1063,7 +1063,7 @@ Some foods don’t require a NIP unless a nutrition claim is made:
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Foods\nTable", fontWeight = FontWeight.Bold) },
+                title = { Text("Foods Table_", fontWeight = FontWeight.Bold) },
                 actions = {
                     val options = listOf("Min", "NIP", "All")
                     SingleChoiceSegmentedButtonRow(
