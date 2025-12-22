@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Help
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -42,6 +43,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
@@ -895,6 +898,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
     }
     var foods by remember { mutableStateOf(dbHelper.readFoodsFromDatabase()) }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val searchFocusRequester = remember { FocusRequester() }
     val initialFoodSelection = remember {
         sharedPreferences.getInt(
             KEY_NUTRITION_SELECTION_FOOD,
@@ -1103,24 +1107,43 @@ Some foods don’t require a NIP unless a nutrition claim is made:
             .fillMaxSize()
             .padding(innerPadding)) {
             Column {
-                TextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    label = { Text("Enter food filter text") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        foods = if (searchQuery.isNotBlank()) {
-                            dbHelper.searchFoods(searchQuery)
-                        } else {
-                            dbHelper.readFoodsFromDatabase()
-                        }
-                        keyboardController?.hide()
-                    }),
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                )
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Enter food filter text") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = {
+                            foods = if (searchQuery.isNotBlank()) {
+                                dbHelper.searchFoods(searchQuery)
+                            } else {
+                                dbHelper.readFoodsFromDatabase()
+                            }
+                            keyboardController?.hide()
+                        }),
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(searchFocusRequester)
+                    )
+                    IconButton(
+                        onClick = {
+                            searchQuery = ""
+                            searchFocusRequester.requestFocus()
+                            keyboardController?.show()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Clear,
+                            contentDescription = "Clear food filter"
+                        )
+                    }
+                }
                 FoodList(
                     foods = foods,
                     onFoodClicked = { food ->
@@ -2306,6 +2329,7 @@ fun AddRecipeScreen(
     var showRecipeAmountDialog by remember { mutableStateOf(false) }
     var showEditRecipeAmountDialog by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val searchFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(searchQuery, recipeSearchMode) {
         storeRecipeSearchQuery(recipeSearchMode, searchQuery)
@@ -2526,24 +2550,43 @@ fun AddRecipeScreen(
                         valueFillFraction = 1f
                     )
                 }
-                TextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    label = { Text("Enter food filter text") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        foods = if (searchQuery.isNotBlank()) {
-                            dbHelper.searchFoods(searchQuery)
-                        } else {
-                            dbHelper.readFoodsFromDatabase()
-                        }
-                        keyboardController?.hide()
-                    }),
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                )
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Enter food filter text") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = {
+                            foods = if (searchQuery.isNotBlank()) {
+                                dbHelper.searchFoods(searchQuery)
+                            } else {
+                                dbHelper.readFoodsFromDatabase()
+                            }
+                            keyboardController?.hide()
+                        }),
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(searchFocusRequester)
+                    )
+                    IconButton(
+                        onClick = {
+                            searchQuery = ""
+                            searchFocusRequester.requestFocus()
+                            keyboardController?.show()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Clear,
+                            contentDescription = "Clear food filter"
+                        )
+                    }
+                }
                 FoodList(
                     foods = foods,
                     onFoodClicked = { food ->
