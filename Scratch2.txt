@@ -1,0 +1,26 @@
+
+Project path in Windows 
+C:\Users\roman\AndroidStudioProjects\DietSentry4Android
+
+Project path in WSL
+/mnt/c/Users/roman/AndroidStudioProjects/DietSentry4Android
+
+  
+Here are the full manual pairing steps:
+
+  - Phone: Wireless debugging OFF → ON.
+  - Phone: “Pair device with pairing code”; note pairing IP:port + code.
+  - PowerShell:
+      - adb kill-server
+      - adb start-server
+      - adb pair <pairing-ip:port> (enter code)
+  - Phone: note debug IP:port under “Wireless debugging”.
+  - PowerShell:
+      - adb connect <debug-ip:port>
+      - adb devices  
+	  
+	  
+To push local commit to cloud repo	  
+git push -u origin HEAD:codex-playground	  
+	  
+  
