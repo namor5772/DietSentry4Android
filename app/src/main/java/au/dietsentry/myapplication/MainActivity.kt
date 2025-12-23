@@ -179,6 +179,9 @@ class MainActivity : ComponentActivity() {
                     composable("insertFood") {
                         InsertFoodScreen(navController = navController)
                     }
+                    composable("addFoodByJson") {
+                        AddFoodByJsonScreen(navController = navController)
+                    }
                     composable("addRecipe") {
                         AddRecipeScreen(navController = navController)
                     }
@@ -924,8 +927,9 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
 - The **navigation button** `->` which transfers you to the Eaten Table screen.
 - A **text field** which when empty displays the text "Enter food filter text"
     - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
+    - For multiple terms, use `text1|text2` to match descriptions that contain all terms.
     - It is NOT case sensitive
-- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by six buttons below it:
+- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by seven buttons below it:
     - **LOG**: logs the selected food into the Eaten Table.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
         - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible. Read the help on thet Screen for more help.
@@ -935,6 +939,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
     - **Add**: adds a new food to the database.
         - It opens a screen titled "Add Food". Press the help button on that screen for more help.
         - The original selected food has no relevance to this activity. It is just a way of making the Add button available.
+    - **Json**: opens the "Add Food by Json" screen.
     - **Copy**: makes a copy of the selected food.
         - If the selected food is a Solid it opens a screen titled "Copying Solid Food"
         - If the selected food is a Liquid it opens a screen titled "Copying Liquid Food"
@@ -1037,6 +1042,8 @@ Some foods don’t require a NIP unless a nutrition claim is made:
     navController.currentBackStackEntry?.savedStateHandle?.let { savedStateHandle ->
         val foodUpdated = savedStateHandle.get<Boolean>("foodUpdated") ?: false
         val foodInserted = savedStateHandle.get<Boolean>("foodInserted") ?: false
+        val foodInsertedDescription = savedStateHandle.get<String>("foodInsertedDescription")
+        val foodUpdatedDescription = savedStateHandle.get<String>("foodUpdatedDescription")
         val sortFoodsDescOnce = savedStateHandle.get<Boolean>("sortFoodsDescOnce") ?: false
         LaunchedEffect(foodUpdated) {
             if (foodUpdated) {
@@ -1050,6 +1057,22 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                 foods = dbHelper.readFoodsFromDatabase()
                 selectedFood = null
                 savedStateHandle.remove<Boolean>("foodInserted")
+            }
+        }
+        LaunchedEffect(foodInsertedDescription) {
+            if (!foodInsertedDescription.isNullOrBlank()) {
+                searchQuery = foodInsertedDescription
+                foods = dbHelper.searchFoods(foodInsertedDescription)
+                selectedFood = null
+                savedStateHandle.remove<String>("foodInsertedDescription")
+            }
+        }
+        LaunchedEffect(foodUpdatedDescription) {
+            if (!foodUpdatedDescription.isNullOrBlank()) {
+                searchQuery = foodUpdatedDescription
+                foods = dbHelper.searchFoods(foodUpdatedDescription)
+                selectedFood = null
+                savedStateHandle.remove<String>("foodUpdatedDescription")
             }
         }
         LaunchedEffect(sortFoodsDescOnce) {
@@ -1169,6 +1192,7 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                             }
                         },
                         onAdd = { navController.navigate("insertFood") },
+                        onJson = { navController.navigate("addFoodByJson") },
                         onCopy = {
                             if (isRecipeDescription(food.foodDescription)) {
                                 navController.navigate("copyRecipe/${food.foodId}")
@@ -1266,7 +1290,8 @@ Some foods don’t require a NIP unless a nutrition claim is made:
 
                     val inserted = dbHelper.insertFood(newFood)
                     if (inserted) {
-                        foods = dbHelper.readFoodsFromDatabase()
+                        searchQuery = newDescription
+                        foods = dbHelper.searchFoods(newDescription)
                         selectedFood = null
                         showConvertDialog = false
                         showPlainToast(context, "Converted food added")
@@ -1487,6 +1512,9 @@ fun EditFoodScreen(
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
                                 ?.set("foodUpdated", true)
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("foodUpdatedDescription", updatedFood.foodDescription)
                             navController.popBackStack()
                         } else {
                             showPlainToast(context, "Failed to update food")
@@ -1793,6 +1821,9 @@ fun CopyFoodScreen(
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
                                 ?.set("foodInserted", true)
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("foodInsertedDescription", processedDescription)
                             navController.popBackStack()
                         } else {
                             showPlainToast(context, "Failed to copy food")
@@ -2086,6 +2117,9 @@ fun InsertFoodScreen(
                             navController.previousBackStackEntry
                                 ?.savedStateHandle
                                 ?.set("foodInserted", true)
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("foodInsertedDescription", processedDescription)
                             navController.popBackStack()
                         } else {
                             showPlainToast(context, "Failed to insert food")
@@ -2292,6 +2326,127 @@ fun InsertFoodScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun AddFoodByJsonScreen(navController: NavController) {
+    val context = LocalContext.current
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
+    var jsonText by rememberSaveable { mutableStateOf("") }
+    var showHelpSheet by remember { mutableStateOf(false) }
+    val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val jsonHelpText = """
+# Add Food by Json
+- Paste or enter JSON describing a food item.
+- Tap Confirm to process the JSON and add the food.
+""".trimIndent()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Add Food by Json", fontWeight = FontWeight.Bold) },
+                actions = {
+                    HelpIconButton(onClick = { showHelpSheet = true })
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .navigationBarsPadding(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(onClick = {
+                    val jsonStart = jsonText.indexOf('{')
+                    val jsonEnd = jsonText.lastIndexOf('}')
+                    if (jsonStart == -1 || jsonEnd == -1 || jsonEnd <= jsonStart) {
+                        showPlainToast(context, "Please paste valid JSON")
+                        return@Button
+                    }
+                    val jsonPayload = jsonText.substring(jsonStart, jsonEnd + 1)
+                    try {
+                        val json = org.json.JSONObject(jsonPayload)
+                        val description = json.getString("FoodDescription").trim()
+                        if (description.isBlank()) {
+                            showPlainToast(context, "FoodDescription is required")
+                            return@Button
+                        }
+                        val newFood = Food(
+                            foodId = 0,
+                            foodDescription = description,
+                            energy = json.getDouble("Energy"),
+                            protein = json.getDouble("Protein"),
+                            fatTotal = json.getDouble("FatTotal"),
+                            saturatedFat = json.getDouble("SaturatedFat"),
+                            transFat = json.getDouble("TransFat"),
+                            polyunsaturatedFat = json.getDouble("PolyunsaturatedFat"),
+                            monounsaturatedFat = json.getDouble("MonounsaturatedFat"),
+                            carbohydrate = json.getDouble("Carbohydrate"),
+                            sugars = json.getDouble("Sugars"),
+                            dietaryFibre = json.getDouble("DietaryFibre"),
+                            sodium = json.getDouble("SodiumNa"),
+                            calciumCa = json.getDouble("CalciumCa"),
+                            potassiumK = json.getDouble("PotassiumK"),
+                            thiaminB1 = json.getDouble("ThiaminB1"),
+                            riboflavinB2 = json.getDouble("RiboflavinB2"),
+                            niacinB3 = json.getDouble("NiacinB3"),
+                            folate = json.getDouble("Folate"),
+                            ironFe = json.getDouble("IronFe"),
+                            magnesiumMg = json.getDouble("MagnesiumMg"),
+                            vitaminC = json.getDouble("VitaminC"),
+                            caffeine = json.getDouble("Caffeine"),
+                            cholesterol = json.getDouble("Cholesterol"),
+                            alcohol = json.getDouble("Alcohol")
+                        )
+                        val inserted = dbHelper.insertFood(newFood)
+                        if (inserted) {
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("foodInsertedDescription", description)
+                            navController.popBackStack()
+                        } else {
+                            showPlainToast(context, "Failed to insert food")
+                        }
+                    } catch (e: Exception) {
+                        showPlainToast(context, "Invalid JSON or missing fields")
+                    }
+                }) {
+                    Text("Confirm")
+                }
+            }
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp)
+        ) {
+            TextField(
+                value = jsonText,
+                onValueChange = { jsonText = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                placeholder = { Text("Paste JSON here") },
+                maxLines = Int.MAX_VALUE
+            )
+        }
+    }
+
+    if (showHelpSheet) {
+        HelpBottomSheet(
+            helpText = jsonHelpText,
+            sheetState = helpSheetState,
+            onDismiss = { showHelpSheet = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun AddRecipeScreen(
     navController: NavController,
     screenTitle: String = "Add Recipe",
@@ -2489,6 +2644,7 @@ fun AddRecipeScreen(
                         recipes = loadRecipes()
                         val foodSearchEntry = runCatching { navController.getBackStackEntry("foodSearch") }.getOrNull()
                         foodSearchEntry?.savedStateHandle?.set("foodInserted", true)
+                        foodSearchEntry?.savedStateHandle?.set("foodInsertedDescription", baseFood.foodDescription)
                         foodSearchEntry?.savedStateHandle?.set("sortFoodsDescOnce", true)
 
                         val popped = navController.popBackStack("foodSearch", inclusive = false)
@@ -2513,6 +2669,7 @@ fun AddRecipeScreen(
                         recipes = loadRecipes()
                         val foodSearchEntry = runCatching { navController.getBackStackEntry("foodSearch") }.getOrNull()
                         foodSearchEntry?.savedStateHandle?.set("foodUpdated", true)
+                        foodSearchEntry?.savedStateHandle?.set("foodUpdatedDescription", baseFood.foodDescription)
 
                         val popped = navController.popBackStack("foodSearch", inclusive = false)
                         if (!popped) {
@@ -3751,6 +3908,7 @@ fun SelectionPanel(
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     onAdd: () -> Unit,
+    onJson: () -> Unit = {},
     onDelete: () -> Unit,
     onCopy: () -> Unit = {},
     onConvert: () -> Unit = {}
@@ -3774,6 +3932,7 @@ fun SelectionPanel(
                 Button(onClick = onSelect) { Text("LOG") }
                 Button(onClick = onEdit) { Text("Edit") }
                 Button(onClick = onAdd) { Text("Add") }
+                Button(onClick = onJson) { Text("Json") }
                 Button(onClick = onCopy) { Text("Copy") }
                 Button(onClick = onConvert) { Text("Convert") }
                 Button(onClick = onDelete) { Text("Delete") }

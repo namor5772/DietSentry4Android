@@ -503,7 +503,17 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
     fun searchFoods(query: String): List<Food> {
         val foodList = mutableListOf<Food>()
         try {
-            db.rawQuery("SELECT * FROM Foods WHERE FoodDescription LIKE ?", arrayOf("%$query%")).use { cursor ->
+            val terms = query.split("|")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+            val (sql, args) = if (terms.size > 1) {
+                val whereClause = terms.joinToString(" AND ") { "FoodDescription LIKE ?" }
+                "SELECT * FROM Foods WHERE $whereClause" to terms.map { "%$it%" }.toTypedArray()
+            } else {
+                val singleTerm = terms.firstOrNull() ?: query
+                "SELECT * FROM Foods WHERE FoodDescription LIKE ?" to arrayOf("%$singleTerm%")
+            }
+            db.rawQuery(sql, args).use { cursor ->
                 if (cursor.moveToFirst()) {
                     do {
                         foodList.add(createFoodFromCursor(cursor))
