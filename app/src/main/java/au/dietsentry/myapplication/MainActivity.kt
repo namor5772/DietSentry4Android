@@ -927,8 +927,9 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
 - The **navigation button** `->` which transfers you to the Eaten Table screen.
 - A **text field** which when empty displays the text "Enter food filter text"
     - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
-    - For multiple terms, use `text1|text2` to match descriptions that contain all terms.
+    - You can also type {text1}|{text2} to match descriptions that contain BOTH of these terms.
     - It is NOT case sensitive
+- The **clear text field button** `x` which clears the above text field    
 - A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by seven buttons below it:
     - **LOG**: logs the selected food into the Eaten Table.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
@@ -939,7 +940,9 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
     - **Add**: adds a new food to the database.
         - It opens a screen titled "Add Food". Press the help button on that screen for more help.
         - The original selected food has no relevance to this activity. It is just a way of making the Add button available.
-    - **Json**: opens the "Add Food by Json" screen.
+    - **Json**: adds a new food to the database based on Json text (not applicable to recipe foods).
+        - It opens a screen titled "Add Food by Json".  Press the help button on that screen for more help.
+        - The original selected food has no relevance to this activity. It is just a way of making the Json button available.
     - **Copy**: makes a copy of the selected food.
         - If the selected food is a Solid it opens a screen titled "Copying Solid Food"
         - If the selected food is a Liquid it opens a screen titled "Copying Liquid Food"
@@ -1419,42 +1422,20 @@ fun EditFoodScreen(
     val editHelpText = if (isLiquidFood) {
         """
 # Editing Liquid Food
-## Editing Liquid Food
-### Editing Liquid Food
-- Enter *values* per 100 mL *unless* otherwise ~~noted~~.
-- Keep the description clear; the app keeps the “mL” suffix for logging.
-- Use decimals where `needed` and tap Confirm to save your changes.
-# Editing Liquid Food
-## Editing Liquid Food
-### Editing Liquid Food
-- Enter *values* per 100 mL *unless* otherwise ~~noted~~.
-- Keep the description clear; the app keeps the “mL” suffix for logging.
-- Use decimals where `needed` and tap Confirm to save your changes.
-# Editing Liquid Food
-## Editing Liquid Food
-### Editing Liquid Food
-- Enter *values* per 100 mL *unless* otherwise ~~noted~~.
-- Keep the description clear; the app keeps the “mL” suffix for logging.
-- Use decimals where `needed` and tap Confirm to save your changes.
-# Editing Liquid Food
-## Editing Liquid Food
-### Editing Liquid Food
-- Enter *values* per 100 mL *unless* otherwise ~~noted~~.
-- Keep the description clear; the app keeps the “mL” suffix for logging.
-- Use decimals where `needed` and tap Confirm to save your changes.
-# Editing Liquid Food
-## Editing Liquid Food
-### Editing Liquid Food
-- Enter *values* per 100 mL *unless* otherwise ~~noted~~.
-- Keep the description clear; the app keeps the “mL” suffix for logging.
-- Use decimals where `needed` and tap Confirm to save your changes.
+- These are foods for which the Energy and nutrient values are given on a per 100mL basis.
+- On first displaying the Editing Liquid Food screen all the input fields will be populated with values from the selected Food, however the Description field will have the " mL" or " mL#" markers omitted. These will be reinstated after edit confirmation. This means you cannot change a Liquid type food into a Solid directly through editing. However it is possible to convert it to a solid by tapping the Convert button and then editing that solid food.
+- Modify fields as required using decimals where needed and tap Confirm to save your changes. If a field entry is not valid (eg. text, blank or not a number in a field requiring numbers) the Confirm button will be disabled.
+- You can press either of two "back" buttons to cancel the editing process and return focus to the Foods Table screen.
+- If confirmation succeeds the selected food in the Foods table is amended and focus passes to the Foods Table screen with the filter text being set to the just edited foods description (with any markers reinstated). This allows you to review the results of the edit. This is especially important if the description has changed significantly and you would not have been able find the food again.    
 """.trimIndent()
     } else {
         """
 # Editing Solid Food
-- Enter values per 100 g unless otherwise noted.
-- Keep the description clear; the app keeps the “#” marker for serving size.
-- Use decimals where needed and tap Confirm to save your changes.
+- These are foods for which the Energy and nutrient values are given on a per 100g basis.
+- On first displaying the Editing Solid Food screen all the input fields will be populated with values from the selected Food, however the Description field will have the " #" marker (if any) omitted. This will be reinstated after edit confirmation. Interestingly you can convert this food to a liquid by appending the text " mL" to the possibly edited description.
+- Modify fields as required using decimals where needed and tap Confirm to save your changes. If a field entry is not valid (eg. text, blank or not a number in a field requiring numbers) the Confirm button will be disabled.
+- You can press either of two "back" buttons to cancel the editing process and return focus to the Foods Table screen.
+- If confirmation succeeds the selected food in the Foods table is amended and focus passes to the Foods Table screen with the filter text being set to the just edited foods description (with any markers reinstated). This allows you to review the results of the edit. This is especially important if the description has changed significantly and you would not have been able find the food again.    
 """.trimIndent()
     }
 
