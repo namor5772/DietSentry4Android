@@ -236,7 +236,7 @@ fun EatenLogScreen(navController: NavController) {
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val eatenHelpText = """
 # **Eaten Table**
-The purpose of this screen is to display a log of the foods you have consumed as well as modify it to some degree.
+The purpose of this screen is to display a log of the foods you have consumed as well as modify them to some degree.
 ***
 ## Explanation of GUI elements
 The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
@@ -278,32 +278,62 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
 - A **check box** labeled "Daily totals"
     - When **unchecked** logs of individual foods eaten are displayed
     - When **checked** these logs are summed by day, giving you a daily total of each nutrient consumed (as well as Energy), even though which ones are displayed is determined by which segmented button (Min, NIP, All) is pressed. 
-- The **help button** `?` which displays this help screen.     
-- A **scrollable table viewer** which displays records (possibly consolidated by date) from the Eaten table. If a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food log followed by buttons below it:
-    - **Eaten**: logs the selected food into the Eaten Table.
+- A **check box** labeled "Filter by Date"
+    - When **unchecked** all food logs are displayed. For all dates and times.
+    - When **checked** only food logs of foods logged during the displayed date are displayed, whether summed or not.
+- A **date dialog** which displays a selected date.
+    - When this app is started the default is today's date. It is however persistent between app restarts.
+- A **scrollable table viewer** which displays records (possibly consolidated by date) from the Eaten table. If a particular logged food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food log followed by two buttons below it:
+    - **Edit**: It enables the amount and date stamp of the logged eaten food to be modified.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
-        - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible.
-        - You can abort this process by tapping anywhere outside the dialog box. This closes it.
-    - **Edit**: allows editing of the selected food.
-        - It opens a screen titled "Editing Solid Food" or "Editing Liquid Food", obviously depending on the type of food you have selected. 
-    - **Add**: adds a new food record to the Foods table.
-        - It opens a screen titled "Add Food".
-        - The original selected food has no relevance to this activity. It is just a way of making the Add button available.   
-    - **Copy**: opens a Copying Solid/Liquid Food screen with all fields pre-filled and the description suffix removed.
-    - **Convert**: converts a liquid food to a solid entry by entering density (g/mL); a new food is added with converted per-100g values.
-    - **Delete**: deletes the selected food from the Foods table.
-        - It opens a dialog which warns you that you will be deleting the selected food from the Foods table.
+        - Press the **Confirm** button when you are ready to confirm your changes. This then transfers focus back to the Eaten Table screen and the where the just modified food log will be visible and selected. The selection panel for this log (with the Edit and Deleted buttons) is still then open.
+        - You can abort this process by tapping anywhere outside the dialog box. This closes it and transfers focus in the same way as described above.
+    - **Delete**: deletes the selected food lof from the Eaten table.
+        - It opens a dialog which warns you that you will be deleting the selected food log from the Eaten table.
         - This is irrevocable if you press the **Delete** button.
-        - You can change you mind about doing this by just tapping anywhere outside the dialog box. This closes it.
+        - You can change you mind about doing this by just tapping anywhere outside the dialog box. This closes it and returns focus to the Eaten Table screen. The selection panel (with the Edit and Deleted buttons) is also closed.
+    - If food logs consolidated by date are displayed (ie. the "Daily totals" check box is ticked), selection for editing or deletion is not possible, so nothing happens.       
 ***
-        
-# Eaten Table
-- Use the Min / NIP / All toggle to change how much nutrition detail is shown.
-- Tap a row to expand it; tap again to collapse.
-- Long press the selection actions to edit or delete the chosen entry.
-- Turn on “Display daily totals” to see aggregated amounts per day.
-- Turn on “Filter by date” to show only entries for the selected day.
-- The Back arrow returns to the Foods Table.
+# **Eaten table structure**
+```
+Field name              Type    Units
+
+EatenId                 INTEGER
+DateEaten               TEXT    d-MMM-yy
+TimeEaten               TEXT    HH:mm
+EatenTs                 INTEGER
+AmountEaten             REAL    g or mL
+FoodDescription         TEXT	
+Energy                  REAL    kJ
+Protein                 REAL    g
+FatTotal                REAL    g
+SaturatedFat            REAL    g
+TransFat                REAL    mg
+PolyunsaturatedFat      REAL    g
+MonounsaturatedFat      REAL    g
+Carbohydrate            REAL    g
+Sugars                  REAL    g
+DietaryFibre            REAL    g
+SodiumNa                REAL    mg
+CalciumCa               REAL    mg
+PotassiumK              REAL    mg
+ThiaminB1               REAL    mg
+RiboflavinB2            REAL    mg
+NiacinB3                REAL    mg
+Folate                  REAL    µg
+IronFe                  REAL    mg
+MagnesiumMg             REAL    mg
+VitaminC                REAL    mg
+Caffeine                REAL    mg
+Cholesterol             REAL    mg
+Alcohol                 REAL    g
+```
+The EatenId field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
+The DateEaten and TimeEaten text fields store the food logs time stamp
+The EatenTs field is an integer that specifies the number of minutes since a reference time stamp. It allows easy sorting by date/time of when a food was logged (it is re1calculated if the Date and Time eaten are changed. 
+The FoodDescription is the same field as for a Foods table record.
+THe remaining (Energy and Nutrient fields) are the same as for the corresponding Foods table record, except that they are scaled by the amount of the food eaten. Eg. if EatenAmount=300 then all these field values are multiplied by 3.
+*** 
 """.trimIndent()
     var displayDailyTotals by remember { mutableStateOf(initialDisplayDailyTotals) }
     var filterByDate by remember { mutableStateOf(initialFilterByDate) }
@@ -2028,9 +2058,21 @@ fun InsertFoodScreen(
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val insertHelpText = """
 # Add Food
-- Choose Solid or Liquid; the app will append a serving marker automatically.
-- Enter nutrition values per 100 g or 100 mL; blanks are treated as zero.
-- Use decimal values where needed; tap Confirm to save the new food.
+- When the Add button is tapped from the Foods Table screen this screen called Add Food is displayed.
+- Like other screens it has a help and a navigation button in the top row.
+- The second row has three radio buttons titled:
+    - **Solid**. This is the default selection when this screen is opened.
+        - It indicates that the new food will be of solid type and thus the final FoodDescription will terminate with the marker " *". You do not need to do this explicitly in the Description field.
+        - The Energy and nutrition fields are assumed to be on a per 100g basis. 
+    - **Liquid**. If this is selected the new food will be of liquid type.
+        - The final FoodDescription will terminate with the marker " mL*". You do not need to do this explicitly in the Description field.
+        - The Energy and nutrition fields are assumed to be on a per 100mL basis.
+    - **Recipe**. If this radio button is selected focus will immediately pass to the Add Recipe screen.
+        - Any input fields you might have filled in will be ignored.
+- The following rows display the record fields that need to be filled in to create a new (non Recipe) food.
+    - Enter the description and the nutrition values. Blanks outside of the Description field are treated as 0. As long as the Description field is not blank the Confirm button will be enabled.
+    - You can press either of the two "back" buttons to cancel the creation process and return focus to the Foods Table screen.
+    - If however the Confirm button is pressed the Solid or Liquid food (as designated by the selected radio button) will be added to the Foods table. Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description (with the liquid marker appended if relevant). This allows you to review the results of the foods creation, with this being especially important if the Description is unintuitive and finding the food in the table might be difficult.    
 """.trimIndent()
 
     Scaffold(
@@ -2315,7 +2357,12 @@ fun AddFoodByJsonScreen(navController: NavController) {
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val jsonHelpText = """
 # Add Food by Json
-- Paste or enter JSON describing a food item.
+- When the **Json** button is tapped from the **Foods Table** screen this screen called **Add Food by Json** is displayed.
+- Like other screens it has a help and a navigation button in the top row.
+- Following this is a text field that takes up the rest of the screen, and followed by Confirm button.
+- Paste or enter JSON text describing a food item (liquid or solid, but not recipe).
+- The format of the JSON text needs to be precisely as shown in the example:
+
 - Tap Confirm to process the JSON and add the food.
 """.trimIndent()
 
