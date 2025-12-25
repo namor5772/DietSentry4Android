@@ -328,11 +328,15 @@ Caffeine                REAL    mg
 Cholesterol             REAL    mg
 Alcohol                 REAL    g
 ```
-The EatenId field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
-The DateEaten and TimeEaten text fields store the food logs time stamp
-The EatenTs field is an integer that specifies the number of minutes since a reference time stamp. It allows easy sorting by date/time of when a food was logged (it is re1calculated if the Date and Time eaten are changed. 
-The FoodDescription is the same field as for a Foods table record.
-THe remaining (Energy and Nutrient fields) are the same as for the corresponding Foods table record, except that they are scaled by the amount of the food eaten. Eg. if EatenAmount=300 then all these field values are multiplied by 3.
+The **EatenId** field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
+
+The **DateEaten** and **TimeEaten** text fields store the food logs time stamp
+
+The **EatenTs** field is an integer that specifies the number of minutes since a reference time stamp. It allows easy sorting by date/time of when a food was logged (it is re1calculated if the Date and Time eaten are changed. 
+
+The **FoodDescription** is the same field as for a Foods table record.
+
+The remaining (**Energy** and **Nutrient fields**) are the same as for the corresponding Foods table record, except that they are scaled by the amount of the food eaten. Eg. if EatenAmount=300 then all these field values are multiplied by 3.
 *** 
 """.trimIndent()
     var displayDailyTotals by remember { mutableStateOf(initialDisplayDailyTotals) }
@@ -2358,12 +2362,47 @@ fun AddFoodByJsonScreen(navController: NavController) {
     val jsonHelpText = """
 # Add Food by Json
 - When the **Json** button is tapped from the **Foods Table** screen this screen called **Add Food by Json** is displayed.
-- Like other screens it has a help and a navigation button in the top row.
-- Following this is a text field that takes up the rest of the screen, and followed by Confirm button.
+- Like other screens it has a **help** and a **navigation** button in the top row.
+- Following this is a **text field** that takes up the rest of the screen, and followed by **Confirm** button.
 - Paste or enter JSON text describing a food item (liquid or solid, but not recipe).
 - The format of the JSON text needs to be precisely as shown in the example:
+```
+{
+  "FoodDescription": "Cheese, Mersey Valley Classic #",
+  "Energy": 1690,
+  "Protein": 23.7,
+  "FatTotal": 34.9,
+  "SaturatedFat": 22.4,
+  "TransFat": 1,
+  "PolyunsaturatedFat": 0.5,
+  "MonounsaturatedFat": 10,
+  "Carbohydrate": 0.1,
+  "Sugars": 0.1,
+  "DietaryFibre": 0,
+  "SodiumNa": 643,
+  "CalciumCa": 720,
+  "PotassiumK": 100,
+  "ThiaminB1": 0,
+  "RiboflavinB2": 0.3,
+  "NiacinB3": 0.1,
+  "Folate": 10,
+  "IronFe": 0.2,
+  "MagnesiumMg": 30,
+  "VitaminC": 0,
+  "Caffeine": 0,
+  "Cholesterol": 100,
+  "Alcohol": 0,
+  "notes": "Used on-pack NIP for core nutrients. Remaining micronutrients estimated from AFCD/NUTTAB cheddar cheese equivalents. Website not checked—no URL provided."
+}
+```
+Though note that **any line feeds, tabs and spaces outside of "any text" are entirely optional**, which means that this Json text is also valid though not easy to read for a human:
+ ```
+ {"FoodDescription":"Cheese,Mersey Valley Classic #","Energy":1690,"Protein":23.7,"FatTotal":34.9,"SaturatedFat":22.4,"TransFat":1,"PolyunsaturatedFat":0.5,"MonounsaturatedFat":10,"Carbohydrate":0.1,"Sugars":0.1,"DietaryFibre":0,"SodiumNa":643,"CalciumCa":720,"PotassiumK":100,"ThiaminB1":0,"RiboflavinB2":0.3,"NiacinB3":0.1,"Folate":10,"IronFe":0.2,"MagnesiumMg":30,"VitaminC":0,"Caffeine":0,"Cholesterol":100,"Alcohol":0,"notes":"Used on-pack NIP for core nutrients. Remaining micronutrients estimated from AFCD/NUTTAB cheddar cheese equivalents. Website not checked—no URL provided."}   
+```
 
-- Tap Confirm to process the JSON and add the food.
+- Tap **Confirm** to process the JSON which adds the food to the Foods table. Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description (with the liquid marker appended if relevant). This allows you to review the results of the foods creation, with this being especially important if the Description is unintuitive and finding the food in the table might be difficult.
+- If the Json text is missing or invalid a temporary error massage will appear and focus will stay on this screen
+- You can press either of the two "back" buttons to clear any text from the text field and set focus to the Foods Table screen.
 """.trimIndent()
 
     Scaffold(
