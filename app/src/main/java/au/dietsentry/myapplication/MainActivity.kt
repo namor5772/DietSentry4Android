@@ -975,7 +975,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - It opens a screen titled "Add Food". Press the help button on that screen for more help.
         - The original selected food has no relevance to this activity. It is just a way of making the Add button available.
     - **Json**: adds a new food to the database based on Json text (not applicable to recipe foods).
-        - It opens a screen titled "Add Food by Json".  Press the help button on that screen for more help.
+        - It opens a screen titled "Add Food using Json".  Press the help button on that screen for more help.
         - The original selected food has no relevance to this activity. It is just a way of making the Json button available.
     - **Copy**: makes a copy of the selected food.
         - If the selected food is a Solid it opens a screen titled "Copying Solid Food"
@@ -1455,7 +1455,7 @@ fun EditFoodScreen(
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val editHelpText = if (isLiquidFood) {
         """
-# Editing Liquid Food
+# **Editing Liquid Food**
 - These are foods for which the Energy and nutrient values are given on a per 100mL basis.
 - On first displaying the Editing Liquid Food screen all the input fields will be populated with values from the selected Food, however the Description field will have the " mL" or " mL#" markers omitted. These will be reinstated after edit confirmation. This means you cannot change a Liquid type food into a Solid directly through editing. However it is possible to convert it to a solid by tapping the Convert button and then editing that solid food.
 - Modify fields as required using decimals where needed and tap Confirm to save your changes. If a field entry is not valid (eg. text, blank or not a number in a field requiring numbers) the Confirm button will be disabled.
@@ -1464,7 +1464,7 @@ fun EditFoodScreen(
 """.trimIndent()
     } else {
         """
-# Editing Solid Food
+# **Editing Solid Food**
 - These are foods for which the Energy and nutrient values are given on a per 100g basis.
 - On first displaying the Editing Solid Food screen all the input fields will be populated with values from the selected Food, however the Description field will have the " #" marker (if any) omitted. This will be reinstated after edit confirmation. Interestingly you can convert this food to a liquid by appending the text " mL" to the possibly edited description.
 - Modify fields as required using decimals where needed and tap Confirm to save your changes. If a field entry is not valid (eg. text, blank or not a number in a field requiring numbers) the Confirm button will be disabled.
@@ -1765,12 +1765,25 @@ fun CopyFoodScreen(
     val isValid = description.isNotBlank() && numericEntries.all { it.toDoubleOrNull() != null }
     var showHelpSheet by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val copyHelpText = """
-# Copy Food
-- Review values and adjust if needed.
-- The description shown omits manual markers; they are re-applied when saving.
-- Tap Confirm to create a new food entry.
-""".trimIndent()
+    val copyHelpText = if (isLiquidFood) {
+        """          
+        # **Copying Liquid Food**
+        - When the Copy button is tapped from the Foods Table screen with a liquid food selected, this screen headed Copying Liquid Food is displayed
+        - Its layout and presentation is identical to the Editing Liquid Food screen, the difference being that instead of modifying the selected food record, a new one is created with the displayed field values.
+        - Clearly before pressing the Confirm button you can modify any of the field entries, so you are not really creating an exact copy just a food based on the selection.
+        - Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description (with the liquid marker appended). This allows you to review the results of the foods creation, with this being especially important if the Description is unintuitive and finding the food in the table might be difficult.
+        - As before you can press either of the two "back" buttons to cancel the copying process and return focus to the Foods Table screen.
+        """.trimIndent()
+    } else {
+        """          
+        # **Copying Solid Food**
+        - When the Copy button is tapped from the Foods Table screen with a solid food selected, this screen headed Copying Solid Food is displayed
+        - Its layout and presentation is identical to the Editing Solid Food screen, t`he difference being that instead of modifying the selected food record, a new one is created with the displayed field values.
+        - Clearly before pressing the Confirm button you can modify any of the field entries, so you are not really creating an exact copy just a food based on the selection.
+        - Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description. This allows you to review the results of the foods creation, with this being especially important if the Description is unintuitive and finding the food in the table might be difficult.
+        - As before you can press either of the two "back" buttons to cancel the copying process and return focus to the Foods Table screen.
+        """.trimIndent()
+    }
 
     Scaffold(
         topBar = {
@@ -2061,7 +2074,7 @@ fun InsertFoodScreen(
     var showHelpSheet by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val insertHelpText = """
-# Add Food
+# **Add Food**
 - When the Add button is tapped from the Foods Table screen this screen called Add Food is displayed.
 - Like other screens it has a help and a navigation button in the top row.
 - The second row has three radio buttons titled:
@@ -2360,10 +2373,10 @@ fun AddFoodByJsonScreen(navController: NavController) {
     var showHelpSheet by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val jsonHelpText = """
-# Add Food by Json
-- When the **Json** button is tapped from the **Foods Table** screen this screen called **Add Food by Json** is displayed.
+# **Add Food using Json**
+- When the **Json** button is tapped from the **Foods Table** screen, this screen called **Add Food using Json** is displayed.
 - Like other screens it has a **help** and a **navigation** button in the top row.
-- Following this is a **text field** that takes up the rest of the screen, and followed by **Confirm** button.
+- Following this is a **text field** that takes up the rest of the screen, and followed by a **Confirm** button.
 - Paste or enter JSON text describing a food item (liquid or solid, but not recipe).
 - The format of the JSON text needs to be precisely as shown in the example:
 ```
@@ -2395,20 +2408,34 @@ fun AddFoodByJsonScreen(navController: NavController) {
   "notes": "Used on-pack NIP for core nutrients. Remaining micronutrients estimated from AFCD/NUTTAB cheddar cheese equivalents. Website not checked—no URL provided."
 }
 ```
-Though note that **any line feeds, tabs and spaces outside of "any text" are entirely optional**, which means that this Json text is also valid though not easy to read for a human:
+NOTE: **Any line feeds, tabs and spaces outside of "any text" are entirely optional** which means that this Json text is also valid though not easy to read for a human:
  ```
- {"FoodDescription":"Cheese,Mersey Valley Classic #","Energy":1690,"Protein":23.7,"FatTotal":34.9,"SaturatedFat":22.4,"TransFat":1,"PolyunsaturatedFat":0.5,"MonounsaturatedFat":10,"Carbohydrate":0.1,"Sugars":0.1,"DietaryFibre":0,"SodiumNa":643,"CalciumCa":720,"PotassiumK":100,"ThiaminB1":0,"RiboflavinB2":0.3,"NiacinB3":0.1,"Folate":10,"IronFe":0.2,"MagnesiumMg":30,"VitaminC":0,"Caffeine":0,"Cholesterol":100,"Alcohol":0,"notes":"Used on-pack NIP for core nutrients. Remaining micronutrients estimated from AFCD/NUTTAB cheddar cheese equivalents. Website not checked—no URL provided."}   
+{"FoodDescription":"Cheese, Mersey Valley Classic #","Energy":1690,"Protein":23.7,"FatTotal":34.9,"SaturatedFat":22.4,"TransFat":1,"PolyunsaturatedFat":0.5,"MonounsaturatedFat":10,"Carbohydrate":0.1,"Sugars":0.1,"DietaryFibre":0,"SodiumNa":643,"CalciumCa":720,"PotassiumK":100,"ThiaminB1":0,"RiboflavinB2":0.3,"NiacinB3":0.1,"Folate":10,"IronFe":0.2,"MagnesiumMg":30,"VitaminC":0,"Caffeine":0,"Cholesterol":100,"Alcohol":0,"notes":"Used on-pack NIP for core nutrients. Remaining micronutrients estimated from AFCD/NUTTAB cheddar cheese equivalents. Website not checked—no URL provided."}   
 ```
-
 - Tap **Confirm** to process the JSON which adds the food to the Foods table. Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description (with the liquid marker appended if relevant). This allows you to review the results of the foods creation, with this being especially important if the Description is unintuitive and finding the food in the table might be difficult.
-- If the Json text is missing or invalid a temporary error massage will appear and focus will stay on this screen
-- You can press either of the two "back" buttons to clear any text from the text field and set focus to the Foods Table screen.
+    - If the Json text is missing or invalid a Toast message will appear ("Please paste valid JSON" or "Invalid JSON or missing fields" and focus will remain unchanged.
+- **To abort any actions on this screen** you can press either of the two "back" buttons to clear any text from the text field and set focus to the Foods Table screen.
+***
+# **AI generation of JSON**
+The easiest and intended way of obtaining JSON text is to use AI. The following workflow is recommended:
+- You are assumed to have access to at least the ChatGPT Pro paid plan. This give you access to GPTs.
+- Log into ChatGpt (https://chatgpt.com) and Explore GPTs. Find the **NIP generator** GPT and Start Chat
+
+```
+Given a food description returns its expanded Nutrition Information Panel (NIP) in Json format. It can be directly added to the Foods table of any Diet Sentry app database. It follows the FSANZ standard 1.2.8 and Schedules 11–12.
+```
+You can attach photos of labels and product NIPs, this being very convenient.
+
+A Diet Sentry compatible JSON text will be generated as a chat response. This can be copied and pasted into the text field of this screen.
+    
+
+
 """.trimIndent()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add Food by Json", fontWeight = FontWeight.Bold) },
+                title = { Text("Add Food using Json", fontWeight = FontWeight.Bold) },
                 actions = {
                     HelpIconButton(onClick = { showHelpSheet = true })
                     IconButton(onClick = { navController.popBackStack() }) {
@@ -2525,9 +2552,57 @@ fun AddRecipeScreen(
     var showHelpSheet by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val recipeHelpText = """
-# Add Recipe
-- Placeholder help for recipe creation.
-- More detailed guidance will be added when the feature is implemented.
+# **Add Recipe**
+This is the screen where a recipe food can be created.
+
+By its very nature a recipe food is more complicated that a liquid or solid food and hence this screen is more complex.
+
+***
+# **What is a recipe food?**
+
+
+***
+# **Explanation of GUI elements**
+The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
+- The **heading** of the screen: "Foods Table". 
+- A **segmented button** with three options (Min, NIP, All). The selection is persistent between app restarts. 
+    - **Min**: only displays the text description of food items.
+    - **NIP**: additionally displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in by FSANZ on Nutritional Information Panels (NIP)
+    - **All**: Displays all nutrient fields stored in the Foods table (there are 23, including Energy)
+- The **help button** `?` which displays this help screen.
+- The **navigation button** `->` which transfers you to the Eaten Table screen.
+- A **text field** which when empty displays the text "Enter food filter text"
+    - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
+    - You can also type {text1}|{text2} to match descriptions that contain BOTH of these terms.
+    - It is NOT case sensitive
+- The **clear text field button** `x` which clears the above text field    
+- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by seven buttons below it:
+    - **LOG**: logs the selected food into the Eaten Table.
+        - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
+        - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible. Read the help on thet Screen for more help.
+        - You can abort this process by tapping anywhere outside the dialog box. This closes it.
+    - **Edit**: allows editing of the selected food.
+        - It opens "Editing Solid Food" or "Editing Liquid Food" unless the description contains `{recipe=...g}`, in which case it opens "Editing Recipe".
+    - **Add**: adds a new food to the database.
+        - It opens a screen titled "Add Food". Press the help button on that screen for more help.
+        - The original selected food has no relevance to this activity. It is just a way of making the Add button available.
+    - **Json**: adds a new food to the database based on Json text (not applicable to recipe foods).
+        - It opens a screen titled "Add Food using Json".  Press the help button on that screen for more help.
+        - The original selected food has no relevance to this activity. It is just a way of making the Json button available.
+    - **Copy**: makes a copy of the selected food.
+        - If the selected food is a Solid it opens a screen titled "Copying Solid Food"
+        - If the selected food is a Liquid it opens a screen titled "Copying Liquid Food"
+        - If the selected food is a Recipe it opens a screen titled "Copying Recipe"
+        The type of a food (Solid, Liquid or Recipe) is coded in its description field, as explained in the next section.
+    - **Convert**: converts a liquid food to a solid. 
+        - If the food is a liquid it displays a dialog that enables the foods density to be input in g/mL
+        - A new solid food is then created on a per 100g basis.
+        - The description of this new food looses the liquids indicator " mL" near its end.
+    - **Delete**: deletes the selected food from the database.
+        - It opens a dialog which warns you that you will be deleting the selected food.
+        - This is irrevocable if you press the **Confirm** button.
+        - You can change your mind about doing this by just tapping anywhere outside the dialog box. This closes it.
+***
 """.trimIndent()
 
     var description by rememberSaveable(initialDescription) { mutableStateOf(initialDescription) }
