@@ -2559,13 +2559,14 @@ By its very nature a recipe food is more complicated that a liquid or solid food
 
 ***
 # **What is a recipe food?**
-A recipe food is a food record in the Foods table AND and a collection of ingredient records in the Recipe table.
+A recipe food is a record in the Foods table AND and a collection of ingredient records in the Recipe table.
 
-For the purpose of logging consumption you select it (from the scrollable table viewer in the Foods Table screen) just like the simpler solid and liquid foods and it is considered a solid in that its amount consumed is measured in grams. Differences in processing are only apparent when you Edit, Add or Copy it. 
+For the purpose of logging consumption you select it (from the scrollable table viewer in the Foods Table screen) just like you do with the simpler solid and liquid foods. It is considered a solid in that its amount is measured in grams. Differences in processing are only apparent when you Edit, Add or Copy it. 
 
-You can identify a recipe food by noting that its FoodDescription field ends in text of the form " {recipe=[weight]g}" or " {recipe=[weight]g} *" where [weight] is the total amount in grams of the ingredient foods (all assumed to be solids).
+You can identify a recipe food by noting that its FoodDescription field ends in text of the form " {recipe=[weight]g}" or " {recipe=[weight]g} *" where [weight] is the total amount in grams of the ingredient foods (all required to be solids or recipes).
 
-The ingredients making up the recipe food are stored in the Recipe table, with each ingredient record linked to the record in the Foods table by its FoodId.
+The ingredients making up the recipe food are stored in the Recipe table, with each ingredient record linked to the Foods table record by its FoodId.
+
 The **Recipe table structure** is as follows:
 ```
 Field name              Type    Units
@@ -2602,32 +2603,33 @@ Alcohol                 REAL    g
 
 The **RecipeId** field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
 
-The **FoodId** field is the Primary Key of this recipe foods record in the Foods table. This is what identifies the particular ingredient records from the Recipe table with the food record in the Foods table.
+The **FoodId** field is the Primary Key of this recipe foods record in the Foods table. This is what identifies which Recipe table records are part of this particular recipe food.
 
-The **CopyFg** field can only be 0 (default) or 1. It is used internally when a recipe food is being Edited, Added or Copied.
+The **CopyFg** field can only be 0 (default) or 1. It is used internally when a recipe food is being Edited, Added or Copied. Between any modifications to the Recipe table the value of that field is 0 for all records.
  
-The **FoodDescription** is the same field as for the ingredients record from the Foods table.
+The **FoodDescription** is the same field as for that ingredients record in the Foods table.
 
 The remaining (**Energy** and **Nutrient fields**) are the same as for the corresponding Foods table record (the ingredient), except that they are scaled by the amount of the food used in the recipe. Eg. if Amount=250 then all these field values are multiplied by 2.5. This is analogous to what happens to records in the Eaten table.    
    
-Once all the ingredients of a recipe are known, the end markers of the recipes FoodDescription field in the Foods table record are set to " {recipe=[weight]g}" or " {recipe=[weight]g} *" where [weight] is the total amount in grams of all the ingredient foods. Furthermore the Energy and Nutrient fields (of this Foods table record) are scaled by 100/[weight]. This guarantees that when you LOG this recipe food using [weight] as the amount consumed you will get the correct Energy and Nutrient values (as if you had consumed the meal represented by the recipe)..
+Once all the ingredients of a recipe are known, the end markers of the recipes FoodDescription field in the Foods table record are set to " {recipe=[weight]g}" or " {recipe=[weight]g} *" where [weight] is the total amount in grams of all the ingredient foods. Furthermore the Energy and Nutrient fields (of this Foods table record) are scaled by 100/[weight]. This guarantees that when you LOG this recipe food using [weight] as the amount consumed you will get the correct Energy and Nutrient values (as if you had consumed the meal represented by the recipe).
  
 *** 
 # **Explanation of GUI elements**
 The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
-- The **heading** of the screen: "Foods Table". 
-- A **segmented button** with three options (Min, NIP, All). The selection is persistent between app restarts. 
-    - **Min**: only displays the text description of food items.
-    - **NIP**: additionally displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in by FSANZ on Nutritional Information Panels (NIP)
-    - **All**: Displays all nutrient fields stored in the Foods table (there are 23, including Energy)
+- The **heading** of the screen: "Add Recipe". 
 - The **help button** `?` which displays this help screen.
-- The **navigation button** `->` which transfers you to the Eaten Table screen.
+- The **navigation button** `<-` which transfers you to the Foods Table screen.
+- An initially empty **text field** titled Description.
+    - It will be the FoodDescription field of this recipe's Foods table record.
+    - Once creating the recipe is effected by pressing the Confirm button the appropriate markers (described above) will be appended to create the final FoodDescription.
+    - If left blank a toast titled "Please enter a description" will briefly appear after the Confirm button is pressed. Focus will remain on this screen.  
 - A **text field** which when empty displays the text "Enter food filter text"
     - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
     - You can also type {text1}|{text2} to match descriptions that contain BOTH of these terms.
-    - It is NOT case sensitive
-- The **clear text field button** `x` which clears the above text field    
-- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by seven buttons below it:
+    - It is persistent while the app is running.
+    - It is NOT case sensitive. 
+- The **clear text field button** `x` which clears the above text field.    
+- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a dialog box appearsselection panel appears at the bottom of the screen. It displays the description of the selected food followed by seven buttons below it:
     - **LOG**: logs the selected food into the Eaten Table.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
         - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible. Read the help on thet Screen for more help.
