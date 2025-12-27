@@ -946,7 +946,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val foodsHelpText = """
 # **Foods Table**
-This is the main screen of the app.
+This is the main screen of the app.----
 
 Its purpose is to display a list of foods from the Foods table and allow interaction with a selected food. The primary purpose being to **LOG** the selected food.
 ***
