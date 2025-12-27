@@ -2553,7 +2553,7 @@ fun AddRecipeScreen(
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val recipeHelpText = """
 # **Add Recipe**
-This is the screen where a recipe food can be created..
+This is the screen where a recipe food can be created...
 
 By its very nature a recipe food is more complicated that a liquid or solid food and hence this screen is more complex.
 
