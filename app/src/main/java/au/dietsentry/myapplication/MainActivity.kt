@@ -2559,15 +2559,60 @@ By its very nature a recipe food is more complicated that a liquid or solid food
 
 ***
 # **What is a recipe food?**
+A recipe food is a food record in the Foods table AND and a collection of ingredient records in the Recipe table.
 
-TEST
-TEST
-TEST
-TEST
+For the purpose of logging consumption you select it (from the scrollable table viewer in the Foods Table screen) just like the simpler solid and liquid foods and it is considered a solid in that its amount consumed is measured in grams. Differences in processing are only apparent when you Edit, Add or Copy it. 
 
+You can identify a recipe food by noting that its FoodDescription field ends in text of the form " {recipe=[weight]g}" or " {recipe=[weight]g} *" where [weight] is the total amount in grams of the ingredient foods (all assumed to be solids).
 
+The ingredients making up the recipe food are stored in the Recipe table, with each ingredient record linked to the record in the Foods table by its FoodId.
+The **Recipe table structure** is as follows:
+```
+Field name              Type    Units
 
-***
+EatenId                 INTEGER
+DateEaten               TEXT    d-MMM-yy
+TimeEaten               TEXT    HH:mm
+EatenTs                 INTEGER
+AmountEaten             REAL    g or mL
+FoodDescription         TEXT	
+Energy                  REAL    kJ
+Protein                 REAL    g
+FatTotal                REAL    g
+SaturatedFat            REAL    g
+TransFat                REAL    mg
+PolyunsaturatedFat      REAL    g
+MonounsaturatedFat      REAL    g
+Carbohydrate            REAL    g
+Sugars                  REAL    g
+DietaryFibre            REAL    g
+SodiumNa                REAL    mg
+CalciumCa               REAL    mg
+PotassiumK              REAL    mg
+ThiaminB1               REAL    mg
+RiboflavinB2            REAL    mg
+NiacinB3                REAL    mg
+Folate                  REAL    µg
+IronFe                  REAL    mg
+MagnesiumMg             REAL    mg
+VitaminC                REAL    mg
+Caffeine                REAL    mg
+Cholesterol             REAL    mg
+Alcohol                 REAL    g
+```
+
+The **EatenId** field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
+
+The **DateEaten** and **TimeEaten** text fields store the food logs time stamp
+
+The **EatenTs** field is an integer that specifies the number of minutes since a reference time stamp. It allows easy sorting by date/time of when a food was logged (it is re1calculated if the Date and Time eaten are changed. 
+
+The **FoodDescription** is the same field as for a Foods table record.
+
+The remaining (**Energy** and **Nutrient fields**) are the same as for the corresponding Foods table record, except that they are scaled by the amount of the food eaten. Eg. if EatenAmount=300 then all these field values are multiplied by 3.   
+   
+ 
+*** 
 # **Explanation of GUI elements**
 The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
 - The **heading** of the screen: "Foods Table". 
