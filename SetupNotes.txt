@@ -5,6 +5,9 @@ C:\Users\roman\AndroidStudioProjects\DietSentry4Android
 Project path in WSL
 /mnt/c/Users/roman/AndroidStudioProjects/DietSentry4Android
 
+SETUP WRAP in *.kt file
+View -> Active Editor -> Soft-Wrap
+
   
 Here are the full manual pairing steps:
   -	Make sure phone a PC are copnnected to the same WIFI SSID

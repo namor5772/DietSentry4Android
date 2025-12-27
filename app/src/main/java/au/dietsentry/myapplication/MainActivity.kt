@@ -2570,11 +2570,10 @@ The **Recipe table structure** is as follows:
 ```
 Field name              Type    Units
 
-EatenId                 INTEGER
-DateEaten               TEXT    d-MMM-yy
-TimeEaten               TEXT    HH:mm
-EatenTs                 INTEGER
-AmountEaten             REAL    g or mL
+RecipeId                INTEGER
+FoodId                  INTEGER
+CopyFg                  INTEGER
+Amount                  REAL    g only
 FoodDescription         TEXT	
 Energy                  REAL    kJ
 Protein                 REAL    g
@@ -2601,16 +2600,17 @@ Cholesterol             REAL    mg
 Alcohol                 REAL    g
 ```
 
-The **EatenId** field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
+The **RecipeId** field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
 
-The **DateEaten** and **TimeEaten** text fields store the food logs time stamp
+The **FoodId** field is the Primary Key of this recipe foods record in the Foods table. This is what identifies the particular ingredient records from the Recipe table with the food record in the Foods table.
 
-The **EatenTs** field is an integer that specifies the number of minutes since a reference time stamp. It allows easy sorting by date/time of when a food was logged (it is re1calculated if the Date and Time eaten are changed. 
+The **CopyFg** field can only be 0 (default) or 1. It is used internally when a recipe food is being Edited, Added or Copied.
+ 
+The **FoodDescription** is the same field as for the ingredients record from the Foods table.
 
-The **FoodDescription** is the same field as for a Foods table record.
-
-The remaining (**Energy** and **Nutrient fields**) are the same as for the corresponding Foods table record, except that they are scaled by the amount of the food eaten. Eg. if EatenAmount=300 then all these field values are multiplied by 3.   
+The remaining (**Energy** and **Nutrient fields**) are the same as for the corresponding Foods table record (the ingredient), except that they are scaled by the amount of the food used in the recipe. Eg. if Amount=250 then all these field values are multiplied by 2.5. This is analogous to what happens to records in the Eaten table.    
    
+Once all the ingredients of a recipe are known, the end markers of the recipes FoodDescription field in the Foods table record are set to " {recipe=[weight]g}" or " {recipe=[weight]g} *" where [weight] is the total amount in grams of all the ingredient foods. Furthermore the Energy and Nutrient fields (of this Foods table record) are scaled by 100/[weight]. This guarantees that when you LOG this recipe food using [weight] as the amount consumed you will get the correct Energy and Nutrient values (as if you had consumed the meal represented by the recipe).
  
 *** 
 # **Explanation of GUI elements**
