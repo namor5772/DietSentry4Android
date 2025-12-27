@@ -22,5 +22,9 @@ Here are the full manual pairing steps:
 	  
 To push local commit to cloud repo	  
 git push -u origin HEAD:codex-playground	  
+
+
+/data/data/au.dietsentry.myapplication/databases/foods.db
+View -> Tool Windows -> Device Explorer -> Files -> data -> data -> au.dietsentry.myapplication -> databases -> foods.db
 	  
   
