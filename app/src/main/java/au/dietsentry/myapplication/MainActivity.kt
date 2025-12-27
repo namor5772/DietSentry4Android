@@ -2619,7 +2619,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
 - The **heading** of the screen: "Add Recipe". 
 - The **help button** `?` which displays this help screen.
 - The **navigation button** `<-` which transfers you to the Foods Table screen.
-- An initially empty **text field** titled Description.
+- A **text field** initially empty and titled Description.
     - It will be the FoodDescription field of this recipe's Foods table record.
     - Once creating the recipe is effected by pressing the Confirm button the appropriate markers (described above) will be appended to create the final FoodDescription.
     - If left blank a toast titled "Please enter a description" will briefly appear after the Confirm button is pressed. Focus will remain on this screen.  
