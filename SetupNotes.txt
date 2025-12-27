@@ -1,0 +1,38 @@
+
+Project path in Windows 
+C:\Users\roman\AndroidStudioProjects\DietSentry4Android
+
+Project path in WSL
+/mnt/c/Users/roman/AndroidStudioProjects/DietSentry4Android
+
+  
+Here are the full manual pairing steps:
+  -	Make sure phone a PC are copnnected to the same WIFI SSID
+  - Phone: Wireless debugging OFF → ON.
+  - Phone: “Pair device with pairing code”; note pairing IP:port + code.
+  - PowerShell:
+      - adb kill-server
+      - adb start-server
+      - adb pair <pairing-ip:port> (enter code)
+  - Phone: note debug IP:port under “Wireless debugging”.
+  - PowerShell:
+      - adb connect <debug-ip:port>
+      - adb devices  
+	  
+	  
+To push local commit to cloud repo	  
+git push -u origin HEAD:codex-playground	  
+
+
+Backing up LOCAL PHONE APPS foods.db.
+View -> Tool Windows -> Device Explorer -> Files -> data -> data -> au.dietsentry.myapplication -> databases -> foods.db
+Save as C:\Users\roman\OneDrive\MyImportant\foods.db	 
+or: C:\Users\roman\OneDrive\AndroidStudioProjects\foods.db
+
+IN TERMINBAL
+Alt-F4 -> close terminal 
+Ctl-, -> opens Setting tab
+Ctl-D -> returns to base prompt from codex app
+clear -> clears terminal tab
+
+  
