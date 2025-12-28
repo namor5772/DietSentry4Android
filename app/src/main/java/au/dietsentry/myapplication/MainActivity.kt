@@ -2427,9 +2427,6 @@ Given a food description returns its expanded Nutrition Information Panel (NIP) 
 You can attach photos of labels and product NIPs, this being very convenient.
 
 A Diet Sentry compatible JSON text will be generated as a chat response. This can be copied and pasted into the text field of this screen.
-    
-
-
 """.trimIndent()
 
     Scaffold(
@@ -2551,96 +2548,7 @@ fun AddRecipeScreen(
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     var showHelpSheet by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val recipeHelpText = """
-# **Add Recipe**
-This is the screen where a recipe food can be created.
-
-By its very nature a recipe food is more complicated than normal liquid or solid food and hence this screen is more complex.
-
-***
-# **What is a recipe food?**
-A recipe food is a record in the Foods table AND and a collection of ingredient records in the Recipe table. Each ingredient is linked to its Foods table record by its FoodId.
-
-For the purposes of logging consumption you select a recipe food (from the scrollable table viewer in the Foods Table screen) just like with the simpler solid and liquid foods. It is considered a solid in that its amount is measured in grams. Differences in processing are only apparent when you Edit, Add or Copy it. 
-
-You can identify a recipe food by noting that its FoodDescription field ends in text of the form " {recipe=[weight]g}" or " {recipe=[weight]g} *" where [weight] is the total amount in grams of the ingredient foods (all required to be solids or recipes).
-
-The **Recipe table structure** is as follows:
-```
-Field name              Type    Units
-
-RecipeId                INTEGER
-FoodId                  INTEGER
-CopyFg                  INTEGER
-Amount                  REAL    g only
-FoodDescription         TEXT	
-Energy                  REAL    kJ
-Protein                 REAL    g
-FatTotal                REAL    g
-SaturatedFat            REAL    g
-TransFat                REAL    mg
-PolyunsaturatedFat      REAL    g
-MonounsaturatedFat      REAL    g
-Carbohydrate            REAL    g
-Sugars                  REAL    g
-DietaryFibre            REAL    g
-SodiumNa                REAL    mg
-CalciumCa               REAL    mg
-PotassiumK              REAL    mg
-ThiaminB1               REAL    mg
-RiboflavinB2            REAL    mg
-NiacinB3                REAL    mg
-Folate                  REAL    µg
-IronFe                  REAL    mg
-MagnesiumMg             REAL    mg
-VitaminC                REAL    mg
-Caffeine                REAL    mg
-Cholesterol             REAL    mg
-Alcohol                 REAL    g
-```
-
-The **RecipeId** field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
-
-The **FoodId** field is the Primary Key of this recipe foods record in the Foods table. This is what identifies which Recipe table records are part of this particular recipe food.
-
-The **CopyFg** field can only be 0 (default) or 1. It is used internally when a recipe food is being Edited, Added or Copied. Between any modifications to the Recipe table the value of that field is 0 for all records.
- 
-The **FoodDescription** is the same field as for that ingredients record in the Foods table.
-
-The remaining (**Energy** and **Nutrient fields**) are the same as for the corresponding Foods table record (the ingredient), except that they are scaled by the amount of the food used in the recipe. Eg. if Amount=250 then all these field values are multiplied by 2.5. This is analogous to what happens to records in the Eaten table.    
-   
-Once all the ingredients of a recipe are known, the end markers of the recipes FoodDescription field in the Foods table record are set to " {recipe=[weight]g}" or " {recipe=[weight]g} *" where [weight] is the total amount in grams of all the ingredient foods. Furthermore the Energy and Nutrient fields (of this Foods table record) are scaled by 100/[weight]. This guarantees that when you LOG this recipe food using [weight] as the amount consumed you will get the correct Energy and Nutrient values (as if you had consumed the meal represented by the recipe).
- 
-*** 
-# **Explanation of GUI elements**
-The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
-- The **heading** of the screen: "Add Recipe". 
-- The **help button** `?` which displays this help screen.
-- The **navigation button** `<-` which transfers you to the Foods Table screen.
-- A **text field** initially empty and titled Description.
-    - It will be the FoodDescription field of this recipe's Foods table record.
-    - Once creating the recipe is effected by pressing the Confirm button the appropriate markers (described above) will be appended to create the final FoodDescription.
-    - If left blank a toast titled "Please enter a description" will briefly appear after the Confirm button is pressed. Focus will remain on this screen.  
-- A **text field** which when empty displays the text "Enter food filter text"
-    - Type any text in the field and press the Enter key or equivalent. This filters the list of foods to those that contain this text anywhere in their description.
-    - You can also type {text1}|{text2} to match descriptions that contain BOTH of these terms.
-    - It is persistent while the app is running.
-    - It is NOT case sensitive. 
-- The **clear text field button** `x` which clears the above text field.    
-- A **scrollable table viewer** which displays records from the Foods table.
-    - When a particular food is selected (by tapping it) a dialog box appears where you can specify the amount in grams of the food that the recipe requires.
-    - Press the **Confirm** button when you are ready to accept this recipe ingredient. This transfers focus back to the Add Recipe screen where the added ingredient will appear in the lower scrollable table viewer.
-    - You can abort this process by tapping anywhere outside the dialog box. This closes it and focus returns to the Add Recipe screen.
-    - If you select a liquid food a dialog with the title "CANNOT ADD THIS FOOD" will appear. Press the OK button or tap anywhere outside the dialog box to close it. Nothing happens and focus returns to the Add Recipe screen.    
-- A **text label** which is of the form "Ingredients[weight] (g) Total"
-    - The [weight] is the total amount of the ingredients in the recipe in grams.
-    - It is automatically updated whenever the ingredients are added, edited or deleted.
-- A **scrollable table viewer** which displays the recipes ingredient records from the Recipe table.
-    - when a ingredient is selected (by tapping it) 
-    
-         
-    
-""".trimIndent()
+    val recipeHelpText = remember(screenTitle) { buildRecipeHelpText(screenTitle) }
 
     var description by rememberSaveable(initialDescription) { mutableStateOf(initialDescription) }
     val recipeSearchMode = remember(screenTitle, editingFoodId) {
