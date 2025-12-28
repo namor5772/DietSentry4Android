@@ -2553,19 +2553,17 @@ fun AddRecipeScreen(
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val recipeHelpText = """
 # **Add Recipe**
-This is the screen where a recipe food can be created...
+This is the screen where a recipe food can be created.
 
-By its very nature a recipe food is more complicated that a liquid or solid food and hence this screen is more complex.
+By its very nature a recipe food is more complicated than normal liquid or solid food and hence this screen is more complex.
 
 ***
 # **What is a recipe food?**
-A recipe food is a record in the Foods table AND and a collection of ingredient records in the Recipe table.
+A recipe food is a record in the Foods table AND and a collection of ingredient records in the Recipe table. Each ingredient is linked to its Foods table record by its FoodId.
 
-For the purpose of logging consumption you select it (from the scrollable table viewer in the Foods Table screen) just like you do with the simpler solid and liquid foods. It is considered a solid in that its amount is measured in grams. Differences in processing are only apparent when you Edit, Add or Copy it. 
+For the purposes of logging consumption you select a recipe food (from the scrollable table viewer in the Foods Table screen) just like with the simpler solid and liquid foods. It is considered a solid in that its amount is measured in grams. Differences in processing are only apparent when you Edit, Add or Copy it. 
 
 You can identify a recipe food by noting that its FoodDescription field ends in text of the form " {recipe=[weight]g}" or " {recipe=[weight]g} *" where [weight] is the total amount in grams of the ingredient foods (all required to be solids or recipes).
-
-The ingredients making up the recipe food are stored in the Recipe table, with each ingredient record linked to the Foods table record by its FoodId.
 
 The **Recipe table structure** is as follows:
 ```
@@ -2629,33 +2627,19 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
     - It is persistent while the app is running.
     - It is NOT case sensitive. 
 - The **clear text field button** `x` which clears the above text field.    
-- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a dialog box appearsselection panel appears at the bottom of the screen. It displays the description of the selected food followed by seven buttons below it:
-    - **LOG**: logs the selected food into the Eaten Table.
-        - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
-        - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible. Read the help on thet Screen for more help.
-        - You can abort this process by tapping anywhere outside the dialog box. This closes it.
-    - **Edit**: allows editing of the selected food.
-        - It opens "Editing Solid Food" or "Editing Liquid Food" unless the description contains `{recipe=...g}`, in which case it opens "Editing Recipe".
-    - **Add**: adds a new food to the database.
-        - It opens a screen titled "Add Food". Press the help button on that screen for more help.
-        - The original selected food has no relevance to this activity. It is just a way of making the Add button available.
-    - **Json**: adds a new food to the database based on Json text (not applicable to recipe foods).
-        - It opens a screen titled "Add Food using Json".  Press the help button on that screen for more help.
-        - The original selected food has no relevance to this activity. It is just a way of making the Json button available.
-    - **Copy**: makes a copy of the selected food.
-        - If the selected food is a Solid it opens a screen titled "Copying Solid Food"
-        - If the selected food is a Liquid it opens a screen titled "Copying Liquid Food"
-        - If the selected food is a Recipe it opens a screen titled "Copying Recipe"
-        The type of a food (Solid, Liquid or Recipe) is coded in its description field, as explained in the next section.
-    - **Convert**: converts a liquid food to a solid. 
-        - If the food is a liquid it displays a dialog that enables the foods density to be input in g/mL
-        - A new solid food is then created on a per 100g basis.
-        - The description of this new food looses the liquids indicator " mL" near its end.
-    - **Delete**: deletes the selected food from the database.
-        - It opens a dialog which warns you that you will be deleting the selected food.
-        - This is irrevocable if you press the **Confirm** button.
-        - You can change your mind about doing this by just tapping anywhere outside the dialog box. This closes it.
-***
+- A **scrollable table viewer** which displays records from the Foods table.
+    - When a particular food is selected (by tapping it) a dialog box appears where you can specify the amount in grams of the food that the recipe requires.
+    - Press the **Confirm** button when you are ready to accept this recipe ingredient. This transfers focus back to the Add Recipe screen where the added ingredient will appear in the lower scrollable table viewer.
+    - You can abort this process by tapping anywhere outside the dialog box. This closes it and focus returns to the Add Recipe screen.
+    - If you select a liquid food a dialog with the title "CANNOT ADD THIS FOOD" will appear. Press the OK button or tap anywhere outside the dialog box to close it. Nothing happens and focus returns to the Add Recipe screen.    
+- A **text label** which is of the form "Ingredients[weight] (g) Total"
+    - The [weight] is the total amount of the ingredients in the recipe in grams.
+    - It is automatically updated whenever the ingredients are added, edited or deleted.
+- A **scrollable table viewer** which displays the recipes ingredient records from the Recipe table.
+    - when a ingredient is selected (by tapping it) 
+    
+         
+    
 """.trimIndent()
 
     var description by rememberSaveable(initialDescription) { mutableStateOf(initialDescription) }
