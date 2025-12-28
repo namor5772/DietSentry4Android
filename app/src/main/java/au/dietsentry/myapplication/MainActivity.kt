@@ -236,7 +236,7 @@ fun EatenLogScreen(navController: NavController) {
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val eatenHelpText = """
 # **Eaten Table**
-The purpose of this screen is to display a log of the foods you have consumed as well as modify them to some degree.
+The main purpose of this screen is to display a log of the foods you have consumed. You can also change their time stamps, amount eaten or delete them.
 ***
 ## Explanation of GUI elements
 The GUI elements on the screen are (starting at the top left hand corner and working across and down):   
@@ -946,7 +946,7 @@ fun FoodSearchScreen(modifier: Modifier = Modifier, navController: NavController
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val foodsHelpText = """
 # **Foods Table**
-This is the main screen of the app.----
+This is the main screen of the app.
 
 Its purpose is to display a list of foods from the Foods table and allow interaction with a selected food. The primary purpose being to **LOG** the selected food.
 ***
@@ -1456,20 +1456,20 @@ fun EditFoodScreen(
     val editHelpText = if (isLiquidFood) {
         """
 # **Editing Liquid Food**
-- These are foods for which the Energy and nutrient values are given on a per 100mL basis.
-- On first displaying the Editing Liquid Food screen all the input fields will be populated with values from the selected Food, however the Description field will have the " mL" or " mL#" markers omitted. These will be reinstated after edit confirmation. This means you cannot change a Liquid type food into a Solid directly through editing. However it is possible to convert it to a solid by tapping the Convert button and then editing that solid food.
+- These are foods for which the Energy and nutrient values are given on a **per 100mL basis**
+- On first displaying this screen all the input fields will be populated with values from the selected Food, however the Description field will have the " mL" or " mL#" markers omitted. These will be reinstated after edit confirmation. This means you cannot change a Liquid food into a Solid one directly through editing. However it is possible to convert it to a solid by tapping the Convert button and then editing that solid food.
 - Modify fields as required using decimals where needed and tap Confirm to save your changes. If a field entry is not valid (eg. text, blank or not a number in a field requiring numbers) the Confirm button will be disabled.
 - You can press either of two "back" buttons to cancel the editing process and return focus to the Foods Table screen.
-- If confirmation succeeds the selected food in the Foods table is amended and focus passes to the Foods Table screen with the filter text being set to the just edited foods description (with any markers reinstated). This allows you to review the results of the edit. This is especially important if the description has changed significantly and you would not have been able find the food again.    
+- If confirmation succeeds the selected food is amended and focus passes to the Foods Table screen with the filter text being set to the just edited foods description (with markers reinstated). This allows you to review the results of the edit and is especially important if the description has changed significantly and you would not have been able find the food again.    
 """.trimIndent()
     } else {
         """
 # **Editing Solid Food**
-- These are foods for which the Energy and nutrient values are given on a per 100g basis.
-- On first displaying the Editing Solid Food screen all the input fields will be populated with values from the selected Food, however the Description field will have the " #" marker (if any) omitted. This will be reinstated after edit confirmation. Interestingly you can convert this food to a liquid by appending the text " mL" to the possibly edited description.
+- These are foods for which the Energy and nutrient values are given on a **per 100g basis**
+- On first displaying this screen all the input fields will be populated with values from the selected Food, however the Description field will have the " #" marker (if any) omitted. This will be reinstated after edit confirmation. Interestingly you can convert this food to a liquid by appending the text " mL" to the possibly edited description.
 - Modify fields as required using decimals where needed and tap Confirm to save your changes. If a field entry is not valid (eg. text, blank or not a number in a field requiring numbers) the Confirm button will be disabled.
 - You can press either of two "back" buttons to cancel the editing process and return focus to the Foods Table screen.
-- If confirmation succeeds the selected food in the Foods table is amended and focus passes to the Foods Table screen with the filter text being set to the just edited foods description (with any markers reinstated). This allows you to review the results of the edit. This is especially important if the description has changed significantly and you would not have been able find the food again.    
+- If confirmation succeeds the selected food is amended and focus passes to the Foods Table screen with the filter text being set to the just edited foods description (with any markers reinstated). This allows you to review the results of the edit and is especially important if the description has changed significantly and you would not have been able find the food again.    
 """.trimIndent()
     }
 
@@ -1768,19 +1768,19 @@ fun CopyFoodScreen(
     val copyHelpText = if (isLiquidFood) {
         """          
         # **Copying Liquid Food**
-        - When the Copy button is tapped from the Foods Table screen with a liquid food selected, this screen headed Copying Liquid Food is displayed
+        - When the Copy button is tapped from the Foods Table screen with a **liquid food selected**, this screen headed Copying Liquid Food is displayed
         - Its layout and presentation is identical to the Editing Liquid Food screen, the difference being that instead of modifying the selected food record, a new one is created with the displayed field values.
         - Clearly before pressing the Confirm button you can modify any of the field entries, so you are not really creating an exact copy just a food based on the selection.
-        - Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description (with the liquid marker appended). This allows you to review the results of the foods creation, with this being especially important if the Description is unintuitive and finding the food in the table might be difficult.
+        - Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description (with the liquid marker appended). This allows you to review the results of the foods creation and is especially important if the Description is unintuitive and finding the food in the table might be difficult.
         - As before you can press either of the two "back" buttons to cancel the copying process and return focus to the Foods Table screen.
         """.trimIndent()
     } else {
         """          
         # **Copying Solid Food**
-        - When the Copy button is tapped from the Foods Table screen with a solid food selected, this screen headed Copying Solid Food is displayed
-        - Its layout and presentation is identical to the Editing Solid Food screen, t`he difference being that instead of modifying the selected food record, a new one is created with the displayed field values.
+        - When the Copy button is tapped from the Foods Table screen with a **solid food selected**, this screen headed Copying Solid Food is displayed
+        - Its layout and presentation is identical to the Editing Solid Food screen, the difference being that instead of modifying the selected food record, a new one is created with the displayed field values.
         - Clearly before pressing the Confirm button you can modify any of the field entries, so you are not really creating an exact copy just a food based on the selection.
-        - Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description. This allows you to review the results of the foods creation, with this being especially important if the Description is unintuitive and finding the food in the table might be difficult.
+        - Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description. This allows you to review the results of the foods creation and is especially important if the Description is unintuitive and finding the food in the table might be difficult.
         - As before you can press either of the two "back" buttons to cancel the copying process and return focus to the Foods Table screen.
         """.trimIndent()
     }
@@ -2075,7 +2075,7 @@ fun InsertFoodScreen(
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val insertHelpText = """
 # **Add Food**
-- When the Add button is tapped from the Foods Table screen this screen called Add Food is displayed.
+- When the Add button is tapped from the Foods Table screen this screen is displayed.
 - Like other screens it has a help and a navigation button in the top row.
 - The second row has three radio buttons titled:
     - **Solid**. This is the default selection when this screen is opened.
@@ -2086,10 +2086,10 @@ fun InsertFoodScreen(
         - The Energy and nutrition fields are assumed to be on a per 100mL basis.
     - **Recipe**. If this radio button is selected focus will immediately pass to the Add Recipe screen.
         - Any input fields you might have filled in will be ignored.
-- The following rows display the record fields that need to be filled in to create a new (non Recipe) food.
-    - Enter the description and the nutrition values. Blanks outside of the Description field are treated as 0. As long as the Description field is not blank the Confirm button will be enabled.
+- The following rows display the record fields that need to be filled in to create a new (non recipe) food.
+    - Enter the description and the nutritient values. Blanks outside of the Description field are treated as 0. As long as the Description field is not blank the Confirm button will be enabled.
     - You can press either of the two "back" buttons to cancel the creation process and return focus to the Foods Table screen.
-    - If however the Confirm button is pressed the Solid or Liquid food (as designated by the selected radio button) will be added to the Foods table. Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description (with the liquid marker appended if relevant). This allows you to review the results of the foods creation, with this being especially important if the Description is unintuitive and finding the food in the table might be difficult.    
+    - If however the Confirm button is pressed the Solid or Liquid food (as designated by the selected radio button) will be added to the Foods table. Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description (with the liquid marker appended if necessary). This allows you to review the results of the foods creation and is especially important if the Description is unintuitive and finding the food in the table might be difficult.    
 """.trimIndent()
 
     Scaffold(
@@ -2378,7 +2378,7 @@ fun AddFoodByJsonScreen(navController: NavController) {
 - Like other screens it has a **help** and a **navigation** button in the top row.
 - Following this is a **text field** that takes up the rest of the screen, and followed by a **Confirm** button.
 - Paste or enter JSON text describing a food item (liquid or solid, but not recipe).
-- The format of the JSON text needs to be precisely as shown in the example:
+- The format of the JSON text needs to be precisely as shown in the example below:
 ```
 {
   "FoodDescription": "Cheese, Mersey Valley Classic #",
@@ -2418,15 +2418,13 @@ NOTE: **Any line feeds, tabs and spaces outside of "any text" are entirely optio
 ***
 # **AI generation of JSON**
 The easiest and intended way of obtaining JSON text is to use AI. The following workflow is recommended:
-- You are assumed to have access to at least the ChatGPT Pro paid plan. This give you access to GPTs.
-- Log into ChatGpt (https://chatgpt.com) and Explore GPTs. Find the **NIP generator** GPT and Start Chat
-
+- You are assumed to have access to the ChatGPT Pro paid plan (or better). This give you access to GPTs.
+- Log into ChatGpt (https://chatgpt.com) and Explore GPTs. Find the **NIP generator** GPT and Start Chat.
 ```
 Given a food description returns its expanded Nutrition Information Panel (NIP) in Json format. It can be directly added to the Foods table of any Diet Sentry app database. It follows the FSANZ standard 1.2.8 and Schedules 11–12.
 ```
-You can attach photos of labels and product NIPs, this being very convenient.
-
-A Diet Sentry compatible JSON text will be generated as a chat response. This can be copied and pasted into the text field of this screen.
+- You can attach photos of labels and product NIPs to the chat prompt as well as just a text description of the food you are interested in.
+- A Diet Sentry compatible JSON text will be generated as a chat response. This can be copied and pasted into the text field of this screen.
 """.trimIndent()
 
     Scaffold(
