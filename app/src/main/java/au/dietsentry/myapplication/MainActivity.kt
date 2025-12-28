@@ -2558,7 +2558,7 @@ $modeIntro
 By its very nature a recipe food is more complicated than a normal liquid or solid food and hence this screen is more complex.
 
 ***
-# **What is a recipe food?**
+# **What is a recipe food? **
 A recipe food is a record in the Foods table AND and a collection of ingredient records in the Recipe table. Each ingredient is linked to its Foods table record by its FoodId.
 
 For the purposes of logging consumption you select a recipe food (from the scrollable table viewer in the Foods Table screen) just like with the simpler solid and liquid foods. It is considered a solid in that its amount is measured in grams. Differences in processing are only apparent when you Edit, Add or Copy it. 
