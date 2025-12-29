@@ -4173,7 +4173,7 @@ fun UtilitiesScreen(navController: NavController) {
 # **Utilities**
 This screen contains maintenance tools for your Foods database.
 
-- **Export db**: Pressing this button overwrites the `foods.db` file in the `Internal storage \Download` directory. If the is no such file (eg. on first app use) then just copies `foods.db` to that directory.
+- **Export db**: Pressing this button overwrites the `foods.db` file in the `Internal storage\Download` directory. If the is no such file (eg. on first app use) then just copies foods.db to that directory.
 """.trimIndent()
 
     fun exportDatabaseToUri(uri: Uri, onResult: (Boolean) -> Unit) {
@@ -4333,7 +4333,9 @@ This screen contains maintenance tools for your Foods database.
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Button(onClick = {
+            Button(
+                modifier = Modifier.align(Alignment.Start),
+                onClick = {
                 coroutineScope.launch {
                     val storedUri = loadExportOverwriteUri()
                     if (storedUri != null) {
@@ -4387,7 +4389,8 @@ This screen contains maintenance tools for your Foods database.
                     }
                     exportOverwritePickerLauncher.launch(intent)
                 }
-            }) {
+            }
+            ) {
                 Text("Export db")
             }
         }
