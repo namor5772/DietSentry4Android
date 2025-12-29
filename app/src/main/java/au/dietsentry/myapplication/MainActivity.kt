@@ -1006,7 +1006,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - This is irrevocable if you press the **Confirm** button.
         - You can change your mind about doing this by just tapping anywhere outside the dialog box. This closes it.
     - **Utilities**: opens the Utilities screen for database maintenance tools.
-        - Use **Export db (overwrite)** to save a backup of your current Foods database.
+        - Use **Export db** to save a backup of your current Foods database.
 ***
 # **Foods table structure**
 ```
@@ -4173,8 +4173,7 @@ fun UtilitiesScreen(navController: NavController) {
 # **Utilities**
 This screen contains maintenance tools for your Foods database.
 
-- **Export db (overwrite)**: overwrites the `foods.db` file in Downloads automatically (may ask once to link the file).
-- You can store the backup in Documents or Downloads for safe keeping.
+- **Export db**: Pressing this button overwrites the `foods.db` file in the `Internal storage \Download` directory. If the is no such file (eg. on first app use) then just copies `foods.db` to that directory.
 """.trimIndent()
 
     fun exportDatabaseToUri(uri: Uri, onResult: (Boolean) -> Unit) {
@@ -4281,11 +4280,27 @@ This screen contains maintenance tools for your Foods database.
             return@rememberLauncherForActivityResult
         }
         val flags = result.data?.flags ?: 0
-        val takeFlags = flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-        try {
-            context.contentResolver.takePersistableUriPermission(uri, takeFlags)
-        } catch (_: SecurityException) {
-            // Best effort; some providers don't allow persistable permissions.
+        val hasReadGrant = flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0
+        val hasWriteGrant = flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION != 0
+        if (hasReadGrant || hasWriteGrant) {
+            try {
+                when {
+                    hasReadGrant && hasWriteGrant -> context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                    hasReadGrant -> context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                    else -> context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                }
+            } catch (_: SecurityException) {
+                // Best effort; some providers don't allow persistable permissions.
+            }
         }
         storeExportOverwriteUri(uri)
         exportDatabaseToUri(uri) { exportSuccess ->
@@ -4373,7 +4388,7 @@ This screen contains maintenance tools for your Foods database.
                     exportOverwritePickerLauncher.launch(intent)
                 }
             }) {
-                Text("Export db (overwrite)")
+                Text("Export db")
             }
         }
     }
