@@ -11,11 +11,18 @@
 package au.dietsentry.myapplication
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.DocumentsContract
+import android.provider.MediaStore
+import android.app.Activity
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -94,6 +101,9 @@ import org.commonmark.parser.Parser
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val PREFS_NAME = "DietSentryPrefs"
 private const val KEY_SHOW_NUTRITIONAL_INFO = "showNutritionalInfo" // legacy boolean; kept for fallback
@@ -192,12 +202,15 @@ class MainActivity : ComponentActivity() {
                         val foodId = backStackEntry.arguments?.getInt("foodId") ?: return@composable
                         CopyRecipeScreen(navController = navController, foodId = foodId)
                     }
-                    composable(
+                    composable( 
                         route = "editRecipe/{foodId}",
                         arguments = listOf(navArgument("foodId") { type = NavType.IntType })
                     ) { backStackEntry ->
                         val foodId = backStackEntry.arguments?.getInt("foodId") ?: return@composable
                         EditRecipeScreen(navController = navController, foodId = foodId)
+                    }
+                    composable("utilities") {
+                        UtilitiesScreen(navController = navController)
                     }
                 }
             }
@@ -990,6 +1003,8 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - It opens a dialog which warns you that you will be deleting the selected food.
         - This is irrevocable if you press the **Confirm** button.
         - You can change your mind about doing this by just tapping anywhere outside the dialog box. This closes it.
+    - **Utilities**: opens the Utilities screen for database maintenance tools.
+        - Use **Export db** to save a backup of your current Foods database.
 ***
 # **Foods table structure**
 ```
@@ -1245,7 +1260,8 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                                 showPlainToast(context, "Convert is only available for liquid foods")
                             }
                         },
-                        onDelete = { showDeleteDialog = true }
+                        onDelete = { showDeleteDialog = true },
+                        onUtilities = { navController.navigate("utilities") }
                     )
                 }
             }
@@ -4111,7 +4127,8 @@ fun SelectionPanel(
     onJson: () -> Unit = {},
     onDelete: () -> Unit,
     onCopy: () -> Unit = {},
-    onConvert: () -> Unit = {}
+    onConvert: () -> Unit = {},
+    onUtilities: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -4136,8 +4153,134 @@ fun SelectionPanel(
                 Button(onClick = onCopy) { Text("Copy") }
                 Button(onClick = onConvert) { Text("Convert") }
                 Button(onClick = onDelete) { Text("Delete") }
+                Button(onClick = onUtilities) { Text("Utilities") }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun UtilitiesScreen(navController: NavController) {
+    val context = LocalContext.current
+    remember { DatabaseHelper.getInstance(context) }
+    val coroutineScope = rememberCoroutineScope()
+    var showHelpSheet by remember { mutableStateOf(false) }
+    val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val utilitiesHelpText = """
+# **Utilities**
+This screen contains maintenance tools for your Foods database.
+
+- **Export db**: saves a backup of the current database file using the system file picker.
+- **Export db (overwrite)**: pick an existing backup file to overwrite its contents.
+- You can store the backup in Documents or Downloads for safe keeping.
+""".trimIndent()
+
+    fun exportDatabaseToUri(uri: Uri, onResult: (Boolean) -> Unit) {
+        coroutineScope.launch {
+            val exportSuccess = withContext(Dispatchers.IO) {
+                try {
+                    val dbFile = context.getDatabasePath("foods.db")
+                    if (!dbFile.exists()) return@withContext false
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                        dbFile.inputStream().use { input ->
+                            input.copyTo(output)
+                        }
+                    } ?: return@withContext false
+                    true
+                } catch (_: Exception) {
+                    false
+                }
+            }
+            onResult(exportSuccess)
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        if (uri == null) {
+            showPlainToast(context, "Export cancelled")
+            return@rememberLauncherForActivityResult
+        }
+        exportDatabaseToUri(uri) { exportSuccess ->
+            if (exportSuccess) {
+                showPlainToast(context, "Database exported")
+            } else {
+                showPlainToast(context, "Failed to export database")
+            }
+        }
+    }
+
+    val exportOverwriteLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            showPlainToast(context, "Export cancelled")
+            return@rememberLauncherForActivityResult
+        }
+        val uri = result.data?.data
+        if (uri == null) {
+            showPlainToast(context, "Export cancelled")
+            return@rememberLauncherForActivityResult
+        }
+        exportDatabaseToUri(uri) { exportSuccess ->
+            if (exportSuccess) {
+                showPlainToast(context, "Database exported")
+            } else {
+                showPlainToast(context, "Failed to export database")
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Utilities", fontWeight = FontWeight.Bold) },
+                actions = {
+                    HelpIconButton(onClick = { showHelpSheet = true })
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Button(onClick = { exportLauncher.launch("foods.db") }) {
+                Text("Export db")
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(onClick = {
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
+                    putExtra(
+                        Intent.EXTRA_MIME_TYPES,
+                        arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
+                    )
+                    putExtra(DocumentsContract.EXTRA_INITIAL_URI, MediaStore.Downloads.EXTERNAL_CONTENT_URI)
+                }
+                exportOverwriteLauncher.launch(intent)
+            }) {
+                Text("Export db (overwrite)")
+            }
+        }
+    }
+
+    if (showHelpSheet) {
+        HelpBottomSheet(
+            helpText = utilitiesHelpText,
+            sheetState = helpSheetState,
+            onDismiss = { showHelpSheet = false }
+        )
     }
 }
 
