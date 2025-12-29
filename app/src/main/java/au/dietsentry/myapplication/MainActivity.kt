@@ -1006,7 +1006,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - This is irrevocable if you press the **Confirm** button.
         - You can change your mind about doing this by just tapping anywhere outside the dialog box. This closes it.
     - **Utilities**: opens the Utilities screen for database maintenance tools.
-        - Use **Export db** to save a backup of your current Foods database.
+        - Use **Export db (overwrite)** to save a backup of your current Foods database.
 ***
 # **Foods table structure**
 ```
@@ -4173,7 +4173,6 @@ fun UtilitiesScreen(navController: NavController) {
 # **Utilities**
 This screen contains maintenance tools for your Foods database.
 
-- **Export db**: saves a backup of the current database file using the system file picker.
 - **Export db (overwrite)**: overwrites the `foods.db` file in Downloads automatically (may ask once to link the file).
 - You can store the backup in Documents or Downloads for safe keeping.
 """.trimIndent()
@@ -4269,22 +4268,6 @@ This screen contains maintenance tools for your Foods database.
         prefs.edit { remove(KEY_EXPORT_OVERWRITE_URI) }
     }
 
-    val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
-    ) { uri ->
-        if (uri == null) {
-            showPlainToast(context, "Export cancelled")
-            return@rememberLauncherForActivityResult
-        }
-        exportDatabaseToUri(uri) { exportSuccess ->
-            if (exportSuccess) {
-                showPlainToast(context, "Database exported")
-            } else {
-                showPlainToast(context, "Failed to export database")
-            }
-        }
-    }
-
     val exportOverwritePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -4335,10 +4318,6 @@ This screen contains maintenance tools for your Foods database.
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Button(onClick = { exportLauncher.launch("foods.db") }) {
-                Text("Export db")
-            }
-            Spacer(modifier = Modifier.height(12.dp))
             Button(onClick = {
                 coroutineScope.launch {
                     val storedUri = loadExportOverwriteUri()
