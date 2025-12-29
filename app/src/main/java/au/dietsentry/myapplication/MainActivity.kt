@@ -10,6 +10,7 @@
 
 package au.dietsentry.myapplication
 
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -111,6 +112,7 @@ private const val KEY_NUTRITION_SELECTION_FOOD = "nutritionSelectionFood"
 private const val KEY_NUTRITION_SELECTION_EATEN = "nutritionSelectionEaten"
 private const val KEY_DISPLAY_DAILY_TOTALS = "displayDailyTotals"
 private const val KEY_FILTER_EATEN_BY_DATE = "filterEatenByDate"
+private const val KEY_EXPORT_OVERWRITE_URI = "exportOverwriteUri"
 
 // Session-scoped in-memory state (persists while app stays alive)
 private var sessionSelectedFilterDateMillis: Long? = null
@@ -4172,7 +4174,7 @@ fun UtilitiesScreen(navController: NavController) {
 This screen contains maintenance tools for your Foods database.
 
 - **Export db**: saves a backup of the current database file using the system file picker.
-- **Export db (overwrite)**: pick an existing backup file to overwrite its contents.
+- **Export db (overwrite)**: overwrites the `foods.db` file in Downloads automatically (may ask once to link the file).
 - You can store the backup in Documents or Downloads for safe keeping.
 """.trimIndent()
 
@@ -4196,6 +4198,77 @@ This screen contains maintenance tools for your Foods database.
         }
     }
 
+    fun findDownloadsDbUri(displayName: String): Uri? {
+        val volumes = buildList {
+            add(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            add(MediaStore.VOLUME_EXTERNAL)
+            addAll(MediaStore.getExternalVolumeNames(context))
+        }.distinct()
+        val downloadsProjection = arrayOf(MediaStore.MediaColumns._ID)
+        val filesProjection = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.RELATIVE_PATH)
+        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=?"
+        val selectionArgs = arrayOf(displayName)
+        val sortOrder = "${MediaStore.MediaColumns.DATE_MODIFIED} DESC"
+        for (volume in volumes) {
+            val downloadsCollection = MediaStore.Downloads.getContentUri(volume)
+            context.contentResolver.query(
+                downloadsCollection,
+                downloadsProjection,
+                selection,
+                selectionArgs,
+                sortOrder
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
+                    return ContentUris.withAppendedId(downloadsCollection, id)
+                }
+            }
+            val collection = MediaStore.Files.getContentUri(volume)
+            var fallbackUri: Uri? = null
+            context.contentResolver.query(
+                collection,
+                filesProjection,
+                selection,
+                selectionArgs,
+                sortOrder
+            )?.use { cursor ->
+                val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                val pathIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idIndex)
+                    val relPath = cursor.getString(pathIndex) ?: ""
+                    val uri = ContentUris.withAppendedId(collection, id)
+                    if (relPath.startsWith("Download/") || relPath.startsWith("Downloads/")) {
+                        return uri
+                    }
+                    if (fallbackUri == null) {
+                        fallbackUri = uri
+                    }
+                }
+            }
+            if (fallbackUri != null) {
+                return fallbackUri
+            }
+        }
+        return null
+    }
+
+    fun loadExportOverwriteUri(): Uri? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val uriString = prefs.getString(KEY_EXPORT_OVERWRITE_URI, null) ?: return null
+        return runCatching { Uri.parse(uriString) }.getOrNull()
+    }
+
+    fun storeExportOverwriteUri(uri: Uri) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit { putString(KEY_EXPORT_OVERWRITE_URI, uri.toString()) }
+    }
+
+    fun clearExportOverwriteUri() {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit { remove(KEY_EXPORT_OVERWRITE_URI) }
+    }
+
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { uri ->
@@ -4212,7 +4285,7 @@ This screen contains maintenance tools for your Foods database.
         }
     }
 
-    val exportOverwriteLauncher = rememberLauncherForActivityResult(
+    val exportOverwritePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode != Activity.RESULT_OK) {
@@ -4224,6 +4297,14 @@ This screen contains maintenance tools for your Foods database.
             showPlainToast(context, "Export cancelled")
             return@rememberLauncherForActivityResult
         }
+        val flags = result.data?.flags ?: 0
+        val takeFlags = flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        try {
+            context.contentResolver.takePersistableUriPermission(uri, takeFlags)
+        } catch (_: SecurityException) {
+            // Best effort; some providers don't allow persistable permissions.
+        }
+        storeExportOverwriteUri(uri)
         exportDatabaseToUri(uri) { exportSuccess ->
             if (exportSuccess) {
                 showPlainToast(context, "Database exported")
@@ -4259,16 +4340,59 @@ This screen contains maintenance tools for your Foods database.
             }
             Spacer(modifier = Modifier.height(12.dp))
             Button(onClick = {
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "*/*"
-                    putExtra(
-                        Intent.EXTRA_MIME_TYPES,
-                        arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
-                    )
-                    putExtra(DocumentsContract.EXTRA_INITIAL_URI, MediaStore.Downloads.EXTERNAL_CONTENT_URI)
+                coroutineScope.launch {
+                    val storedUri = loadExportOverwriteUri()
+                    if (storedUri != null) {
+                        exportDatabaseToUri(storedUri) { exportSuccess ->
+                            if (exportSuccess) {
+                                showPlainToast(context, "Database exported")
+                            } else {
+                                clearExportOverwriteUri()
+                                showPlainToast(context, "Please relink foods.db")
+                                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                                    addCategory(Intent.CATEGORY_OPENABLE)
+                                    type = "*/*"
+                                    putExtra(
+                                        Intent.EXTRA_MIME_TYPES,
+                                        arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
+                                    )
+                                    putExtra(
+                                        DocumentsContract.EXTRA_INITIAL_URI,
+                                        MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                                    )
+                                }
+                                exportOverwritePickerLauncher.launch(intent)
+                            }
+                        }
+                        return@launch
+                    }
+                    val uri = withContext(Dispatchers.IO) { findDownloadsDbUri("foods.db") }
+                    if (uri != null) {
+                        storeExportOverwriteUri(uri)
+                        exportDatabaseToUri(uri) { exportSuccess ->
+                            if (exportSuccess) {
+                                showPlainToast(context, "Database exported")
+                            } else {
+                                showPlainToast(context, "Failed to export database")
+                            }
+                        }
+                        return@launch
+                    }
+                    showPlainToast(context, "Pick foods.db once to enable overwrite")
+                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "*/*"
+                        putExtra(
+                            Intent.EXTRA_MIME_TYPES,
+                            arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
+                        )
+                        putExtra(
+                            DocumentsContract.EXTRA_INITIAL_URI,
+                            MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                        )
+                    }
+                    exportOverwritePickerLauncher.launch(intent)
                 }
-                exportOverwriteLauncher.launch(intent)
             }) {
                 Text("Export db (overwrite)")
             }
