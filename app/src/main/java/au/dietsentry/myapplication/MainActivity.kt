@@ -113,6 +113,7 @@ private const val KEY_NUTRITION_SELECTION_EATEN = "nutritionSelectionEaten"
 private const val KEY_DISPLAY_DAILY_TOTALS = "displayDailyTotals"
 private const val KEY_FILTER_EATEN_BY_DATE = "filterEatenByDate"
 private const val KEY_EXPORT_OVERWRITE_URI = "exportOverwriteUri"
+private const val KEY_IMPORT_URI = "importUri"
 
 // Session-scoped in-memory state (persists while app stays alive)
 private var sessionSelectedFilterDateMillis: Long? = null
@@ -4165,15 +4166,23 @@ fun SelectionPanel(
 @Composable
 fun UtilitiesScreen(navController: NavController) {
     val context = LocalContext.current
-    remember { DatabaseHelper.getInstance(context) }
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
     val coroutineScope = rememberCoroutineScope()
     var showHelpSheet by remember { mutableStateOf(false) }
+    var showExportWarning by remember { mutableStateOf(false) }
+    var showImportWarning by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val utilitiesHelpText = """
 # **Utilities**
 This screen contains maintenance tools for your Foods database.
 
-- **Export db**: Pressing this button overwrites the `foods.db` file in the `Internal storage\Download` directory. If the is no such file (eg. on first app use) then just copies foods.db to that directory.
+- **Export db**: Pressing this button overwrites the `foods.db` file in the `Internal storage\Download` directory.
+    - For safety it is mediated by a warning dialog.
+    - If the is no such file (eg. on first app use) then you are prompted to select that file in order to create a persistent link to it. Since it does not exist you will have to put an arbitrary file named foods.db into that directory first and then manually select it.
+    - The first time this occurs cancel the (attempted) export, create/put foods.db (it can contain anything) in the `Internal storage\Download` directory and try again.
+- **Import db**: Pressing this button replaces the app database with `foods.db` from the `Internal storage\Download` directory.
+    - For safety it is mediated by a warning dialog.
+    - If needed, you'll be prompted to select the file once.
 """.trimIndent()
 
     fun exportDatabaseToUri(uri: Uri, onResult: (Boolean) -> Unit) {
@@ -4193,6 +4202,21 @@ This screen contains maintenance tools for your Foods database.
                 }
             }
             onResult(exportSuccess)
+        }
+    }
+
+    fun importDatabaseFromUri(uri: Uri, onResult: (Boolean) -> Unit) {
+        coroutineScope.launch {
+            val importSuccess = withContext(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        dbHelper.replaceDatabaseFromStream(input)
+                    } ?: false
+                } catch (_: Exception) {
+                    false
+                }
+            }
+            onResult(importSuccess)
         }
     }
 
@@ -4267,6 +4291,25 @@ This screen contains maintenance tools for your Foods database.
         prefs.edit { remove(KEY_EXPORT_OVERWRITE_URI) }
     }
 
+    fun loadImportUri(): Uri? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val importUriString = prefs.getString(KEY_IMPORT_URI, null)
+        val importUri = importUriString?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        if (importUri != null) return importUri
+        val exportUriString = prefs.getString(KEY_EXPORT_OVERWRITE_URI, null) ?: return null
+        return runCatching { Uri.parse(exportUriString) }.getOrNull()
+    }
+
+    fun storeImportUri(uri: Uri) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit { putString(KEY_IMPORT_URI, uri.toString()) }
+    }
+
+    fun clearImportUri() {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit { remove(KEY_IMPORT_URI) }
+    }
+
     val exportOverwritePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -4312,6 +4355,152 @@ This screen contains maintenance tools for your Foods database.
         }
     }
 
+    val importPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            showPlainToast(context, "Import cancelled")
+            return@rememberLauncherForActivityResult
+        }
+        val uri = result.data?.data
+        if (uri == null) {
+            showPlainToast(context, "Import cancelled")
+            return@rememberLauncherForActivityResult
+        }
+        val flags = result.data?.flags ?: 0
+        val hasReadGrant = flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0
+        if (hasReadGrant) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: SecurityException) {
+                // Best effort; some providers don't allow persistable permissions.
+            }
+        }
+        storeImportUri(uri)
+        importDatabaseFromUri(uri) { importSuccess ->
+            if (importSuccess) {
+                showPlainToast(context, "Database imported")
+            } else {
+                showPlainToast(context, "Failed to import database")
+            }
+        }
+    }
+
+    fun launchExport() {
+        coroutineScope.launch {
+            val storedUri = loadExportOverwriteUri()
+            if (storedUri != null) {
+                exportDatabaseToUri(storedUri) { exportSuccess ->
+                    if (exportSuccess) {
+                        showPlainToast(context, "Database exported")
+                    } else {
+                        clearExportOverwriteUri()
+                        showPlainToast(context, "Please relink foods.db")
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                            putExtra(
+                                Intent.EXTRA_MIME_TYPES,
+                                arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
+                            )
+                            putExtra(
+                                DocumentsContract.EXTRA_INITIAL_URI,
+                                MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                            )
+                        }
+                        exportOverwritePickerLauncher.launch(intent)
+                    }
+                }
+                return@launch
+            }
+            val uri = withContext(Dispatchers.IO) { findDownloadsDbUri("foods.db") }
+            if (uri != null) {
+                storeExportOverwriteUri(uri)
+                exportDatabaseToUri(uri) { exportSuccess ->
+                    if (exportSuccess) {
+                        showPlainToast(context, "Database exported")
+                    } else {
+                        showPlainToast(context, "Failed to export database")
+                    }
+                }
+                return@launch
+            }
+            showPlainToast(context, "Pick foods.db once to enable overwrite")
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                putExtra(
+                    Intent.EXTRA_MIME_TYPES,
+                    arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
+                )
+                putExtra(
+                    DocumentsContract.EXTRA_INITIAL_URI,
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                )
+            }
+            exportOverwritePickerLauncher.launch(intent)
+        }
+    }
+
+    fun launchImport() {
+        coroutineScope.launch {
+            val storedUri = loadImportUri()
+            if (storedUri != null) {
+                importDatabaseFromUri(storedUri) { importSuccess ->
+                    if (importSuccess) {
+                        showPlainToast(context, "Database imported")
+                    } else {
+                        clearImportUri()
+                        showPlainToast(context, "Please relink foods.db")
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                            putExtra(
+                                Intent.EXTRA_MIME_TYPES,
+                                arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
+                            )
+                            putExtra(
+                                DocumentsContract.EXTRA_INITIAL_URI,
+                                MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                            )
+                        }
+                        importPickerLauncher.launch(intent)
+                    }
+                }
+                return@launch
+            }
+            val uri = withContext(Dispatchers.IO) { findDownloadsDbUri("foods.db") }
+            if (uri != null) {
+                storeImportUri(uri)
+                importDatabaseFromUri(uri) { importSuccess ->
+                    if (importSuccess) {
+                        showPlainToast(context, "Database imported")
+                    } else {
+                        showPlainToast(context, "Failed to import database")
+                    }
+                }
+                return@launch
+            }
+            showPlainToast(context, "Pick foods.db once to enable import")
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                putExtra(
+                    Intent.EXTRA_MIME_TYPES,
+                    arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
+                )
+                putExtra(
+                    DocumentsContract.EXTRA_INITIAL_URI,
+                    MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                )
+            }
+            importPickerLauncher.launch(intent)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -4336,64 +4525,89 @@ This screen contains maintenance tools for your Foods database.
             Button(
                 modifier = Modifier.align(Alignment.Start),
                 onClick = {
-                coroutineScope.launch {
-                    val storedUri = loadExportOverwriteUri()
-                    if (storedUri != null) {
-                        exportDatabaseToUri(storedUri) { exportSuccess ->
-                            if (exportSuccess) {
-                                showPlainToast(context, "Database exported")
-                            } else {
-                                clearExportOverwriteUri()
-                                showPlainToast(context, "Please relink foods.db")
-                                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                                    addCategory(Intent.CATEGORY_OPENABLE)
-                                    type = "*/*"
-                                    putExtra(
-                                        Intent.EXTRA_MIME_TYPES,
-                                        arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
-                                    )
-                                    putExtra(
-                                        DocumentsContract.EXTRA_INITIAL_URI,
-                                        MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                                    )
-                                }
-                                exportOverwritePickerLauncher.launch(intent)
-                            }
-                        }
-                        return@launch
-                    }
-                    val uri = withContext(Dispatchers.IO) { findDownloadsDbUri("foods.db") }
-                    if (uri != null) {
-                        storeExportOverwriteUri(uri)
-                        exportDatabaseToUri(uri) { exportSuccess ->
-                            if (exportSuccess) {
-                                showPlainToast(context, "Database exported")
-                            } else {
-                                showPlainToast(context, "Failed to export database")
-                            }
-                        }
-                        return@launch
-                    }
-                    showPlainToast(context, "Pick foods.db once to enable overwrite")
-                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "*/*"
-                        putExtra(
-                            Intent.EXTRA_MIME_TYPES,
-                            arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
-                        )
-                        putExtra(
-                            DocumentsContract.EXTRA_INITIAL_URI,
-                            MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                        )
-                    }
-                    exportOverwritePickerLauncher.launch(intent)
-                }
+                showExportWarning = true
             }
             ) {
                 Text("Export db")
             }
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                modifier = Modifier.align(Alignment.Start),
+                onClick = {
+                    showImportWarning = true
+                }
+            ) {
+                Text("Import db")
+            }
         }
+    }
+
+    if (showExportWarning) {
+        AlertDialog(
+            onDismissRequest = { showExportWarning = false },
+            title = {
+                Text(
+                    text = "Export Database?",
+                    color = Color.Red,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text("This will overwrite foods.db in the `Internal storage\\Download` directory. Think carefully before confirming!")
+                }
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Button(onClick = {
+                        showExportWarning = false
+                        launchExport()
+                    }) {
+                        Text("Confirm")
+                    }
+                }
+            },
+            dismissButton = {}
+        )
+    }
+
+    if (showImportWarning) {
+        AlertDialog(
+            onDismissRequest = { showImportWarning = false },
+            title = {
+                Text(
+                    text = "Import Database?",
+                    color = Color.Red,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text("This will replace the app database with foods.db from the `Internal storage\\Download` directory. Think carefully before confirming!")
+                }
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Button(onClick = {
+                        showImportWarning = false
+                        launchImport()
+                    }) {
+                        Text("Confirm")
+                    }
+                }
+            },
+            dismissButton = {}
+        )
     }
 
     if (showHelpSheet) {

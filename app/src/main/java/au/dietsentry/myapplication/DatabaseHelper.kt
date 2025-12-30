@@ -6,7 +6,9 @@ import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
+import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.roundToInt
@@ -15,25 +17,54 @@ private const val REFERENCE_TIMESTAMP_SECONDS = 1672491600L // Adjusted by 460 m
 
 class DatabaseHelper private constructor(context: Context, private val databaseName: String) {
 
-    private val db: SQLiteDatabase
+    private val databaseFile: File = context.getDatabasePath(databaseName)
+    private var db: SQLiteDatabase
 
     init {
         copyDatabaseFromAssets(context)
-        db = SQLiteDatabase.openDatabase(context.getDatabasePath(databaseName).path, null, SQLiteDatabase.OPEN_READWRITE)
+        db = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
     }
 
     private fun copyDatabaseFromAssets(context: Context) {
-        val dbPath = context.getDatabasePath(databaseName)
-        if (dbPath.exists()) return
-        dbPath.parentFile?.mkdirs()
+        if (databaseFile.exists()) return
+        databaseFile.parentFile?.mkdirs()
         try {
             context.assets.open(databaseName).use { inputStream ->
-                FileOutputStream(dbPath).use { outputStream ->
+                FileOutputStream(databaseFile).use { outputStream ->
                     inputStream.copyTo(outputStream)
                 }
             }
         } catch (e: Exception) {
             Log.e("DatabaseHelper", "Error copying database", e)
+        }
+    }
+
+    @Synchronized
+    fun replaceDatabaseFromStream(inputStream: InputStream): Boolean {
+        val parentDir = databaseFile.parentFile ?: return false
+        val tempFile = File(parentDir, "${databaseFile.name}.import")
+        return try {
+            inputStream.use { input ->
+                tempFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            if (db.isOpen) {
+                db.close()
+            }
+            tempFile.copyTo(databaseFile, overwrite = true)
+            db = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+            true
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error importing database", e)
+            if (!db.isOpen) {
+                runCatching {
+                    db = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+                }
+            }
+            false
+        } finally {
+            tempFile.delete()
         }
     }
     
