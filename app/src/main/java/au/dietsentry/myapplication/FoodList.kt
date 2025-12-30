@@ -38,7 +38,14 @@ fun FoodList(
                     .clickable { onFoodClicked(food) } // Make the whole column clickable
                     .padding(4.dp)
             ) {
-                Text(text = food.foodDescription, fontWeight = FontWeight.Bold)
+                Text(
+                    text = food.foodDescription,
+                    fontWeight = if (showNutritionalInfo || showExtraNutrients) {
+                        FontWeight.Bold
+                    } else {
+                        FontWeight.Normal
+                    }
+                )
                 if (showNutritionalInfo || showExtraNutrients) {
                     NutrientRow(label = "Energy (kJ):", value = food.energy)
                     NutrientRow(label = "Protein (g):", value = food.protein)

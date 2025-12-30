@@ -1007,8 +1007,8 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - This is irrevocable if you press the **Confirm** button.
         - You can change your mind about doing this by just tapping anywhere outside the dialog box. This closes it.
     - **Utilities**: opens the Utilities screen for database maintenance tools.
-        - Use the **Export db** button to save a backup of your current (app internal) Foods database. This is not reversible and should be used with caution. It really only needs to be done just before this app is upgraded to a new version and you wish to maintain your database.
-        - Use the **Import db** button to replace your current (app internal) Foods database with the above backup. This is not reversible and should be used with caution. It really only needs to be done if this app has been upgraded to a new version and you wish to maintain your database (you should have exported just before).
+        - **Export db** button. Saves a backup of your current "internal" Foods database. This is not reversible and should be used with care. It really only needs to be done just before this app is upgraded to a new version and you wish to maintain your database.
+        - **Import db** button. Replace your current "internal" Foods database with the above backup. This is not reversible and should be used with care. It really only needs to be done if this app has been upgraded to a new version and you wish to maintain your database (you should have exported just before).
 ***
 # **Foods table structure**
 ```
