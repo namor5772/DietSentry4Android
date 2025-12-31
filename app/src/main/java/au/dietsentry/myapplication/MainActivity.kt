@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.edit
+import androidx.core.net.toUri
 import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
@@ -4279,7 +4280,7 @@ This screen contains maintenance tools for your Foods database.
     fun loadExportOverwriteUri(): Uri? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val uriString = prefs.getString(KEY_EXPORT_OVERWRITE_URI, null) ?: return null
-        return runCatching { Uri.parse(uriString) }.getOrNull()
+        return runCatching { uriString.toUri() }.getOrNull()
     }
 
     fun storeExportOverwriteUri(uri: Uri) {
@@ -4295,10 +4296,10 @@ This screen contains maintenance tools for your Foods database.
     fun loadImportUri(): Uri? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val importUriString = prefs.getString(KEY_IMPORT_URI, null)
-        val importUri = importUriString?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        val importUri = importUriString?.let { runCatching { it.toUri() }.getOrNull() }
         if (importUri != null) return importUri
         val exportUriString = prefs.getString(KEY_EXPORT_OVERWRITE_URI, null) ?: return null
-        return runCatching { Uri.parse(exportUriString) }.getOrNull()
+        return runCatching { exportUriString.toUri() }.getOrNull()
     }
 
     fun storeImportUri(uri: Uri) {

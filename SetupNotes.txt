@@ -10,7 +10,7 @@ View -> Active Editor -> Soft-Wrap
 
   
 Here are the full manual pairing steps:
-  -	Make sure phone a PC are copnnected to the same WIFI SSID
+  -	Make sure the phone and PC are connected to the same WIFI SSID
   - Phone: Wireless debugging OFF → ON.
   - Phone: “Pair device with pairing code”; note pairing IP:port + code.
   - PowerShell:
