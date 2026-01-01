@@ -25,6 +25,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
@@ -71,6 +72,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.navigation.NavController
@@ -4173,6 +4175,19 @@ fun UtilitiesScreen(navController: NavController) {
     var showHelpSheet by remember { mutableStateOf(false) }
     var showExportWarning by remember { mutableStateOf(false) }
     var showImportWarning by remember { mutableStateOf(false) }
+    var weightInput by rememberSaveable { mutableStateOf("") }
+    var weightDateMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
+    var showWeightDatePicker by remember { mutableStateOf(false) }
+    var weightEntries by remember { mutableStateOf(emptyList<WeightEntry>()) }
+    var selectedWeight by remember { mutableStateOf<WeightEntry?>(null) }
+    var editingWeight by remember { mutableStateOf<WeightEntry?>(null) }
+    var deletingWeight by remember { mutableStateOf<WeightEntry?>(null) }
+    var editWeightInput by rememberSaveable { mutableStateOf("") }
+    var editWeightDateMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
+    var showEditWeightDatePicker by remember { mutableStateOf(false) }
+    val weightDateFormat = remember { SimpleDateFormat("d-MMM-yy", Locale.getDefault()) }
+    val weightDatePickerState = rememberDatePickerState(initialSelectedDateMillis = weightDateMillis)
+    val editWeightDatePickerState = rememberDatePickerState(initialSelectedDateMillis = editWeightDateMillis)
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val utilitiesHelpText = """
 # **Utilities**
@@ -4185,7 +4200,57 @@ This screen contains maintenance tools for your Foods database.
 - **Import db**: Pressing this button replaces the app database with `foods.db` from the `Internal storage\Download` directory.
     - For safety it is mediated by a warning dialog.
     - If needed, you'll be prompted to select the file once.
+- **Add weight**: Save weight measurements into the local Weight table; the date is required and entries appear below for edit/delete.
 """.trimIndent()
+
+    fun refreshWeights() {
+        coroutineScope.launch {
+            val entries = withContext(Dispatchers.IO) {
+                dbHelper.readWeights()
+            }
+            weightEntries = entries
+            selectedWeight = selectedWeight?.let { selected ->
+                entries.find { it.weightId == selected.weightId }
+            }
+        }
+    }
+
+    fun parseWeightInput(input: String): Double? {
+        val normalized = input.trim().replace(" ", "").replace(',', '.')
+        return normalized.toDoubleOrNull()
+    }
+
+    LaunchedEffect(Unit) {
+        refreshWeights()
+    }
+
+    LaunchedEffect(editingWeight?.weightId) {
+        editWeightInput = editingWeight?.let { entry ->
+            if (entry.weight % 1.0 == 0.0) {
+                entry.weight.toInt().toString()
+            } else {
+                entry.weight.toString()
+            }
+        } ?: ""
+        editWeightDateMillis = editingWeight?.dateWeight
+            ?.takeIf { it.isNotBlank() }
+            ?.let { dateString ->
+                runCatching { weightDateFormat.parse(dateString)?.time }.getOrNull()
+            } ?: System.currentTimeMillis()
+        showEditWeightDatePicker = false
+    }
+
+    BackHandler(enabled = selectedWeight != null) {
+        selectedWeight = null
+    }
+
+    LaunchedEffect(weightDateMillis) {
+        weightDatePickerState.selectedDateMillis = weightDateMillis
+    }
+
+    LaunchedEffect(editWeightDateMillis) {
+        editWeightDatePickerState.selectedDateMillis = editWeightDateMillis
+    }
 
     fun exportDatabaseToUri(uri: Uri, onResult: (Boolean) -> Unit) {
         coroutineScope.launch {
@@ -4503,6 +4568,52 @@ This screen contains maintenance tools for your Foods database.
         }
     }
 
+    if (showWeightDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showWeightDatePicker = false },
+            confirmButton = {
+                Button(onClick = {
+                    weightDatePickerState.selectedDateMillis?.let { selected ->
+                        weightDateMillis = selected
+                    }
+                    showWeightDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showWeightDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = weightDatePickerState)
+        }
+    }
+
+    if (showEditWeightDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showEditWeightDatePicker = false },
+            confirmButton = {
+                Button(onClick = {
+                    editWeightDatePickerState.selectedDateMillis?.let { selected ->
+                        editWeightDateMillis = selected
+                    }
+                    showEditWeightDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showEditWeightDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = editWeightDatePickerState)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -4516,30 +4627,143 @@ This screen contains maintenance tools for your Foods database.
             )
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Top,
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Button(
-                modifier = Modifier.align(Alignment.Start),
-                onClick = {
-                showExportWarning = true
-            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.Top,
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Export db")
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Button(
-                modifier = Modifier.align(Alignment.Start),
-                onClick = {
-                    showImportWarning = true
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(onClick = { showExportWarning = true }) {
+                        Text("Export db")
+                    }
+                    Button(onClick = { showImportWarning = true }) {
+                        Text("Import db")
+                    }
                 }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                Text(
+                    text = "Add weight",
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = weightInput,
+                        onValueChange = { weightInput = it },
+                        label = { Text("Weight") },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal,
+                            imeAction = ImeAction.Done
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("kg")
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Date")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = { showWeightDatePicker = true }) {
+                        Text(weightDateFormat.format(Date(weightDateMillis)))
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    Button(
+                        onClick = {
+                            val weightValue = parseWeightInput(weightInput)
+                            if (weightValue == null) {
+                                showPlainToast(context, "Enter a valid weight")
+                                return@Button
+                            }
+                            val dateValue = weightDateFormat.format(Date(weightDateMillis))
+                            if (dateValue.isBlank()) {
+                                showPlainToast(context, "Pick a date")
+                                return@Button
+                            }
+                            coroutineScope.launch {
+                                val success = withContext(Dispatchers.IO) {
+                                    dbHelper.insertWeight(dateValue, weightValue)
+                                }
+                                if (success) {
+                                    weightInput = ""
+                                    refreshWeights()
+                                    showPlainToast(context, "Weight saved")
+                                } else {
+                                    showPlainToast(context, "Failed to save weight")
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Save weight")
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = "Weight history",
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                if (weightEntries.isEmpty()) {
+                    Text(
+                        text = "No weight entries yet.",
+                        modifier = Modifier.align(Alignment.Start)
+                    )
+                } else {
+                    WeightList(
+                        weights = weightEntries,
+                        selectedWeightId = selectedWeight?.weightId,
+                        onWeightClicked = { entry ->
+                            selectedWeight = if (selectedWeight?.weightId == entry.weightId) null else entry
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    )
+                }
+            }
+            if (selectedWeight != null) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            selectedWeight = null
+                        }
+                )
+            }
+            AnimatedVisibility(
+                visible = selectedWeight != null,
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
-                Text("Import db")
+                selectedWeight?.let { entry ->
+                    WeightSelectionPanel(
+                        entry = entry,
+                        onEdit = { editingWeight = entry },
+                        onDelete = { deletingWeight = entry }
+                    )
+                }
             }
         }
     }
@@ -4612,6 +4836,63 @@ This screen contains maintenance tools for your Foods database.
         )
     }
 
+    if (editingWeight != null) {
+        WeightEditDialog(
+            weightValue = editWeightInput,
+            onWeightChange = { editWeightInput = it },
+            dateText = weightDateFormat.format(Date(editWeightDateMillis)),
+            onPickDate = { showEditWeightDatePicker = true },
+            onSave = {
+                val entry = editingWeight ?: return@WeightEditDialog
+                val weightValue = parseWeightInput(editWeightInput)
+                if (weightValue == null) {
+                    showPlainToast(context, "Enter a valid weight")
+                    return@WeightEditDialog
+                }
+                val dateValue = weightDateFormat.format(Date(editWeightDateMillis))
+                if (dateValue.isBlank()) {
+                    showPlainToast(context, "Pick a date")
+                    return@WeightEditDialog
+                }
+                coroutineScope.launch {
+                    val success = withContext(Dispatchers.IO) {
+                        dbHelper.updateWeight(entry.weightId, dateValue, weightValue)
+                    }
+                    if (success) {
+                        editingWeight = null
+                        refreshWeights()
+                        showPlainToast(context, "Weight updated")
+                    } else {
+                        showPlainToast(context, "Failed to update weight")
+                    }
+                }
+            },
+            onDismiss = { editingWeight = null }
+        )
+    }
+
+    if (deletingWeight != null) {
+        WeightDeleteDialog(
+            onDelete = {
+                val entry = deletingWeight ?: return@WeightDeleteDialog
+                coroutineScope.launch {
+                    val success = withContext(Dispatchers.IO) {
+                        dbHelper.deleteWeight(entry.weightId)
+                    }
+                    if (success) {
+                        deletingWeight = null
+                        selectedWeight = null
+                        refreshWeights()
+                        showPlainToast(context, "Weight deleted")
+                    } else {
+                        showPlainToast(context, "Failed to delete weight")
+                    }
+                }
+            },
+            onDismiss = { deletingWeight = null }
+        )
+    }
+
     if (showHelpSheet) {
         HelpBottomSheet(
             helpText = utilitiesHelpText,
@@ -4619,6 +4900,207 @@ This screen contains maintenance tools for your Foods database.
             onDismiss = { showHelpSheet = false }
         )
     }
+}
+
+@Composable
+private fun WeightList(
+    weights: List<WeightEntry>,
+    selectedWeightId: Int?,
+    onWeightClicked: (WeightEntry) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier
+            .border(1.dp, Color.Gray)
+            .padding(8.dp)
+    ) {
+        items(weights) { entry ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onWeightClicked(entry) }
+                    .padding(4.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = entry.dateWeight.ifBlank { "-" },
+                        fontWeight = if (selectedWeightId == entry.weightId) {
+                            FontWeight.Bold
+                        } else {
+                            FontWeight.Normal
+                        }
+                    )
+                    Text(
+                        text = "${formatAmount(entry.weight, decimals = 1)} kg",
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeightSelectionPanel(
+    entry: WeightEntry,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = entry.dateWeight.ifBlank { "Unknown date" },
+                fontWeight = FontWeight.Bold
+            )
+            WeightValueRow(label = "Weight:", value = formatAmount(entry.weight, decimals = 1))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+            ) {
+                Button(onClick = onEdit) { Text("Edit") }
+                Button(onClick = onDelete) { Text("Delete") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeightValueRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(0.6f),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.End
+        )
+    }
+}
+
+@Composable
+private fun WeightEditDialog(
+    weightValue: String,
+    onWeightChange: (String) -> Unit,
+    dateText: String,
+    onPickDate: () -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 6.dp,
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier
+                .fillMaxWidth(0.98f)
+                .widthIn(min = 360.dp, max = 720.dp)
+                .height(IntrinsicSize.Min)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    text = "Edit weight",
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = weightValue,
+                        onValueChange = onWeightChange,
+                        label = { Text("Weight") },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal,
+                            imeAction = ImeAction.Done
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("kg")
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Date")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = onPickDate) {
+                        Text(dateText)
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Button(onClick = onSave) {
+                        Text("Confirm")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeightDeleteDialog(
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Delete weight?",
+                color = Color.Red,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Text("This will remove the selected weight entry.")
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(onClick = onDelete) {
+                    Text("Confirm")
+                }
+            }
+        },
+        dismissButton = {}
+    )
 }
 
 @Preview(showBackground = true)

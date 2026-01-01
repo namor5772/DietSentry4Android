@@ -23,6 +23,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
     init {
         copyDatabaseFromAssets(context)
         db = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+        ensureWeightTableExists()
     }
 
     private fun copyDatabaseFromAssets(context: Context) {
@@ -36,6 +37,32 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             }
         } catch (e: Exception) {
             Log.e("DatabaseHelper", "Error copying database", e)
+        }
+    }
+
+    private fun ensureWeightTableExists() {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS Weight (
+                WeightId INTEGER PRIMARY KEY AUTOINCREMENT,
+                DateWeight TEXT,
+                Weight REAL
+            )
+            """.trimIndent()
+        )
+        val cursor = db.rawQuery("PRAGMA table_info(Weight)", null)
+        var hasDateWeight = false
+        cursor.use {
+            val nameIndex = it.getColumnIndexOrThrow("name")
+            while (it.moveToNext()) {
+                if (it.getString(nameIndex) == "DateWeight") {
+                    hasDateWeight = true
+                    break
+                }
+            }
+        }
+        if (!hasDateWeight) {
+            db.execSQL("ALTER TABLE Weight ADD COLUMN DateWeight TEXT")
         }
     }
 
@@ -54,12 +81,14 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             }
             tempFile.copyTo(databaseFile, overwrite = true)
             db = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+            ensureWeightTableExists()
             true
         } catch (e: Exception) {
             Log.e("DatabaseHelper", "Error importing database", e)
             if (!db.isOpen) {
                 runCatching {
                     db = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+                    ensureWeightTableExists()
                 }
             }
             false
@@ -202,6 +231,69 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             db.insert("Recipe", null, values) != -1L
         } catch (e: Exception) {
             Log.e("DatabaseHelper", "Error inserting recipe item", e)
+            false
+        }
+    }
+
+    fun insertWeight(dateWeight: String, weight: Double): Boolean {
+        return try {
+            val values = ContentValues().apply {
+                put("DateWeight", dateWeight)
+                put("Weight", weight)
+            }
+            db.insert("Weight", null, values) != -1L
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error inserting weight", e)
+            false
+        }
+    }
+
+    fun readWeights(): List<WeightEntry> {
+        val results = mutableListOf<WeightEntry>()
+        val cursor = db.rawQuery(
+            "SELECT WeightId, DateWeight, Weight FROM Weight ORDER BY WeightId DESC",
+            null
+        )
+        cursor.use {
+            val idIndex = it.getColumnIndexOrThrow("WeightId")
+            val dateIndex = it.getColumnIndexOrThrow("DateWeight")
+            val weightIndex = it.getColumnIndexOrThrow("Weight")
+            while (it.moveToNext()) {
+                results.add(
+                    WeightEntry(
+                        weightId = it.getInt(idIndex),
+                        dateWeight = it.getString(dateIndex) ?: "",
+                        weight = it.getDouble(weightIndex)
+                    )
+                )
+            }
+        }
+        val dateFormat = SimpleDateFormat("d-MMM-yy", Locale.getDefault())
+        return results.sortedWith(
+            compareByDescending<WeightEntry> { entry ->
+                runCatching { dateFormat.parse(entry.dateWeight)?.time ?: 0L }.getOrElse { 0L }
+            }.thenByDescending { entry -> entry.weightId }
+        )
+    }
+
+    fun updateWeight(weightId: Int, dateWeight: String, weight: Double): Boolean {
+        return try {
+            val values = ContentValues().apply {
+                put("DateWeight", dateWeight)
+                put("Weight", weight)
+            }
+            db.update("Weight", values, "WeightId=?", arrayOf(weightId.toString())) > 0
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error updating weight", e)
+            false
+        }
+    }
+
+    fun deleteWeight(weightId: Int): Boolean {
+        return try {
+            db.delete("Weight", "WeightId=?", arrayOf(weightId.toString())) > 0
+        } catch (e: Exception) {
+            Log.e("DatabaseHelper", "Error deleting weight", e)
             false
         }
     }

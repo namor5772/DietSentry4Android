@@ -32,6 +32,7 @@ How to use it in detail:
 - Clone the repo (for example): `git clone <repo-url>`.
 - Open the project in Android Studio on a Windows PC (with the Android SDK installed).
 - This app was authored with Kotlin, Jetpack Compose, and Gradle in Android Studio.
+- It was tested and targeted on a Samsung S23 Ultra phone.
 - Development work was done using Codex in a WSL terminal, editing files directly in this repo.
 - The repo includes `AGENTS.md`, which documents build/test commands, code conventions, and project rules that Codex follows during development.
 - Useful commands from the project root:
@@ -41,8 +42,43 @@ How to use it in detail:
 ## 3. App structure
 
 - `app/` is the main Android module.
-- `app/src/main/java/au/dietsentry/myapplication/` contains the Kotlin sources, including:
-  - `MainActivity.kt` with Compose navigation and screen composables (Foods Table, Eaten Table, add/edit flows).
-  - Core models like `Food`, `FoodList`, and `EatenFood`.
-  - `DatabaseHelper` for SQLite persistence and CRUD operations.
+- `app/src/main/java/au/dietsentry/myapplication/` contains the Kotlin sources:
+  - `MainActivity.kt` is the single-activity Compose entry point and most UI logic.
+    - `MainActivity.onCreate` sets the theme and `NavHost` routes.
+    - Screen composables:
+      - `FoodSearchScreen` shows the Foods Table search UI and action panel.
+      - `EatenLogScreen` shows the Eaten Table list, filters, and daily totals.
+      - `InsertFoodScreen`, `EditFoodScreen`, `CopyFoodScreen` handle food creation/editing flows.
+      - `AddFoodByJsonScreen` parses JSON input into a new food entry.
+      - `AddRecipeScreen`, `EditRecipeScreen`, `CopyRecipeScreen` manage recipe flows.
+      - `UtilitiesScreen` handles export/import of the internal database.
+    - List/detail helpers: `EatenLogItem`, `NutritionalInfo`, `DailyTotalsCard`, `RecipeSelectionPanel`, `FoodList`-style rows for the UI panels.
+    - Dialogs and pickers: `SelectAmountDialog`, `EditEatenItemDialog`, `DeleteConfirmationDialog`,
+      `DeleteEatenItemConfirmationDialog`, `RecipeAmountDialog`, `ConvertFoodDialog`, `TimePickerDialog`.
+    - Help/markdown rendering: `HelpBottomSheet`, `MarkdownText`, and the `RenderMarkdown*` helpers
+      convert embedded markdown help text into Compose UI.
+    - Session/prefs helpers: description parsing (`isLiquidDescription`, `descriptionUnit`, etc.),
+      recipe search state (`resolveRecipeSearchMode`, `loadRecipeSearchQuery`), and persistence
+      helpers for export/import URIs.
+  - `DatabaseHelper.kt` is the SQLite access layer and singleton.
+    - Database bootstrap/import: `copyDatabaseFromAssets`, `replaceDatabaseFromStream`, `getInstance`.
+    - Food CRUD: `readFoodsFromDatabase`, `searchFoods`, `insertFood`, `insertFoodReturningId`,
+      `updateFood`, `deleteFood`, `getFoodById`.
+    - Eaten log CRUD: `logEatenFood`, `updateEatenFood`, `readEatenFoods`, `deleteEatenFood`.
+    - Recipe CRUD: `insertRecipeFromFood`, `readRecipes`, `readCopiedRecipes`, `updateRecipe`,
+      `deleteRecipe`, plus copy/duplicate helpers for temporary recipe records.
+    - Cursor mapping helpers: `createFoodFromCursor`, `createEatenFoodFromCursor`, `createRecipeFromCursor`.
+  - Model/data classes:
+    - `Food.kt` defines the food master record and all nutrient fields.
+    - `EatenFood.kt` defines logged entries with timestamps, amounts, and nutrient snapshots.
+    - `RecipeItem.kt` defines per-ingredient rows for recipe composition.
+  - UI list components:
+    - `FoodList.kt` renders a list of foods and nutrition rows (`FoodList`, `NutrientRow`).
+    - `RecipeList.kt` renders recipe items and their key nutrients (`RecipeList`, `unitLabel`).
+  - Formatting and UI utilities:
+    - `NumberFormatUtils.kt` provides `formatNumber` and `formatAmount` for consistent numeric display.
+    - `ToastUtils.kt` provides `showPlainToast` for a styled, consistent toast.
+  - Theme definitions:
+    - `ui/theme/Theme.kt` provides `DietSentry4AndroidTheme`.
+    - `ui/theme/Color.kt` and `ui/theme/Type.kt` define the color palette and typography.
 - `app/src/main/assets/foods.db` is the bundled SQLite database copied to internal storage on first run.
