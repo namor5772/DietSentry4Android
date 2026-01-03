@@ -4184,10 +4184,8 @@ fun UtilitiesScreen(navController: NavController) {
     var deletingWeight by remember { mutableStateOf<WeightEntry?>(null) }
     var editWeightInput by rememberSaveable { mutableStateOf("") }
     var editWeightDateMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
-    var showEditWeightDatePicker by remember { mutableStateOf(false) }
     val weightDateFormat = remember { SimpleDateFormat("d-MMM-yy", Locale.getDefault()) }
     val weightDatePickerState = rememberDatePickerState(initialSelectedDateMillis = weightDateMillis)
-    val editWeightDatePickerState = rememberDatePickerState(initialSelectedDateMillis = editWeightDateMillis)
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val utilitiesHelpText = """
 # **Utilities**
@@ -4204,17 +4202,17 @@ This screen contains various miscellaneous utilities.
     -  A **text field** which when empty displays the text "Weight"
         - Type your weight in kg (eg. "92.7") and press the Done key or equivalent.
         - It is not persistent.
-    -  A **date picker** preceeded by the text label "Date".
-        - It defaults to todays date.
+    -  A **date picker**.
+        - It defaults to todays date, but obviously you can modify it.
         - it is not persistent.
     - A **Save weight** button.
-        - Once a weight and date have been given, press this button to add a record to the weight table. It then appears in the scrollable table viewer below the button.  
+        - Once a weight and date have been given, press this button to add a record to the weight table. It then appears in the below scrollable table viewer.  
         - If the input weight is not a valid number or blank then nothing happens and a Toast with the message "Enter a valid" weight appears.
     - A **scrollable table viewer** which displays records from the weight table.
         - displaying is in descending date order.
         - When any record is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays details of the selected record followed by two buttons below it:
         - **Edit**: It enables the weight record to be be modified.
-            - It opens a dialog box where you can modify the weight in kg and the date.
+            - It opens a dialog box where you can modify the weight in kg.
             - Press the **Confirm** button when you are ready to confirm your changes. This then transfers focus back to this screen where the just modified weight record will be visible. The selection panel is also closed.
             - You can abort this process by tapping anywhere outside the dialog box or the "back" button on the bottom menu. This closes the dialog and transfers focus back to this screen. The selection panel is also closed. 
         - **Delete**: Deletes the selected weight record from the weight table.
@@ -4263,7 +4261,6 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
             ?.let { dateString ->
                 runCatching { weightDateFormat.parse(dateString)?.time }.getOrNull()
             } ?: System.currentTimeMillis()
-        showEditWeightDatePicker = false
     }
 
     BackHandler(enabled = selectedWeight != null) {
@@ -4272,10 +4269,6 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
 
     LaunchedEffect(weightDateMillis) {
         weightDatePickerState.selectedDateMillis = weightDateMillis
-    }
-
-    LaunchedEffect(editWeightDateMillis) {
-        editWeightDatePickerState.selectedDateMillis = editWeightDateMillis
     }
 
     fun exportDatabaseToUri(uri: Uri, onResult: (Boolean) -> Unit) {
@@ -4617,29 +4610,6 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
         }
     }
 
-    if (showEditWeightDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showEditWeightDatePicker = false },
-            confirmButton = {
-                Button(onClick = {
-                    editWeightDatePickerState.selectedDateMillis?.let { selected ->
-                        editWeightDateMillis = selected
-                    }
-                    showEditWeightDatePicker = false
-                }) {
-                    Text("OK")
-                }
-            },
-            dismissButton = {
-                Button(onClick = { showEditWeightDatePicker = false }) {
-                    Text("Cancel")
-                }
-            }
-        ) {
-            DatePicker(state = editWeightDatePickerState)
-        }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -4697,18 +4667,13 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
                             imeAction = ImeAction.Done
                         ),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth(0.5f)
+                        modifier = Modifier.weight(1f)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Button(onClick = { showWeightDatePicker = true }) {
                         Text(weightDateFormat.format(Date(weightDateMillis)))
                     }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
+                    Spacer(modifier = Modifier.width(12.dp))
                     Button(
                         onClick = {
                             val weightValue = parseWeightInput(weightInput)
@@ -4719,6 +4684,10 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
                             val dateValue = weightDateFormat.format(Date(weightDateMillis))
                             if (dateValue.isBlank()) {
                                 showPlainToast(context, "Pick a date")
+                                return@Button
+                            }
+                            if (weightEntries.any { it.dateWeight == dateValue }) {
+                                showPlainToast(context, "Date already exists")
                                 return@Button
                             }
                             coroutineScope.launch {
@@ -4764,6 +4733,7 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
                             .align(Alignment.Start)
                     )
                 }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             }
             if (selectedWeight != null) {
                 Box(
@@ -4865,7 +4835,6 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
             weightValue = editWeightInput,
             onWeightChange = { editWeightInput = it },
             dateText = weightDateFormat.format(Date(editWeightDateMillis)),
-            onPickDate = { showEditWeightDatePicker = true },
             onSave = {
                 val entry = editingWeight ?: return@WeightEditDialog
                 val weightValue = parseWeightInput(editWeightInput)
@@ -5038,7 +5007,6 @@ private fun WeightEditDialog(
     weightValue: String,
     onWeightChange: (String) -> Unit,
     dateText: String,
-    onPickDate: () -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -5072,30 +5040,24 @@ private fun WeightEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Text(
+                        text = dateText.ifBlank { "-" },
+                        modifier = Modifier.weight(0.4f),
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     TextField(
                         value = weightValue,
                         onValueChange = onWeightChange,
-                        label = { Text("Weight") },
+                        label = { Text("Weight (kg)") },
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Decimal,
                             imeAction = ImeAction.Done
                         ),
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(0.6f)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("kg")
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Date")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = onPickDate) {
-                        Text(dateText)
-                    }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(
