@@ -4175,6 +4175,7 @@ fun UtilitiesScreen(navController: NavController) {
     var showHelpSheet by remember { mutableStateOf(false) }
     var showExportWarning by remember { mutableStateOf(false) }
     var showImportWarning by remember { mutableStateOf(false) }
+    var showAddWeightDialog by remember { mutableStateOf(false) }
     var weightInput by rememberSaveable { mutableStateOf("") }
     var weightDateMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
     var showWeightDatePicker by remember { mutableStateOf(false) }
@@ -4198,27 +4199,22 @@ This screen contains various miscellaneous utilities.
 - **Import db**: Pressing this button replaces the app database with `foods.db` from the `Internal storage\Download` directory.
     - For safety it is mediated by a warning dialog.
     - If needed, you'll be prompted to select the file once.
-- **Add weight** functionality. Used to save/edit/delete a date stamped record of your weight in kg. THe GUI elements are:
-    -  A **text field** which when empty displays the text "Weight"
-        - Type your weight in kg (eg. "92.7") and press the Done key or equivalent.
-        - It is not persistent.
-    -  A **date picker**.
-        - It defaults to todays date, but obviously you can modify it.
-        - it is not persistent.
-    - A **Save weight** button.
-        - Once a weight and date have been given, press this button to add a record to the weight table. It then appears in the below scrollable table viewer.  
-        - If the input weight is not a valid number or blank then nothing happens and a Toast with the message "Enter a valid" weight appears.
-    - A **scrollable table viewer** which displays records from the weight table.
-        - displaying is in descending date order.
-        - When any record is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays details of the selected record followed by two buttons below it:
-        - **Edit**: It enables the weight record to be be modified.
-            - It opens a dialog box where you can modify the weight in kg.
+- **Weight Table**: a scrollable table viewer which displays records from the weight table.
+    - Records are displayed in descending date order.
+    - When any record is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays details of the selected record followed by three buttons below it:
+        - **Add**: It enables a weight record to be added to the Weight table.
+            - It opens the **Add weight** dialog so you can enter a new weight and date.
+            - The original selected weight record has no relevance to this activity. It is just a way of making the Add button available.
+            - You cannot use a date that already exists.
+            - Press the **Confirm** button when you are ready to confirm your changes. This wll be ignored if the date already exists or the weight is not a number or is blank. in these cases an appropriate Toast will be temporarily displayed.
+        - **Edit**: It enables the selected weight record to be modified.
+            - It opens the **Edit weight** dialog where you can modify the weight in kg. The date is shown but not editable.
             - Press the **Confirm** button when you are ready to confirm your changes. This then transfers focus back to this screen where the just modified weight record will be visible. The selection panel is also closed.
-            - You can abort this process by tapping anywhere outside the dialog box or the "back" button on the bottom menu. This closes the dialog and transfers focus back to this screen. The selection panel is also closed. 
-        - **Delete**: Deletes the selected weight record from the weight table.
-            - It opens a warning dialog box.
-            - Press the **Confirm** button when you are ready to confirm the delete. This then transfers focus back to this screen where the deleted weight record will be dissapear from this scrollable table viewer. The selection panel is also closed.
-            - You can abort this process by tapping anywhere outside the dialog box or the "back" button on the bottom menu. This closes the dialog and transfers focus back to this screen. The selection panel is also closed.    
+        - **Delete**: It deletes the selected weight record.
+            - It opens the **Delete weight?** warning dialog box.
+            - Press the **Confirm** button when you are ready to confirm the delete. This then transfers focus back to this screen where the deleted weight record will be disappear from this scrollable table viewer. The selection panel is also closed.
+        - You can abort these processes (from the above dialogs) by tapping anywhere outside the dialog box or pressing the "back" button on the bottom menu. This closes the dialog and transfers focus back to this screen. The selection panel is also closed.
+    - If the Weight Table is empty (which is usually the case if the app has just been installed with the default internal databse) there is no way to enable the selection panel so that a weight record can be created by pressing the Add button. Instead the message "The Weight table has no records" is displayed, followed by the **Add** button. Press it to add a new weight record. Once at least one record exists this GUI layout disappears.
 ***
 # **Weight table structure**
 ```
@@ -4649,67 +4645,7 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                 Text(
-                    text = "Add weight",
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.Start)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextField(
-                        value = weightInput,
-                        onValueChange = { weightInput = it },
-                        label = { Text("Weight (kg)") },
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Decimal,
-                            imeAction = ImeAction.Done
-                        ),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Button(onClick = { showWeightDatePicker = true }) {
-                        Text(weightDateFormat.format(Date(weightDateMillis)))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Button(
-                        onClick = {
-                            val weightValue = parseWeightInput(weightInput)
-                            if (weightValue == null) {
-                                showPlainToast(context, "Enter a valid weight")
-                                return@Button
-                            }
-                            val dateValue = weightDateFormat.format(Date(weightDateMillis))
-                            if (dateValue.isBlank()) {
-                                showPlainToast(context, "Pick a date")
-                                return@Button
-                            }
-                            if (weightEntries.any { it.dateWeight == dateValue }) {
-                                showPlainToast(context, "Date already exists")
-                                return@Button
-                            }
-                            coroutineScope.launch {
-                                val success = withContext(Dispatchers.IO) {
-                                    dbHelper.insertWeight(dateValue, weightValue)
-                                }
-                                if (success) {
-                                    weightInput = ""
-                                    refreshWeights()
-                                    showPlainToast(context, "Weight saved")
-                                } else {
-                                    showPlainToast(context, "Failed to save weight")
-                                }
-                            }
-                        }
-                    ) {
-                        Text("Save weight")
-                    }
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-                Text(
-                    text = "Weight history",
+                    text = "Weight Table",
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.align(Alignment.Start)
                 )
@@ -4719,6 +4655,13 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
                         text = "No weight entries yet.",
                         modifier = Modifier.align(Alignment.Start)
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { showAddWeightDialog = true },
+                        modifier = Modifier.align(Alignment.Start)
+                    ) {
+                        Text("Add")
+                    }
                 } else {
                     val weightListMaxHeight = (32.dp * 5f) + 16.dp
                     WeightList(
@@ -4754,6 +4697,7 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
                 selectedWeight?.let { entry ->
                     WeightSelectionPanel(
                         entry = entry,
+                        onAdd = { showAddWeightDialog = true },
                         onEdit = { editingWeight = entry },
                         onDelete = { deletingWeight = entry }
                     )
@@ -4827,6 +4771,49 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
                 }
             },
             dismissButton = {}
+        )
+    }
+
+    if (showAddWeightDialog) {
+        WeightAddDialog(
+            weightValue = weightInput,
+            onWeightChange = { weightInput = it },
+            dateText = weightDateFormat.format(Date(weightDateMillis)),
+            onPickDate = { showWeightDatePicker = true },
+            onSave = {
+                val weightValue = parseWeightInput(weightInput)
+                if (weightValue == null) {
+                    showPlainToast(context, "Enter a valid weight")
+                    return@WeightAddDialog
+                }
+                val dateValue = weightDateFormat.format(Date(weightDateMillis))
+                if (dateValue.isBlank()) {
+                    showPlainToast(context, "Pick a date")
+                    return@WeightAddDialog
+                }
+                if (weightEntries.any { it.dateWeight == dateValue }) {
+                    showPlainToast(context, "Date already exists")
+                    return@WeightAddDialog
+                }
+                coroutineScope.launch {
+                    val success = withContext(Dispatchers.IO) {
+                        dbHelper.insertWeight(dateValue, weightValue)
+                    }
+                    if (success) {
+                        weightInput = ""
+                        refreshWeights()
+                        showPlainToast(context, "Weight saved")
+                        showAddWeightDialog = false
+                        selectedWeight = null
+                    } else {
+                        showPlainToast(context, "Failed to save weight")
+                    }
+                }
+            },
+            onDismiss = {
+                showAddWeightDialog = false
+                selectedWeight = null
+            }
         )
     }
 
@@ -4946,6 +4933,7 @@ private fun WeightList(
 @Composable
 private fun WeightSelectionPanel(
     entry: WeightEntry,
+    onAdd: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -4979,6 +4967,7 @@ private fun WeightSelectionPanel(
                     .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
             ) {
+                Button(onClick = onAdd) { Text("Add") }
                 Button(onClick = onEdit) { Text("Edit") }
                 Button(onClick = onDelete) { Text("Delete") }
             }
@@ -4986,6 +4975,74 @@ private fun WeightSelectionPanel(
     }
 }
 
+@Composable
+private fun WeightAddDialog(
+    weightValue: String,
+    onWeightChange: (String) -> Unit,
+    dateText: String,
+    onPickDate: () -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 6.dp,
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier
+                .fillMaxWidth(0.98f)
+                .widthIn(min = 360.dp, max = 720.dp)
+                .height(IntrinsicSize.Min)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    text = "Add weight",
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(onClick = onPickDate) {
+                        Text(dateText)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextField(
+                        value = weightValue,
+                        onValueChange = onWeightChange,
+                        label = { Text("Weight (kg)") },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal,
+                            imeAction = ImeAction.Done
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Button(onClick = onSave) {
+                        Text("Confirm")
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun WeightValueRow(label: String, value: String) {
@@ -5090,7 +5147,7 @@ private fun WeightDeleteDialog(
             )
         },
         text = {
-            Text("This will remove the selected weight entry.")
+            Text("This will remove the selected weight record.")
         },
         confirmButton = {
             Row(
