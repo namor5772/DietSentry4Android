@@ -4,7 +4,7 @@
 
 DietSentry is an offline food database and eaten-food tracker for Android. It ships with a bundled SQLite foods database and lets you search foods, view nutrition panels, and log what you actually ate. Logged entries store a nutrition snapshot scaled to the amount you entered, so later edits to a food do not change historical logs.
 
-How to use it in detail:
+How to use it in detail - :
 
 - Browse and filter foods on the Foods Table screen:
   - Use the search field to filter by description. You can type `text1|text2` to require both terms (case-insensitive).
