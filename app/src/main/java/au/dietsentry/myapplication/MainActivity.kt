@@ -363,7 +363,7 @@ The remaining (**Energy** and **Nutrient fields**) are the same as for the corre
     val initialFilterDate = remember { sessionSelectedFilterDateMillis ?: System.currentTimeMillis() }
     var selectedFilterDateMillis by remember { mutableLongStateOf(initialFilterDate) }
     val filterDateFormatter = remember { SimpleDateFormat("d-MMM-yy", Locale.getDefault()) }
-    val filterDateDisplayFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+    val filterDateDisplayFormatter = remember { SimpleDateFormat("d-MMM-yy", Locale.getDefault()) }
     val filteredEatenFoods = remember(eatenFoods, filterByDate, selectedFilterDateMillis) {
         if (!filterByDate) eatenFoods else {
             val matchDate = filterDateFormatter.format(Date(selectedFilterDateMillis))
@@ -1009,9 +1009,9 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - It opens a dialog which warns you that you will be deleting the selected food.
         - This is irrevocable if you press the **Confirm** button.
         - You can change your mind about doing this by just tapping anywhere outside the dialog box. This closes it.
-    - **Utilities**: opens the Utilities screen for database maintenance tools.
-        - **Export db** button. Saves a backup of your current "internal" Foods database. This is not reversible and should be used with care. It really only needs to be done just before this app is upgraded to a new version and you wish to maintain your database.
-        - **Import db** button. Replace your current "internal" Foods database with the above backup. This is not reversible and should be used with care. It really only needs to be done if this app has been upgraded to a new version and you wish to maintain your database (you should have exported just before).
+    - **Utilities**: various database maintenance tools and other activities.
+        - It opens a screen titled "Utilities".  Press the help button on that screen for more help.
+        - The original selected food has no relevance to this activity. It is just a way of making the Utilities button available.
 ***
 # **Foods table structure**
 ```
@@ -4191,7 +4191,7 @@ fun UtilitiesScreen(navController: NavController) {
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val utilitiesHelpText = """
 # **Utilities**
-This screen contains maintenance tools for your Foods database.
+This screen contains various miscellaneous utilities.
 
 - **Export db**: Pressing this button overwrites the `foods.db` file in the `Internal storage\Download` directory.
     - For safety it is mediated by a warning dialog.
@@ -4200,7 +4200,37 @@ This screen contains maintenance tools for your Foods database.
 - **Import db**: Pressing this button replaces the app database with `foods.db` from the `Internal storage\Download` directory.
     - For safety it is mediated by a warning dialog.
     - If needed, you'll be prompted to select the file once.
-- **Add weight**: Save weight measurements into the local Weight table; the date is required and entries appear below for edit/delete.
+- **Add weight** functionality. Used to save/edit/delete a date stamped record of your weight in kg. THe GUI elements are:
+    -  A **text field** which when empty displays the text "Weight"
+        - Type your weight in kg (eg. "92.7") and press the Done key or equivalent.
+        - It is not persistent.
+    -  A **date picker** preceeded by the text label "Date".
+        - It defaults to todays date.
+        - it is not persistent.
+    - A **Save weight** button.
+        - Once a weight and date have been given, press this button to add a record to the weight table. It then appears in the scrollable table viewer below the button.  
+        - If the input weight is not a valid number or blank then nothing happens and a Toast with the message "Enter a valid" weight appears.
+    - A **scrollable table viewer** which displays records from the weight table.
+        - displaying is in descending date order.
+        - When any record is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays details of the selected record followed by two buttons below it:
+        - **Edit**: It enables the weight record to be be modified.
+            - It opens a dialog box where you can modify the weight in kg and the date.
+            - Press the **Confirm** button when you are ready to confirm your changes. This then transfers focus back to this screen where the just modified weight record will be visible. The selection panel is also closed.
+            - You can abort this process by tapping anywhere outside the dialog box or the "back" button on the bottom menu. This closes the dialog and transfers focus back to this screen. The selection panel is also closed. 
+        - **Delete**: Deletes the selected weight record from the weight table.
+            - It opens a warning dialog box.
+            - Press the **Confirm** button when you are ready to confirm the delete. This then transfers focus back to this screen where the deleted weight record will be dissapear from this scrollable table viewer. The selection panel is also closed.
+            - You can abort this process by tapping anywhere outside the dialog box or the "back" button on the bottom menu. This closes the dialog and transfers focus back to this screen. The selection panel is also closed.    
+***
+# **Weight table structure**
+```
+Field name          Type    Units
+
+WeightId            INTEGER	
+Weight              REAL    kg
+DateWeight          TEXT    d-MMM-yy
+```
+The **WeightId** field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created. The remaining two fields are self expanatory.
 """.trimIndent()
 
     fun refreshWeights() {
@@ -4226,11 +4256,7 @@ This screen contains maintenance tools for your Foods database.
 
     LaunchedEffect(editingWeight?.weightId) {
         editWeightInput = editingWeight?.let { entry ->
-            if (entry.weight % 1.0 == 0.0) {
-                entry.weight.toInt().toString()
-            } else {
-                entry.weight.toString()
-            }
+            formatWeight(entry.weight)
         } ?: ""
         editWeightDateMillis = editingWeight?.dateWeight
             ?.takeIf { it.isNotBlank() }
@@ -4665,28 +4691,24 @@ This screen contains maintenance tools for your Foods database.
                     TextField(
                         value = weightInput,
                         onValueChange = { weightInput = it },
-                        label = { Text("Weight") },
+                        label = { Text("Weight (kg)") },
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Decimal,
                             imeAction = ImeAction.Done
                         ),
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth(0.5f)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("kg")
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(onClick = { showWeightDatePicker = true }) {
+                        Text(weightDateFormat.format(Date(weightDateMillis)))
+                    }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    Text("Date")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = { showWeightDatePicker = true }) {
-                        Text(weightDateFormat.format(Date(weightDateMillis)))
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
                     Button(
                         onClick = {
                             val weightValue = parseWeightInput(weightInput)
@@ -4729,6 +4751,7 @@ This screen contains maintenance tools for your Foods database.
                         modifier = Modifier.align(Alignment.Start)
                     )
                 } else {
+                    val weightListMaxHeight = (32.dp * 5f) + 16.dp
                     WeightList(
                         weights = weightEntries,
                         selectedWeightId = selectedWeight?.weightId,
@@ -4736,8 +4759,9 @@ This screen contains maintenance tools for your Foods database.
                             selectedWeight = if (selectedWeight?.weightId == entry.weightId) null else entry
                         },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
+                            .fillMaxWidth(0.66f)
+                            .height(weightListMaxHeight)
+                            .align(Alignment.Start)
                     )
                 }
             }
@@ -4860,6 +4884,7 @@ This screen contains maintenance tools for your Foods database.
                     }
                     if (success) {
                         editingWeight = null
+                        selectedWeight = null
                         refreshWeights()
                         showPlainToast(context, "Weight updated")
                     } else {
@@ -4867,7 +4892,10 @@ This screen contains maintenance tools for your Foods database.
                     }
                 }
             },
-            onDismiss = { editingWeight = null }
+            onDismiss = {
+                editingWeight = null
+                selectedWeight = null
+            }
         )
     }
 
@@ -4889,7 +4917,10 @@ This screen contains maintenance tools for your Foods database.
                     }
                 }
             },
-            onDismiss = { deletingWeight = null }
+            onDismiss = {
+                deletingWeight = null
+                selectedWeight = null
+            }
         )
     }
 
@@ -4934,7 +4965,7 @@ private fun WeightList(
                         }
                     )
                     Text(
-                        text = "${formatAmount(entry.weight, decimals = 1)} kg",
+                        text = "${formatWeight(entry.weight)} kg",
                         textAlign = TextAlign.End
                     )
                 }
@@ -4959,11 +4990,20 @@ private fun WeightSelectionPanel(
             modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = entry.dateWeight.ifBlank { "Unknown date" },
-                fontWeight = FontWeight.Bold
-            )
-            WeightValueRow(label = "Weight:", value = formatAmount(entry.weight, decimals = 1))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = entry.dateWeight.ifBlank { "Unknown date" },
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "${formatWeight(entry.weight)} kg",
+                    textAlign = TextAlign.Start
+                )
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -4976,6 +5016,7 @@ private fun WeightSelectionPanel(
         }
     }
 }
+
 
 @Composable
 private fun WeightValueRow(label: String, value: String) {

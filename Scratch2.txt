@@ -35,4 +35,8 @@ Ctl-, -> opens Setting tab
 Ctl-D -> returns to base prompt from codex app
 clear -> clears terminal tab
 
+Make the above Weight input text field only about half the screen width (it takes up the
+  whole screen width currently) and also move the date selection "button" to iths right on
+  the same row.
+
   

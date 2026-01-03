@@ -43,3 +43,10 @@ fun formatAmount(value: Double, decimals: Int = 1): String {
         formatNumber(value, decimals = decimals)
     }
 }
+
+/**
+ * Formats a weight value to exactly one decimal place without grouping.
+ */
+fun formatWeight(value: Double): String {
+    return String.format(Locale.US, "%.1f", value)
+}
