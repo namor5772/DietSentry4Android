@@ -266,9 +266,10 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
             - The time stamp of the log (date+time)
             - The food description
             - The amount consumed (in g or mL as appropriate)
-        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising six rows:
+        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising seven rows:
             - The date of the foods time stamp
             - The text "Daily totals"
+            - The text "My weight (kg)" followed by the corresponding weight entry for that date (or NA if not recorded)
             - The total amount consumed on the day, where the amounts are summed irrespective of units. This is a bit misleading but accurate enough if the density of the liquid foods is not too far away from 1 
     - **NIP**: There are two cases:
         - when the Daily totals checkbox is **unchecked**, logs for individual foods are displayed comprising ten rows:
@@ -276,9 +277,10 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
             - The food description
             - The amount consumed (in g or mL as appropriate)
             - The seven quantities mandated by FSANZ as the minimum required in a NIP 
-        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising ten rows:
+        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising eleven rows:
             - The date of the foods time stamp
             - The text "Daily totals"
+            - The text "My weight (kg)" followed by the corresponding weight entry for that date (or NA if not recorded)
             - The total amount consumed on the day, where as before the amounts are summed irrespective of units.
             - The seven quantities mandated by FSANZ as the minimum required in a NIP, summed across all of the days food item logs.
     - **All**: There are two cases:
@@ -287,9 +289,10 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
             - The food description
             - The amount consumed (in g or mL as appropriate)
             - The 23 nutrient quantities we can record in the Foods table (including Energy) 
-        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising 26 rows:
+        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising 27 rows:
             - The date of the foods time stamp
             - The text "Daily totals"
+            - The text "My weight (kg)" followed by the corresponding weight entry for that date (or NA if not recorded)
             - The total amount consumed on the day, where as before the amounts are summed irrespective of units.
             - The 23 nutrient quantities we can record in the Foods table (including Energy), summed across all of the days food item logs.
 - The **help button** `?` which displays this help screen.
@@ -371,11 +374,20 @@ The remaining (**Energy** and **Nutrient fields**) are the same as for the corre
         }
     }
     val dailyTotals = remember(filteredEatenFoods) { aggregateDailyTotals(filteredEatenFoods) }
+    var weightEntries by remember { mutableStateOf(emptyList<WeightEntry>()) }
+    val weightByDate = remember(weightEntries) { weightEntries.associateBy { it.dateWeight } }
     var showFilterDatePicker by remember { mutableStateOf(false) }
     val filterDatePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedFilterDateMillis)
     LaunchedEffect(selectedFilterDateMillis) {
         filterDatePickerState.selectedDateMillis = selectedFilterDateMillis
         sessionSelectedFilterDateMillis = selectedFilterDateMillis
+    }
+    LaunchedEffect(displayDailyTotals) {
+        if (displayDailyTotals) {
+            weightEntries = withContext(Dispatchers.IO) {
+                dbHelper.readWeights()
+            }
+        }
     }
 
     BackHandler(enabled = selectedEatenFood != null) {
@@ -480,10 +492,12 @@ The remaining (**Energy** and **Nutrient fields**) are the same as for the corre
                             .weight(1f)
                     ) {
                         items(dailyTotals) { totals ->
+                            val weightEntry = weightByDate[totals.date]
                             DailyTotalsCard(
                                 totals = totals,
                                 showNutritionalInfo = showNutritionalInfo,
-                                showExtraNutrients = showExtraNutrients
+                                showExtraNutrients = showExtraNutrients,
+                                weightEntry = weightEntry
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                         }
@@ -661,12 +675,10 @@ private fun aggregateDailyTotals(eatenFoods: List<EatenFood>): List<DailyTotals>
 fun DailyTotalsCard(
     totals: DailyTotals,
     showNutritionalInfo: Boolean,
-    showExtraNutrients: Boolean
+    showExtraNutrients: Boolean,
+    weightEntry: WeightEntry?
 ) {
-    val amountUnitSuffix = when (totals.unitLabel) {
-        "mixed units" -> " (g or mL)"
-        else -> " ${totals.unitLabel}"
-    }
+    val weightText = weightEntry?.let { formatWeight(it.weight) } ?: "NA"
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -676,6 +688,7 @@ fun DailyTotalsCard(
             Spacer(modifier = Modifier.height(4.dp))
             Text("Daily totals", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(2.dp))
+            WeightValueRow(label = "My weight (kg)", value = weightText)
             if (showNutritionalInfo) {
                 NutritionalInfo(
                     eatenFood = totals.toEatenFoodPlaceholder(),
@@ -683,45 +696,16 @@ fun DailyTotalsCard(
                     showExtraNutrients = showExtraNutrients
                 )
             } else {
-                val amountText = formatAmount(totals.amountEaten)
-                Text(
-                    "$amountText$amountUnitSuffix",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(0.5f),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Energy (kJ):", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = formatNumber(totals.energy),
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.End
-                    )
+                val amountLabel = when (totals.unitLabel.lowercase(Locale.getDefault())) {
+                    "ml" -> "Amount (mL)"
+                    "g" -> "Amount (g)"
+                    "mixed units" -> "Amount (g or mL)"
+                    else -> "Amount (${totals.unitLabel})"
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(0.5f),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Fat, total (g):", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = formatNumber(totals.fatTotal),
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.End
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(0.5f),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Dietary Fibre (g):", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = formatNumber(totals.dietaryFibre),
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.End
-                    )
-                }
+                NutrientRow(label = amountLabel, value = totals.amountEaten)
+                NutrientRow(label = "Energy (kJ):", value = totals.energy)
+                NutrientRow(label = "Fat, total (g):", value = totals.fatTotal)
+                NutrientRow(label = "Dietary Fibre (g):", value = totals.dietaryFibre)
             }
         }
     }
@@ -5047,7 +5031,7 @@ private fun WeightAddDialog(
 @Composable
 private fun WeightValueRow(label: String, value: String) {
     Row(
-        modifier = Modifier.fillMaxWidth(0.6f),
+        modifier = Modifier.fillMaxWidth(0.5f),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium)
