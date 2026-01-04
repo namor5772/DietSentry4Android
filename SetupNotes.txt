@@ -68,3 +68,10 @@ The app can export the "internal" foods.db file to an "external" directory in
     viewer when the All option is selected, the Daily total checkbox is ticked
     and the Filter by date checkbox is unchecked). Make sure the file has
     headings but do not include the "Daily totals" text/field in any way.
+
+   Almost there but the layout of the EatenDailyAll.csv file is not quite
+    correct. I would like there to be only one row per date (in descending
+    order). with the first column headed "Date" of course. Then there to be 25
+    columns headed "My weight (kg)", "Amount (g or mL)", "Energy (kJ):", "Protein
+    (g):", ... , "Alcohol (g):"  to be poplulated with the corresponding values
+    for the rows date. Could you do that please!

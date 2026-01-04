@@ -11,6 +11,7 @@
 package au.dietsentry.myapplication
 
 import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -4180,6 +4181,9 @@ This screen contains various miscellaneous utilities.
     - For safety it is mediated by a warning dialog.
     - If the is no such file (eg. on first app use) then you are prompted to select that file in order to create a persistent link to it. Since it does not exist you will have to put an arbitrary file named foods.db into that directory first and then manually select it.
     - The first time this occurs cancel the (attempted) export, create/put foods.db (it can contain anything) in the `Internal storage\Download` directory and try again.
+- **Export Eaten daily**: Pressing this button writes `EatenDailyAll.csv` to the `Internal storage\Download` directory.
+    - It exports the Eaten Table daily totals shown with the All option across all dates.
+    - The "Daily totals" label is not included in the file.
 - **Import db**: Pressing this button replaces the app database with `foods.db` from the `Internal storage\Download` directory.
     - For safety it is mediated by a warning dialog.
     - If needed, you'll be prompted to select the file once.
@@ -4567,6 +4571,135 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
         }
     }
 
+
+    fun csvCell(value: String): String {
+        val escaped = value.replace("\"", "\"\"")
+        return "\"$escaped\""
+    }
+
+    fun buildEatenDailyAllCsv(
+        dailyTotals: List<DailyTotals>,
+        weightByDate: Map<String, WeightEntry>
+    ): String {
+        val lines = mutableListOf<String>()
+        val header = listOf(
+            "Date",
+            "My weight (kg)",
+            "Amount (g or mL)",
+            "Energy (kJ):",
+            "Protein (g):",
+            "Fat, total (g):",
+            "- Saturated (g):",
+            "- Trans (mg):",
+            "- Polyunsaturated (g):",
+            "- Monounsaturated (g):",
+            "Carbohydrate (g):",
+            "- Sugars (g):",
+            "Sodium (mg):",
+            "Dietary Fibre (g):",
+            "Calcium (mg):",
+            "Potassium (mg):",
+            "Thiamin B1 (mg):",
+            "Riboflavin B2 (mg):",
+            "Niacin B3 (mg):",
+            "Folate (ug):",
+            "Iron (mg):",
+            "Magnesium (mg):",
+            "Vitamin C (mg):",
+            "Caffeine (mg):",
+            "Cholesterol (mg):",
+            "Alcohol (g):"
+        )
+        lines.add(header.joinToString(",") { csvCell(it) })
+        val dateFormat = SimpleDateFormat("d-MMM-yy", Locale.getDefault())
+        val sortedTotals = dailyTotals.sortedWith(
+            compareByDescending { dateFormat.parse(it.date)?.time ?: Long.MIN_VALUE }
+        )
+        sortedTotals.forEach { totals ->
+            val weightText = weightByDate[totals.date]?.let { formatWeight(it.weight) } ?: "NA"
+            val row = listOf(
+                totals.date,
+                weightText,
+                formatNumber(totals.amountEaten),
+                formatNumber(totals.energy),
+                formatNumber(totals.protein),
+                formatNumber(totals.fatTotal),
+                formatNumber(totals.saturatedFat),
+                formatNumber(totals.transFat),
+                formatNumber(totals.polyunsaturatedFat),
+                formatNumber(totals.monounsaturatedFat),
+                formatNumber(totals.carbohydrate),
+                formatNumber(totals.sugars),
+                formatNumber(totals.sodiumNa),
+                formatNumber(totals.dietaryFibre),
+                formatNumber(totals.calciumCa),
+                formatNumber(totals.potassiumK),
+                formatNumber(totals.thiaminB1),
+                formatNumber(totals.riboflavinB2),
+                formatNumber(totals.niacinB3),
+                formatNumber(totals.folate),
+                formatNumber(totals.ironFe),
+                formatNumber(totals.magnesiumMg),
+                formatNumber(totals.vitaminC),
+                formatNumber(totals.caffeine),
+                formatNumber(totals.cholesterol),
+                formatNumber(totals.alcohol)
+            )
+            lines.add(row.joinToString(",") { csvCell(it) })
+        }
+        return lines.joinToString("\n")
+    }
+
+    fun writeCsvToUri(uri: Uri, csv: String): Boolean {
+        return try {
+            context.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { writer ->
+                writer.write(csv)
+            } != null
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun createDownloadsFileUri(displayName: String, mimeType: String): Uri? {
+        val volumes = buildList {
+            add(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            add(MediaStore.VOLUME_EXTERNAL)
+            addAll(MediaStore.getExternalVolumeNames(context))
+        }.distinct()
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, "Download/")
+        }
+        for (volume in volumes) {
+            val collection = MediaStore.Downloads.getContentUri(volume)
+            val uri = runCatching { context.contentResolver.insert(collection, values) }.getOrNull()
+            if (uri != null) return uri
+        }
+        return null
+    }
+
+    fun exportEatenDailyCsv() {
+        coroutineScope.launch {
+            val exportSuccess = withContext(Dispatchers.IO) {
+                val dailyTotals = aggregateDailyTotals(dbHelper.readEatenFoods())
+                val weightByDate = dbHelper.readWeights().associateBy { it.dateWeight }
+                val csv = buildEatenDailyAllCsv(dailyTotals, weightByDate)
+                val displayName = "EatenDailyAll.csv"
+                val existingUri = findDownloadsDbUri(displayName)
+                if (existingUri != null && writeCsvToUri(existingUri, csv)) {
+                    return@withContext true
+                }
+                val newUri = createDownloadsFileUri(displayName, "text/csv") ?: return@withContext false
+                writeCsvToUri(newUri, csv)
+            }
+            if (exportSuccess) {
+                showPlainToast(context, "Eaten daily exported")
+            } else {
+                showPlainToast(context, "Failed to export Eaten daily")
+            }
+        }
+    }
     if (showWeightDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showWeightDatePicker = false },
@@ -4625,6 +4758,16 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
                     }
                     Button(onClick = { showImportWarning = true }) {
                         Text("Import db")
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(onClick = { exportEatenDailyCsv() }) {
+                        Text("Export Eaten daily")
                     }
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
