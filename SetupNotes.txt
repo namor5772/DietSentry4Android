@@ -54,3 +54,17 @@ On the Eaten Table screen, with the Daily totals checkbox checked I would
   "Daily Totals" text which is the Weight entry from the Weight table for that
   date (ie. where DateWeight is the same as DateEaten). If there is no such
   date in the Weight table then display: "My weight (kg)     NA"
+
+The app can export the "internal" foods.db file to an "external" directory in
+  the phone. I would like to create a button called [Export Eaten daily] in the
+  Utilities screen which when pressed would save a csv file called
+  EatenDailyAll.csv to the same directory by default.
+
+  The app can export the "internal" foods.db file to an "external" directory in
+    the phone. I would like to create a button called [Export Eaten daily] in the
+    Utilities screen which when pressed would save a csv file called
+    EatenDailyAll.csv to the same directory by default. This file should be in
+    csv format of  what is displayed in the EatenTable screen's scrollable table
+    viewer when the All option is selected, the Daily total checkbox is ticked
+    and the Filter by date checkbox is unchecked). Make sure the file has
+    headings but do not include the "Daily totals" text/field in any way.
