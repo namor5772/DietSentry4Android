@@ -4179,14 +4179,15 @@ This screen contains various miscellaneous utilities.
 
 - **Export db**: Pressing this button overwrites the `foods.db` file in the `Internal storage\Download` directory.
     - For safety it is mediated by a warning dialog.
-    - If the is no such file (eg. on first app use) then you are prompted to select that file in order to create a persistent link to it. Since it does not exist you will have to put an arbitrary file named foods.db into that directory first and then manually select it.
-    - The first time this occurs cancel the (attempted) export, create/put foods.db (it can contain anything) in the `Internal storage\Download` directory and try again.
-- **Export Eaten daily**: Pressing this button writes `EatenDailyAll.csv` to the `Internal storage\Download` directory.
-    - It exports the Eaten Table daily totals shown with the All option across all dates.
-    - The "Daily totals" label is not included in the file.
+    - If there is no such file (eg. on first app use) then you are prompted to select that file in order to create a persistent link to it. Since it does not exist you will have to put an arbitrary file named foods.db into that directory first and then manually select it.
+    - The first time this occurs cancel the (attempted) export, create/put foods.db in the `Internal storage\Download` directory (it can contain anything) and try again.
 - **Import db**: Pressing this button replaces the app database with `foods.db` from the `Internal storage\Download` directory.
     - For safety it is mediated by a warning dialog.
     - If needed, you'll be prompted to select the file once.
+- **Export csv**: Pressing this button writes/overwrites an `EatenDailyAll.csv` file to the `Internal storage\Download` directory.
+    - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates.
+    - it is in csv format with each date per row. With the columns corresponding to the fields displayed in the scrollable table viewer on the Eaten Table screen. This includes `My weight (kg)` as the second column.
+    - There is no preliminary warning dialog, the export is just carried out when the button is pressed and a Toast message on completion.   
 - **Weight Table**: a scrollable table viewer which displays records from the weight table.
     - Records are displayed in descending date order.
     - When any record is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays details of the selected record followed by three buttons below it:
@@ -4203,6 +4204,7 @@ This screen contains various miscellaneous utilities.
             - Press the **Confirm** button when you are ready to confirm the delete. This then transfers focus back to this screen where the deleted weight record will be disappear from this scrollable table viewer. The selection panel is also closed.
         - You can abort these processes (from the above dialogs) by tapping anywhere outside the dialog box or pressing the "back" button on the bottom menu. This closes the dialog and transfers focus back to this screen. The selection panel is also closed.
     - If the Weight Table is empty (which is usually the case if the app has just been installed with the default internal databse) there is no way to enable the selection panel so that a weight record can be created by pressing the Add button. Instead the message "The Weight table has no records" is displayed, followed by the **Add** button. Press it to add a new weight record. Once at least one record exists this GUI layout disappears.
+    - **The intention is** that each day at preferably the same time you weight yourself naked or with the same weight clothes and record this weight in the Weight table. When analysing your aggregated data from the Eaten table you will see your days weight together with your daily Energy and nutrient amounts. 
 ***
 # **Weight table structure**
 ```
@@ -4694,7 +4696,7 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
                 writeCsvToUri(newUri, csv)
             }
             if (exportSuccess) {
-                showPlainToast(context, "Eaten daily exported")
+                showPlainToast(context, "csv file exported sucessfully")
             } else {
                 showPlainToast(context, "Failed to export Eaten daily")
             }
@@ -4750,7 +4752,7 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Button(onClick = { showExportWarning = true }) {
@@ -4759,15 +4761,8 @@ The **WeightId** field is never explicitly displayed or considered. It is a Prim
                     Button(onClick = { showImportWarning = true }) {
                         Text("Import db")
                     }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.Start),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
                     Button(onClick = { exportEatenDailyCsv() }) {
-                        Text("Export Eaten daily")
+                        Text("Export csv")
                     }
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
