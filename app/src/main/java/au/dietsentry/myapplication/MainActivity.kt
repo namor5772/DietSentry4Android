@@ -57,7 +57,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontStyle
@@ -75,7 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.platform.LocalConfiguration
+
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.navigation.NavController
@@ -269,21 +271,20 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
             - The time stamp of the log (date+time)
             - The food description
             - The amount consumed (in g or mL as appropriate)
-        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising seven rows:
+        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising six rows:
             - The date of the foods time stamp
             - The text "Daily totals"
-            - The text "My weight (kg)" followed by the corresponding weight entry for that date (or NA if not recorded)
             - The total amount consumed on the day, where the amounts are summed irrespective of units. This is a bit misleading but accurate enough if the density of the liquid foods is not too far away from 1 
+            - The total Energy (kJ), Fat, total (g), and Dietary Fibre (g) for the day.
     - **NIP**: There are two cases:
         - when the Daily totals checkbox is **unchecked**, logs for individual foods are displayed comprising ten rows:
             - The time stamp of the log (date+time)
             - The food description
             - The amount consumed (in g or mL as appropriate)
             - The seven quantities mandated by FSANZ as the minimum required in a NIP 
-        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising eleven rows:
+        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising ten rows:
             - The date of the foods time stamp
             - The text "Daily totals"
-            - The text "My weight (kg)" followed by the corresponding weight entry for that date (or NA if not recorded)
             - The total amount consumed on the day, where as before the amounts are summed irrespective of units.
             - The seven quantities mandated by FSANZ as the minimum required in a NIP, summed across all of the days food item logs.
     - **All**: There are two cases:
@@ -292,9 +293,10 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
             - The food description
             - The amount consumed (in g or mL as appropriate)
             - The 23 nutrient quantities we can record in the Foods table (including Energy) 
-        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising 27 rows:
+        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising 27 or 28 rows:
             - The date of the foods time stamp
             - The text "Daily totals"
+            - The text "Comments" followed by the corresponding weight entry comment for that date (if a weight entry exists)
             - The text "My weight (kg)" followed by the corresponding weight entry for that date (or NA if not recorded)
             - The total amount consumed on the day, where as before the amounts are summed irrespective of units.
             - The 23 nutrient quantities we can record in the Foods table (including Energy), summed across all of the days food item logs.
@@ -4205,18 +4207,20 @@ This screen contains various miscellaneous utilities .
     - If needed, you'll be prompted to select the file once.
 - **Export csv**: Pressing this button writes/overwrites an `EatenDailyAll.csv` file to the `Internal storage\Download` directory.
     - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates.
-    - it is in csv format with each date per row. With the columns corresponding to the fields displayed in the scrollable table viewer on the Eaten Table screen. This includes `My weight (kg)` as the second column.
+    - it is in csv format with each date per row. With the columns corresponding to the fields displayed in the scrollable table viewer on the Eaten Table screen. This includes `My weight (kg)` and `Comments` as the second and third columns.
     - There is no preliminary warning dialog, the export is just carried out when the button is pressed and a Toast message on completion.   
 - **Weight Table**: a scrollable table viewer which displays records from the weight table.
     - Records are displayed in descending date order.
     - When any record is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays details of the selected record followed by three buttons below it:
         - **Add**: It enables a weight record to be added to the Weight table.
             - It opens the **Add weight** dialog so you can enter a new weight and date.
+            - You can optionally enter Comments for the weight entry.
             - The original selected weight record has no relevance to this activity. It is just a way of making the Add button available.
             - You cannot use a date that already exists.
             - Press the **Confirm** button when you are ready to confirm your changes. This wll be ignored if the date already exists or the weight is not a number or is blank. in these cases an appropriate Toast will be temporarily displayed.
         - **Edit**: It enables the selected weight record to be modified.
             - It opens the **Edit weight** dialog where you can modify the weight in kg. The date is shown but not editable.
+            - You can edit Comments for the weight entry.
             - Press the **Confirm** button when you are ready to confirm your changes. This then transfers focus back to this screen where the just modified weight record will be visible. The selection panel is also closed.
         - **Delete**: It deletes the selected weight record.
             - It opens the **Delete weight?** warning dialog box.
@@ -5155,7 +5159,9 @@ private fun WeightAddDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val windowInfo = LocalWindowInfo.current
+    val density = LocalDensity.current
+    val screenHeight = with(density) { windowInfo.containerSize.height.toDp() }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
@@ -5268,7 +5274,9 @@ private fun WeightEditDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val windowInfo = LocalWindowInfo.current
+    val density = LocalDensity.current
+    val screenHeight = with(density) { windowInfo.containerSize.height.toDp() }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
