@@ -1,9 +1,17 @@
 
 Project path in Windows 
 C:\Users\roman\AndroidStudioProjects\DietSentry4Android
+C:\Users\roman\ClonedProjects\DietSentry
+c:\Users\roman\OneDrive\GitRepos\TkRadio
 
 Project path in WSL
 /mnt/c/Users/roman/AndroidStudioProjects/DietSentry4Android
+/mnt/c/Users/roman/ClonedProjects/DietSentry codex
+/mnt/c/Users/roman/OneDrive/GitRepos/TkRadio codex
+
+Ctrl-D from UBUNTU terminal change directory and run codex for TkRadio VS Code project
+
+
 
 SETUP WRAP in *.kt file
 View -> Active Editor -> Soft-Wrap
@@ -47,31 +55,3 @@ clear -> clears terminal tab
 
 C:\Users\roman\AndroidStudioProjects\DietSentry4Android\app\src\main\assets\foods.db
 
-On the Eaten Table screen, with the Daily totals checkbox checked I would
-  like to enhance what data is displayed in the scrollable table viewer.
-  Currently it displays data from the Eaten table aggragated/summed by Date.
-  What I would like to do is to add a field called "My weight (kg)" under the
-  "Daily Totals" text which is the Weight entry from the Weight table for that
-  date (ie. where DateWeight is the same as DateEaten). If there is no such
-  date in the Weight table then display: "My weight (kg)     NA"
-
-The app can export the "internal" foods.db file to an "external" directory in
-  the phone. I would like to create a button called [Export Eaten daily] in the
-  Utilities screen which when pressed would save a csv file called
-  EatenDailyAll.csv to the same directory by default.
-
-  The app can export the "internal" foods.db file to an "external" directory in
-    the phone. I would like to create a button called [Export Eaten daily] in the
-    Utilities screen which when pressed would save a csv file called
-    EatenDailyAll.csv to the same directory by default. This file should be in
-    csv format of  what is displayed in the EatenTable screen's scrollable table
-    viewer when the All option is selected, the Daily total checkbox is ticked
-    and the Filter by date checkbox is unchecked). Make sure the file has
-    headings but do not include the "Daily totals" text/field in any way.
-
-   Almost there but the layout of the EatenDailyAll.csv file is not quite
-    correct. I would like there to be only one row per date (in descending
-    order). with the first column headed "Date" of course. Then there to be 25
-    columns headed "My weight (kg)", "Amount (g or mL)", "Energy (kJ):", "Protein
-    (g):", ... , "Alcohol (g):"  to be poplulated with the corresponding values
-    for the rows date. Could you do that please!

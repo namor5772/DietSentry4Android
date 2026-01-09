@@ -4175,7 +4175,7 @@ fun UtilitiesScreen(navController: NavController) {
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val utilitiesHelpText = """
 # **Utilities**
-This screen contains various miscellaneous utilities.
+This screen contains various miscellaneous utilities .
 
 - **Export db**: Pressing this button overwrites the `foods.db` file in the `Internal storage\Download` directory.
     - For safety it is mediated by a warning dialog.
