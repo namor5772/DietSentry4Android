@@ -498,7 +498,8 @@ The remaining (**Energy** and **Nutrient fields**) are the same as for the corre
                                 totals = totals,
                                 showNutritionalInfo = showNutritionalInfo,
                                 showExtraNutrients = showExtraNutrients,
-                                weightEntry = weightEntry
+                                weightEntry = weightEntry,
+                                showWeightComments = showExtraNutrients
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                         }
@@ -677,9 +678,11 @@ fun DailyTotalsCard(
     totals: DailyTotals,
     showNutritionalInfo: Boolean,
     showExtraNutrients: Boolean,
-    weightEntry: WeightEntry?
+    weightEntry: WeightEntry?,
+    showWeightComments: Boolean
 ) {
     val weightText = weightEntry?.let { formatWeight(it.weight) } ?: "NA"
+    val commentsText = weightEntry?.comments?.trim()
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -689,6 +692,16 @@ fun DailyTotalsCard(
             Spacer(modifier = Modifier.height(4.dp))
             Text("Daily totals", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(2.dp))
+            if (showWeightComments && commentsText != null) {
+                WeightValueRow(
+                    label = "Comments:",
+                    value = commentsText,
+                    valueMaxLines = Int.MAX_VALUE,
+                    valueOverflow = TextOverflow.Clip,
+                    valueTextAlign = TextAlign.Start,
+                    rowFillFraction = 1f
+                )
+            }
             WeightValueRow(label = "My weight (kg)", value = weightText)
             if (showNutritionalInfo) {
                 NutritionalInfo(
@@ -4162,6 +4175,7 @@ fun UtilitiesScreen(navController: NavController) {
     var showImportWarning by remember { mutableStateOf(false) }
     var showAddWeightDialog by remember { mutableStateOf(false) }
     var weightInput by rememberSaveable { mutableStateOf("") }
+    var weightCommentsInput by rememberSaveable { mutableStateOf("") }
     var weightDateMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
     var showWeightDatePicker by remember { mutableStateOf(false) }
     var weightEntries by remember { mutableStateOf(emptyList<WeightEntry>()) }
@@ -4169,6 +4183,7 @@ fun UtilitiesScreen(navController: NavController) {
     var editingWeight by remember { mutableStateOf<WeightEntry?>(null) }
     var deletingWeight by remember { mutableStateOf<WeightEntry?>(null) }
     var editWeightInput by rememberSaveable { mutableStateOf("") }
+    var editWeightCommentsInput by rememberSaveable { mutableStateOf("") }
     var editWeightDateMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
     val weightDateFormat = remember { SimpleDateFormat("d-MMM-yy", Locale.getDefault()) }
     val weightDatePickerState = rememberDatePickerState(initialSelectedDateMillis = weightDateMillis)
@@ -4248,6 +4263,7 @@ The remaining fields are self expanatory.
         editWeightInput = editingWeight?.let { entry ->
             formatWeight(entry.weight)
         } ?: ""
+        editWeightCommentsInput = editingWeight?.comments ?: ""
         editWeightDateMillis = editingWeight?.dateWeight
             ?.takeIf { it.isNotBlank() }
             ?.let { dateString ->
@@ -4799,7 +4815,7 @@ The remaining fields are self expanatory.
                             selectedWeight = if (selectedWeight?.weightId == entry.weightId) null else entry
                         },
                         modifier = Modifier
-                            .fillMaxWidth(0.66f)
+                            .fillMaxWidth()
                             .height(weightListMaxHeight)
                             .align(Alignment.Start)
                     )
@@ -4906,6 +4922,8 @@ The remaining fields are self expanatory.
         WeightAddDialog(
             weightValue = weightInput,
             onWeightChange = { weightInput = it },
+            commentsValue = weightCommentsInput,
+            onCommentsChange = { weightCommentsInput = it },
             dateText = weightDateFormat.format(Date(weightDateMillis)),
             onPickDate = { showWeightDatePicker = true },
             onSave = {
@@ -4925,10 +4943,11 @@ The remaining fields are self expanatory.
                 }
                 coroutineScope.launch {
                     val success = withContext(Dispatchers.IO) {
-                        dbHelper.insertWeight(dateValue, weightValue)
+                        dbHelper.insertWeight(dateValue, weightValue, weightCommentsInput)
                     }
                     if (success) {
                         weightInput = ""
+                        weightCommentsInput = ""
                         refreshWeights()
                         showPlainToast(context, "Weight saved")
                         showAddWeightDialog = false
@@ -4949,6 +4968,8 @@ The remaining fields are self expanatory.
         WeightEditDialog(
             weightValue = editWeightInput,
             onWeightChange = { editWeightInput = it },
+            commentsValue = editWeightCommentsInput,
+            onCommentsChange = { editWeightCommentsInput = it },
             dateText = weightDateFormat.format(Date(editWeightDateMillis)),
             onSave = {
                 val entry = editingWeight ?: return@WeightEditDialog
@@ -4964,7 +4985,7 @@ The remaining fields are self expanatory.
                 }
                 coroutineScope.launch {
                     val success = withContext(Dispatchers.IO) {
-                        dbHelper.updateWeight(entry.weightId, dateValue, weightValue)
+                        dbHelper.updateWeight(entry.weightId, dateValue, weightValue, editWeightCommentsInput)
                     }
                     if (success) {
                         editingWeight = null
@@ -5038,10 +5059,11 @@ private fun WeightList(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = entry.dateWeight.ifBlank { "-" },
+                        text = entry.dateWeight,
+                        modifier = Modifier.weight(0.3f),
                         fontWeight = if (selectedWeightId == entry.weightId) {
                             FontWeight.Bold
                         } else {
@@ -5050,7 +5072,14 @@ private fun WeightList(
                     )
                     Text(
                         text = "${formatWeight(entry.weight)} kg",
+                        modifier = Modifier.weight(0.2f),
                         textAlign = TextAlign.End
+                    )
+                    Text(
+                        text = entry.comments,
+                        modifier = Modifier.weight(0.5f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -5107,6 +5136,8 @@ private fun WeightSelectionPanel(
 private fun WeightAddDialog(
     weightValue: String,
     onWeightChange: (String) -> Unit,
+    commentsValue: String,
+    onCommentsChange: (String) -> Unit,
     dateText: String,
     onPickDate: () -> Unit,
     onSave: () -> Unit,
@@ -5158,6 +5189,14 @@ private fun WeightAddDialog(
                         modifier = Modifier.weight(1f)
                     )
                 }
+                Spacer(modifier = Modifier.height(12.dp))
+                TextField(
+                    value = commentsValue,
+                    onValueChange = onCommentsChange,
+                    label = { Text("Comments") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 3
+                )
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -5173,16 +5212,27 @@ private fun WeightAddDialog(
 }
 
 @Composable
-private fun WeightValueRow(label: String, value: String) {
+private fun WeightValueRow(
+    label: String,
+    value: String,
+    valueMaxLines: Int = 1,
+    valueOverflow: TextOverflow = TextOverflow.Clip,
+    valueTextAlign: TextAlign = TextAlign.End,
+    rowFillFraction: Float = 0.5f
+) {
     Row(
-        modifier = Modifier.fillMaxWidth(0.5f),
-        horizontalArrangement = Arrangement.SpaceBetween
+        modifier = Modifier.fillMaxWidth(rowFillFraction),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium)
         Text(
             text = value,
+            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.End
+            maxLines = valueMaxLines,
+            overflow = valueOverflow,
+            textAlign = valueTextAlign
         )
     }
 }
@@ -5191,6 +5241,8 @@ private fun WeightValueRow(label: String, value: String) {
 private fun WeightEditDialog(
     weightValue: String,
     onWeightChange: (String) -> Unit,
+    commentsValue: String,
+    onCommentsChange: (String) -> Unit,
     dateText: String,
     onSave: () -> Unit,
     onDismiss: () -> Unit
@@ -5244,6 +5296,14 @@ private fun WeightEditDialog(
                         modifier = Modifier.weight(0.6f)
                     )
                 }
+                Spacer(modifier = Modifier.height(12.dp))
+                TextField(
+                    value = commentsValue,
+                    onValueChange = onCommentsChange,
+                    label = { Text("Comments") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 3
+                )
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),

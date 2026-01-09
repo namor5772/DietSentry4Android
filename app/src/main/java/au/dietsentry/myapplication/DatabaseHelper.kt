@@ -46,23 +46,28 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             CREATE TABLE IF NOT EXISTS Weight (
                 WeightId INTEGER PRIMARY KEY AUTOINCREMENT,
                 DateWeight TEXT,
-                Weight REAL
+                Weight REAL,
+                Comments TEXT
             )
             """.trimIndent()
         )
         val cursor = db.rawQuery("PRAGMA table_info(Weight)", null)
         var hasDateWeight = false
+        var hasComments = false
         cursor.use {
             val nameIndex = it.getColumnIndexOrThrow("name")
             while (it.moveToNext()) {
-                if (it.getString(nameIndex) == "DateWeight") {
-                    hasDateWeight = true
-                    break
+                when (it.getString(nameIndex)) {
+                    "DateWeight" -> hasDateWeight = true
+                    "Comments" -> hasComments = true
                 }
             }
         }
         if (!hasDateWeight) {
             db.execSQL("ALTER TABLE Weight ADD COLUMN DateWeight TEXT")
+        }
+        if (!hasComments) {
+            db.execSQL("ALTER TABLE Weight ADD COLUMN Comments TEXT")
         }
     }
 
@@ -235,11 +240,12 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
         }
     }
 
-    fun insertWeight(dateWeight: String, weight: Double): Boolean {
+    fun insertWeight(dateWeight: String, weight: Double, comments: String): Boolean {
         return try {
             val values = ContentValues().apply {
                 put("DateWeight", dateWeight)
                 put("Weight", weight)
+                put("Comments", comments)
             }
             db.insert("Weight", null, values) != -1L
         } catch (e: Exception) {
@@ -251,19 +257,21 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
     fun readWeights(): List<WeightEntry> {
         val results = mutableListOf<WeightEntry>()
         val cursor = db.rawQuery(
-            "SELECT WeightId, DateWeight, Weight FROM Weight ORDER BY WeightId DESC",
+            "SELECT WeightId, DateWeight, Weight, Comments FROM Weight ORDER BY WeightId DESC",
             null
         )
         cursor.use {
             val idIndex = it.getColumnIndexOrThrow("WeightId")
             val dateIndex = it.getColumnIndexOrThrow("DateWeight")
             val weightIndex = it.getColumnIndexOrThrow("Weight")
+            val commentsIndex = it.getColumnIndexOrThrow("Comments")
             while (it.moveToNext()) {
                 results.add(
                     WeightEntry(
                         weightId = it.getInt(idIndex),
                         dateWeight = it.getString(dateIndex) ?: "",
-                        weight = it.getDouble(weightIndex)
+                        weight = it.getDouble(weightIndex),
+                        comments = it.getString(commentsIndex) ?: ""
                     )
                 )
             }
@@ -276,11 +284,12 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
         )
     }
 
-    fun updateWeight(weightId: Int, dateWeight: String, weight: Double): Boolean {
+    fun updateWeight(weightId: Int, dateWeight: String, weight: Double, comments: String): Boolean {
         return try {
             val values = ContentValues().apply {
                 put("DateWeight", dateWeight)
                 put("Weight", weight)
+                put("Comments", comments)
             }
             db.update("Weight", values, "WeightId=?", arrayOf(weightId.toString())) > 0
         } catch (e: Exception) {
