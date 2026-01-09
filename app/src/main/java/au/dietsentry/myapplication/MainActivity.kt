@@ -51,6 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
@@ -74,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.navigation.NavController
@@ -702,7 +704,9 @@ fun DailyTotalsCard(
                     rowFillFraction = 1f
                 )
             }
-            WeightValueRow(label = "My weight (kg)", value = weightText)
+            if (showExtraNutrients) {
+                WeightValueRow(label = "My weight (kg)", value = weightText)
+            }
             if (showNutritionalInfo) {
                 NutritionalInfo(
                     eatenFood = totals.toEatenFoodPlaceholder(),
@@ -4609,6 +4613,7 @@ The remaining fields are self expanatory.
         val header = listOf(
             "Date",
             "My weight (kg)",
+            "Comments",
             "Amount (g or mL)",
             "Energy (kJ):",
             "Protein (g):",
@@ -4640,10 +4645,13 @@ The remaining fields are self expanatory.
             compareByDescending { dateFormat.parse(it.date)?.time ?: Long.MIN_VALUE }
         )
         sortedTotals.forEach { totals ->
-            val weightText = weightByDate[totals.date]?.let { formatWeight(it.weight) } ?: "NA"
+            val weightEntry = weightByDate[totals.date]
+            val weightText = weightEntry?.let { formatWeight(it.weight) } ?: "NA"
+            val commentsText = weightEntry?.comments.orEmpty()
             val row = listOf(
                 totals.date,
                 weightText,
+                commentsText,
                 formatNumber(totals.amountEaten),
                 formatNumber(totals.energy),
                 formatNumber(totals.protein),
@@ -5059,11 +5067,11 @@ private fun WeightList(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
                         text = entry.dateWeight,
-                        modifier = Modifier.weight(0.3f),
+                        modifier = Modifier.weight(0.28f),
                         fontWeight = if (selectedWeightId == entry.weightId) {
                             FontWeight.Bold
                         } else {
@@ -5072,12 +5080,16 @@ private fun WeightList(
                     )
                     Text(
                         text = "${formatWeight(entry.weight)} kg",
-                        modifier = Modifier.weight(0.2f),
-                        textAlign = TextAlign.End
+                        modifier = Modifier.weight(0.16f),
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip
                     )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = entry.comments,
-                        modifier = Modifier.weight(0.5f),
+                        modifier = Modifier.weight(0.56f),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -5143,6 +5155,7 @@ private fun WeightAddDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
@@ -5154,49 +5167,57 @@ private fun WeightAddDialog(
             modifier = Modifier
                 .fillMaxWidth(0.98f)
                 .widthIn(min = 360.dp, max = 720.dp)
-                .height(IntrinsicSize.Min)
+                .heightIn(max = screenHeight * 0.9f)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    text = "Add weight",
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.headlineSmall
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
                 ) {
-                    Button(onClick = onPickDate) {
-                        Text(dateText)
+                    Text(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        text = "Add weight",
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(onClick = onPickDate) {
+                            Text(dateText)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextField(
+                            value = weightValue,
+                            onValueChange = onWeightChange,
+                            label = { Text("Weight (kg)") },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Decimal,
+                                imeAction = ImeAction.Done
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     TextField(
-                        value = weightValue,
-                        onValueChange = onWeightChange,
-                        label = { Text("Weight (kg)") },
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Decimal,
-                            imeAction = ImeAction.Done
-                        ),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        value = commentsValue,
+                        onValueChange = onCommentsChange,
+                        label = { Text("Comments") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = Int.MAX_VALUE
                     )
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                TextField(
-                    value = commentsValue,
-                    onValueChange = onCommentsChange,
-                    label = { Text("Comments") },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 3
-                )
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -5247,6 +5268,7 @@ private fun WeightEditDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
@@ -5258,52 +5280,60 @@ private fun WeightEditDialog(
             modifier = Modifier
                 .fillMaxWidth(0.98f)
                 .widthIn(min = 360.dp, max = 720.dp)
-                .height(IntrinsicSize.Min)
+                .heightIn(max = screenHeight * 0.9f)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    text = "Edit weight",
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.headlineSmall
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
                 ) {
                     Text(
-                        text = dateText.ifBlank { "-" },
-                        modifier = Modifier.weight(0.4f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        text = "Edit weight",
                         textAlign = TextAlign.Center,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineSmall
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = dateText.ifBlank { "-" },
+                            modifier = Modifier.weight(0.4f),
+                            textAlign = TextAlign.Center,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextField(
+                            value = weightValue,
+                            onValueChange = onWeightChange,
+                            label = { Text("Weight (kg)") },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Decimal,
+                                imeAction = ImeAction.Done
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.weight(0.6f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
                     TextField(
-                        value = weightValue,
-                        onValueChange = onWeightChange,
-                        label = { Text("Weight (kg)") },
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Decimal,
-                            imeAction = ImeAction.Done
-                        ),
-                        singleLine = true,
-                        modifier = Modifier.weight(0.6f)
+                        value = commentsValue,
+                        onValueChange = onCommentsChange,
+                        label = { Text("Comments") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = Int.MAX_VALUE
                     )
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                TextField(
-                    value = commentsValue,
-                    onValueChange = onCommentsChange,
-                    label = { Text("Comments") },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 3
-                )
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
