@@ -4213,8 +4213,14 @@ Field name          Type    Units
 WeightId            INTEGER	
 Weight              REAL    kg
 DateWeight          TEXT    d-MMM-yy
+Comments            TEXT
 ```
-The **WeightId** field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created. The remaining two fields are self expanatory.
+The **WeightId** field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
+
+The **Comments** field is optional and may be blank.
+
+The remaining fields are self expanatory.
+
 """.trimIndent()
 
     fun refreshWeights() {

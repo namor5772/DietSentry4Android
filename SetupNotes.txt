@@ -44,7 +44,6 @@ Backing up LOCAL PHONE APPS foods.db.
 View -> Tool Windows -> Device Explorer -> Files -> data -> data -> au.dietsentry.myapplication -> databases -> foods.db
 
 Save as C:\Users\roman\OneDrive\MyImportant\foods.db	 
-or: C:\Users\roman\OneDrive\AndroidStudioProjects\foods.db
 
 IN TERMINAL
 Alt-F4 -> close terminal 
