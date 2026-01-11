@@ -1047,9 +1047,11 @@ VitaminC            REAL    mg
 Caffeine            REAL    mg
 Cholesterol         REAL    mg
 Alcohol             REAL    g
+notes               TEXT
 ```
 The FoodId field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
 The values of nutrients are per 100g or 100mL as appropriate and the units are as mandated in the FSANZ code.
+The notes field is optional free text and is shown only when the All option is selected.
 
 - **If a FoodDescription ends in the characters " mL" or " mL#"** the food is considered a Liquid, and nutrient values are per 100mL, The "#" character indicates that it is not part of the original database of foods.
 
@@ -1488,6 +1490,7 @@ fun EditFoodScreen(
 - These are foods for which the Energy and nutrient values are given on a **per 100mL basis**
 - On first displaying this screen all the input fields will be populated with values from the selected Food, however the Description field will have the " mL" or " mL#" markers omitted. These will be reinstated after edit confirmation. This means you cannot change a Liquid food into a Solid one directly through editing. However it is possible to convert it to a solid by tapping the Convert button and then editing that solid food.
 - Modify fields as required using decimals where needed and tap Confirm to save your changes. If a field entry is not valid (eg. text, blank or not a number in a field requiring numbers) the Confirm button will be disabled.
+- Notes is optional free text. It is saved with the food and shown in the Foods table when All is selected.
 - You can press either of two "back" buttons to cancel the editing process and return focus to the Foods Table screen.
 - If confirmation succeeds the selected food is amended and focus passes to the Foods Table screen with the filter text being set to the just edited foods description (with markers reinstated). This allows you to review the results of the edit and is especially important if the description has changed significantly and you would not have been able find the food again.    
 """.trimIndent()
@@ -1497,6 +1500,7 @@ fun EditFoodScreen(
 - These are foods for which the Energy and nutrient values are given on a **per 100g basis**
 - On first displaying this screen all the input fields will be populated with values from the selected Food, however the Description field will have the " #" marker (if any) omitted. This will be reinstated after edit confirmation. Interestingly you can convert this food to a liquid by appending the text " mL" to the possibly edited description.
 - Modify fields as required using decimals where needed and tap Confirm to save your changes. If a field entry is not valid (eg. text, blank or not a number in a field requiring numbers) the Confirm button will be disabled.
+- Notes is optional free text. It is saved with the food and shown in the Foods table when All is selected.
 - You can press either of two "back" buttons to cancel the editing process and return focus to the Foods Table screen.
 - If confirmation succeeds the selected food is amended and focus passes to the Foods Table screen with the filter text being set to the just edited foods description (with any markers reinstated). This allows you to review the results of the edit and is especially important if the description has changed significantly and you would not have been able find the food again.    
 """.trimIndent()
@@ -1807,6 +1811,7 @@ fun CopyFoodScreen(
         - When the Copy button is tapped from the Foods Table screen with a **liquid food selected**, this screen headed Copying Liquid Food is displayed
         - Its layout and presentation is identical to the Editing Liquid Food screen, the difference being that instead of modifying the selected food record, a new one is created with the displayed field values.
         - Clearly before pressing the Confirm button you can modify any of the field entries, so you are not really creating an exact copy just a food based on the selection.
+        - Notes is pre-filled from the selected food and saved with the new record.
         - Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description (with the liquid marker appended). This allows you to review the results of the foods creation and is especially important if the Description is unintuitive and finding the food in the table might be difficult.
         - As before you can press either of the two "back" buttons to cancel the copying process and return focus to the Foods Table screen.
         """.trimIndent()
@@ -1816,6 +1821,7 @@ fun CopyFoodScreen(
         - When the Copy button is tapped from the Foods Table screen with a **solid food selected**, this screen headed Copying Solid Food is displayed
         - Its layout and presentation is identical to the Editing Solid Food screen, the difference being that instead of modifying the selected food record, a new one is created with the displayed field values.
         - Clearly before pressing the Confirm button you can modify any of the field entries, so you are not really creating an exact copy just a food based on the selection.
+        - Notes is pre-filled from the selected food and saved with the new record.
         - Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description. This allows you to review the results of the foods creation and is especially important if the Description is unintuitive and finding the food in the table might be difficult.
         - As before you can press either of the two "back" buttons to cancel the copying process and return focus to the Foods Table screen.
         """.trimIndent()
@@ -2131,6 +2137,7 @@ fun InsertFoodScreen(
         - Any input fields you might have filled in will be ignored.
 - The following rows display the record fields that need to be filled in to create a new (non recipe) food.
     - Enter the description and the nutritient values. Blanks outside of the Description field are treated as 0. As long as the Description field is not blank the Confirm button will be enabled.
+    - Notes is optional free text. It is saved with the food and shown in the Foods table when All is selected.
     - You can press either of the two "back" buttons to cancel the creation process and return focus to the Foods Table screen.
     - If however the Confirm button is pressed the Solid or Liquid food (as designated by the selected radio button) will be added to the Foods table. Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description (with the liquid marker appended if necessary). This allows you to review the results of the foods creation and is especially important if the Description is unintuitive and finding the food in the table might be difficult.    
 """.trimIndent()
@@ -2427,6 +2434,7 @@ fun AddFoodByJsonScreen(navController: NavController) {
 - Like other screens it has a **help** and a **navigation** button in the top row.
 - Following this is a **text field** that takes up the rest of the screen, and followed by a **Confirm** button.
 - Paste or enter JSON text describing a food item (liquid or solid, but not recipe).
+- The notes field is optional free text. If provided it is stored with the food and shown in the Foods table when All is selected.
 - The format of the JSON text needs to be precisely as shown in the example below:
 ```
 {
