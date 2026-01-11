@@ -73,6 +73,7 @@ fun FoodList(
                         NutrientRow(label = "Caffeine (mg):", value = food.caffeine)
                         NutrientRow(label = "Cholesterol (mg):", value = food.cholesterol)
                         NutrientRow(label = "Alcohol (g):", value = food.alcohol)
+                        NotesRow(label = "Notes:", value = food.notes)
                     } else {
                         NutrientRow(label = "Sodium (mg):", value = food.sodium)
                     }
@@ -93,6 +94,23 @@ private fun NutrientRow(label: String, value: Double) {
             text = formatNumber(value),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.End
+        )
+    }
+}
+
+@Composable
+private fun NotesRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.Top
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = value,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Start
         )
     }
 }

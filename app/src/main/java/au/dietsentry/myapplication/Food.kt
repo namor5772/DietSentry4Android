@@ -25,5 +25,6 @@ data class Food(
     val vitaminC: Double,
     val caffeine: Double,
     val cholesterol: Double,
-    val alcohol: Double
+    val alcohol: Double,
+    val notes: String = ""
 )

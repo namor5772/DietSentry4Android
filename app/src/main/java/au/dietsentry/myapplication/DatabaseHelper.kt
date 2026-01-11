@@ -24,6 +24,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
         copyDatabaseFromAssets(context)
         db = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
         ensureWeightTableExists()
+        ensureFoodsTableHasNotes()
     }
 
     private fun copyDatabaseFromAssets(context: Context) {
@@ -71,6 +72,24 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
         }
     }
 
+    private fun ensureFoodsTableHasNotes() {
+        val cursor = db.rawQuery("PRAGMA table_info(Foods)", null)
+        var hasNotes = false
+        cursor.use {
+            val nameIndex = it.getColumnIndexOrThrow("name")
+            while (it.moveToNext()) {
+                if (it.getString(nameIndex) == "notes") {
+                    hasNotes = true
+                    break
+                }
+            }
+        }
+        if (!hasNotes) {
+            db.execSQL("ALTER TABLE Foods ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+        }
+        db.execSQL("UPDATE Foods SET notes = '' WHERE notes IS NULL")
+    }
+
     @Synchronized
     fun replaceDatabaseFromStream(inputStream: InputStream): Boolean {
         val parentDir = databaseFile.parentFile ?: return false
@@ -87,6 +106,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             tempFile.copyTo(databaseFile, overwrite = true)
             db = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
             ensureWeightTableExists()
+            ensureFoodsTableHasNotes()
             true
         } catch (e: Exception) {
             Log.e("DatabaseHelper", "Error importing database", e)
@@ -94,6 +114,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
                 runCatching {
                     db = SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE)
                     ensureWeightTableExists()
+                    ensureFoodsTableHasNotes()
                 }
             }
             false
@@ -106,6 +127,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
 
     private fun ContentValues.putFoodNutrients(food: Food) {
         put("FoodDescription", food.foodDescription)
+        put("notes", food.notes)
         put("Energy", food.energy.roundToTwoDecimalPlaces())
         put("Protein", food.protein.roundToTwoDecimalPlaces())
         put("FatTotal", food.fatTotal.roundToTwoDecimalPlaces())
@@ -685,7 +707,8 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             vitaminC = cursor.getDouble(cursor.getColumnIndexOrThrow("VitaminC")),
             caffeine = cursor.getDouble(cursor.getColumnIndexOrThrow("Caffeine")),
             cholesterol = cursor.getDouble(cursor.getColumnIndexOrThrow("Cholesterol")),
-            alcohol = cursor.getDouble(cursor.getColumnIndexOrThrow("Alcohol"))
+            alcohol = cursor.getDouble(cursor.getColumnIndexOrThrow("Alcohol")),
+            notes = cursor.getString(cursor.getColumnIndexOrThrow("notes")) ?: ""
         )
     }
 
@@ -720,7 +743,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             vitaminC = cursor.getDouble(cursor.getColumnIndexOrThrow("VitaminC")),
             caffeine = cursor.getDouble(cursor.getColumnIndexOrThrow("Caffeine")),
             cholesterol = cursor.getDouble(cursor.getColumnIndexOrThrow("Cholesterol")),
-            alcohol = cursor.getDouble(cursor.getColumnIndexOrThrow("Alcohol"))
+            alcohol = cursor.getDouble(cursor.getColumnIndexOrThrow("Alcohol")),
         )
     }
 
@@ -754,7 +777,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
             vitaminC = cursor.getDouble(cursor.getColumnIndexOrThrow("VitaminC")),
             caffeine = cursor.getDouble(cursor.getColumnIndexOrThrow("Caffeine")),
             cholesterol = cursor.getDouble(cursor.getColumnIndexOrThrow("Cholesterol")),
-            alcohol = cursor.getDouble(cursor.getColumnIndexOrThrow("Alcohol"))
+            alcohol = cursor.getDouble(cursor.getColumnIndexOrThrow("Alcohol")),
         )
     }
 

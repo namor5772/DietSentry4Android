@@ -1023,6 +1023,7 @@ Field name          Type    Units
 
 FoodId              INTEGER	
 FoodDescription     TEXT	
+notes               TEXT
 Energy              REAL    kJ
 Protein             REAL    g
 FatTotal            REAL    g
@@ -1469,6 +1470,7 @@ fun EditFoodScreen(
     var caffeine by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.caffeine)) }
     var cholesterol by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.cholesterol)) }
     var alcohol by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.alcohol)) }
+    var notes by rememberSaveable(food) { mutableStateOf(food!!.notes) }
 
     val scrollState = rememberScrollState()
     val numericEntries = listOf(
@@ -1547,7 +1549,8 @@ fun EditFoodScreen(
                             vitaminC = vitaminC.toDouble(),
                             caffeine = caffeine.toDouble(),
                             cholesterol = cholesterol.toDouble(),
-                            alcohol = alcohol.toDouble()
+                            alcohol = alcohol.toDouble(),
+                            notes = notes
                         )
                         val updated = dbHelper.updateFood(updatedFood)
                         if (updated) {
@@ -1723,6 +1726,11 @@ fun EditFoodScreen(
                 onValueChange = { alcohol = it.filter { ch -> ch.isDigit() || ch == '.' } },
                 keyboardType = KeyboardType.Decimal
             )
+            LabeledValueField(
+                label = "Notes",
+                value = notes,
+                onValueChange = { notes = it }
+            )
         }
     }
 
@@ -1782,6 +1790,7 @@ fun CopyFoodScreen(
     var caffeine by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.caffeine)) }
     var cholesterol by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.cholesterol)) }
     var alcohol by rememberSaveable(food) { mutableStateOf(formatOneDecimal(food!!.alcohol)) }
+    var notes by rememberSaveable(food) { mutableStateOf(food!!.notes) }
 
     val scrollState = rememberScrollState()
     val numericEntries = listOf(
@@ -1869,7 +1878,8 @@ fun CopyFoodScreen(
                             vitaminC = vitaminC.toDouble(),
                             caffeine = caffeine.toDouble(),
                             cholesterol = cholesterol.toDouble(),
-                            alcohol = alcohol.toDouble()
+                            alcohol = alcohol.toDouble(),
+                            notes = notes
                         )
                         val inserted = dbHelper.insertFood(newFood)
                         if (inserted) {
@@ -2045,6 +2055,11 @@ fun CopyFoodScreen(
                 onValueChange = { alcohol = it.filter { ch -> ch.isDigit() || ch == '.' } },
                 keyboardType = KeyboardType.Decimal
             )
+            LabeledValueField(
+                label = "Notes",
+                value = notes,
+                onValueChange = { notes = it }
+            )
         }
     }
 
@@ -2089,6 +2104,7 @@ fun InsertFoodScreen(
     var caffeine by rememberSaveable { mutableStateOf("") }
     var cholesterol by rememberSaveable { mutableStateOf("") }
     var alcohol by rememberSaveable { mutableStateOf("") }
+    var notes by rememberSaveable { mutableStateOf("") }
 
     var selectedType by remember { mutableStateOf("Solid") }
     val scrollState = rememberScrollState()
@@ -2177,7 +2193,8 @@ fun InsertFoodScreen(
                             vitaminC = vitaminC.toDoubleOrNull() ?: 0.0,
                             caffeine = caffeine.toDoubleOrNull() ?: 0.0,
                             cholesterol = cholesterol.toDoubleOrNull() ?: 0.0,
-                            alcohol = alcohol.toDoubleOrNull() ?: 0.0
+                            alcohol = alcohol.toDoubleOrNull() ?: 0.0,
+                            notes = notes
                         )
                         val inserted = dbHelper.insertFood(newFood)
                         if (inserted) {
@@ -2379,6 +2396,11 @@ fun InsertFoodScreen(
                 onValueChange = { alcohol = it.filter { ch -> ch.isDigit() || ch == '.' } },
                 keyboardType = KeyboardType.Decimal
             )
+            LabeledValueField(
+                label = "Notes",
+                value = notes,
+                onValueChange = { notes = it }
+            )
         }
     }
 
@@ -2489,6 +2511,7 @@ Given a food description returns its expanded Nutrition Information Panel (NIP) 
                             showPlainToast(context, "FoodDescription is required")
                             return@Button
                         }
+                        val notes = json.optString("notes", "").trim()
                         val newFood = Food(
                             foodId = 0,
                             foodDescription = description,
@@ -2514,7 +2537,8 @@ Given a food description returns its expanded Nutrition Information Panel (NIP) 
                             vitaminC = json.getDouble("VitaminC"),
                             caffeine = json.getDouble("Caffeine"),
                             cholesterol = json.getDouble("Cholesterol"),
-                            alcohol = json.getDouble("Alcohol")
+                            alcohol = json.getDouble("Alcohol"),
+                            notes = notes
                         )
                         val inserted = dbHelper.insertFood(newFood)
                         if (inserted) {
@@ -2712,6 +2736,9 @@ fun AddRecipeScreen(
     var showEditRecipeAmountDialog by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
     val searchFocusRequester = remember { FocusRequester() }
+    val existingRecipeNotes = remember(editingFoodId) {
+        editingFoodId?.let { dbHelper.getFoodById(it)?.notes } ?: ""
+    }
 
     LaunchedEffect(searchQuery, recipeSearchMode) {
         storeRecipeSearchQuery(recipeSearchMode, searchQuery)
@@ -2851,7 +2878,8 @@ fun AddRecipeScreen(
                         vitaminC = scaled(totalVitaminC),
                         caffeine = scaled(totalCaffeine),
                         cholesterol = scaled(totalCholesterol),
-                        alcohol = scaled(totalAlcohol)
+                        alcohol = scaled(totalAlcohol),
+                        notes = existingRecipeNotes
                     )
 
                     if (editingFoodId == null) {
@@ -3269,7 +3297,8 @@ private fun RecipeItem.toFoodPlaceholder(): Food {
         vitaminC = vitaminC,
         caffeine = caffeine,
         cholesterol = cholesterol,
-        alcohol = alcohol
+        alcohol = alcohol,
+        notes = ""
     )
 }
 
