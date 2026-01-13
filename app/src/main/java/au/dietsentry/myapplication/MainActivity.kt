@@ -1579,162 +1579,167 @@ fun EditFoodScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
                 .padding(innerPadding)
-                .padding(16.dp)
         ) {
-            LabeledValueField(
-                label = "Description",
-                value = description,
-                onValueChange = { description = it },
-                wrapLabel = true,
-                labelSpacing = 8.dp,
-                valueFillFraction = 1f
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            LabeledValueField(
-                label = "Energy (kJ)",
-                value = energy,
-                onValueChange = { energy = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Protein (g)",
-                value = protein,
-                onValueChange = { protein = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Fat, Total (g)",
-                value = fatTotal,
-                onValueChange = { fatTotal = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Saturated (g)",
-                value = saturatedFat,
-                onValueChange = { saturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Trans (mg)",
-                value = transFat,
-                onValueChange = { transFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Polyunsaturated (g)",
-                value = polyunsaturatedFat,
-                onValueChange = { polyunsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Monounsaturated (g)",
-                value = monounsaturatedFat,
-                onValueChange = { monounsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Carbohydrate (g)",
-                value = carbohydrate,
-                onValueChange = { carbohydrate = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Sugars (g)",
-                value = sugars,
-                onValueChange = { sugars = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Dietary Fibre (g)",
-                value = dietaryFibre,
-                onValueChange = { dietaryFibre = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Sodium (mg)",
-                value = sodium,
-                onValueChange = { sodium = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Calcium (mg)",
-                value = calciumCa,
-                onValueChange = { calciumCa = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Potassium (mg)",
-                value = potassiumK,
-                onValueChange = { potassiumK = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Thiamin B1 (mg)",
-                value = thiaminB1,
-                onValueChange = { thiaminB1 = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Riboflavin B2 (mg)",
-                value = riboflavinB2,
-                onValueChange = { riboflavinB2 = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Niacin B3 (mg)",
-                value = niacinB3,
-                onValueChange = { niacinB3 = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Folate (ug)",
-                value = folate,
-                onValueChange = { folate = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Iron (mg)",
-                value = ironFe,
-                onValueChange = { ironFe = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Magnesium (mg)",
-                value = magnesiumMg,
-                onValueChange = { magnesiumMg = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Vitamin C (mg)",
-                value = vitaminC,
-                onValueChange = { vitaminC = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Caffeine (mg)",
-                value = caffeine,
-                onValueChange = { caffeine = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Cholesterol (mg)",
-                value = cholesterol,
-                onValueChange = { cholesterol = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Alcohol (g)",
-                value = alcohol,
-                onValueChange = { alcohol = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Notes",
-                value = notes,
-                onValueChange = { notes = it }
-            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(16.dp)
+            ) {
+                LabeledValueField(
+                    label = "Description",
+                    value = description,
+                    onValueChange = { description = it },
+                    wrapLabel = true,
+                    labelSpacing = 8.dp,
+                    valueFillFraction = 1f
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                LabeledValueField(
+                    label = "Energy (kJ)",
+                    value = energy,
+                    onValueChange = { energy = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Protein (g)",
+                    value = protein,
+                    onValueChange = { protein = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Fat, Total (g)",
+                    value = fatTotal,
+                    onValueChange = { fatTotal = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Saturated (g)",
+                    value = saturatedFat,
+                    onValueChange = { saturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Trans (mg)",
+                    value = transFat,
+                    onValueChange = { transFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Polyunsaturated (g)",
+                    value = polyunsaturatedFat,
+                    onValueChange = { polyunsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Monounsaturated (g)",
+                    value = monounsaturatedFat,
+                    onValueChange = { monounsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Carbohydrate (g)",
+                    value = carbohydrate,
+                    onValueChange = { carbohydrate = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Sugars (g)",
+                    value = sugars,
+                    onValueChange = { sugars = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Dietary Fibre (g)",
+                    value = dietaryFibre,
+                    onValueChange = { dietaryFibre = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Sodium (mg)",
+                    value = sodium,
+                    onValueChange = { sodium = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Calcium (mg)",
+                    value = calciumCa,
+                    onValueChange = { calciumCa = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Potassium (mg)",
+                    value = potassiumK,
+                    onValueChange = { potassiumK = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Thiamin B1 (mg)",
+                    value = thiaminB1,
+                    onValueChange = { thiaminB1 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Riboflavin B2 (mg)",
+                    value = riboflavinB2,
+                    onValueChange = { riboflavinB2 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Niacin B3 (mg)",
+                    value = niacinB3,
+                    onValueChange = { niacinB3 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Folate (ug)",
+                    value = folate,
+                    onValueChange = { folate = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Iron (mg)",
+                    value = ironFe,
+                    onValueChange = { ironFe = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Magnesium (mg)",
+                    value = magnesiumMg,
+                    onValueChange = { magnesiumMg = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Vitamin C (mg)",
+                    value = vitaminC,
+                    onValueChange = { vitaminC = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Caffeine (mg)",
+                    value = caffeine,
+                    onValueChange = { caffeine = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Cholesterol (mg)",
+                    value = cholesterol,
+                    onValueChange = { cholesterol = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Alcohol (g)",
+                    value = alcohol,
+                    onValueChange = { alcohol = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Notes",
+                    value = notes,
+                    onValueChange = { notes = it }
+                )
+            }
         }
     }
 
@@ -1910,162 +1915,167 @@ fun CopyFoodScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
                 .padding(innerPadding)
-                .padding(16.dp)
         ) {
-            LabeledValueField(
-                label = "Description",
-                value = description,
-                onValueChange = { description = it },
-                wrapLabel = true,
-                labelSpacing = 8.dp,
-                valueFillFraction = 1f
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            LabeledValueField(
-                label = "Energy (kJ)",
-                value = energy,
-                onValueChange = { energy = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Protein (g)",
-                value = protein,
-                onValueChange = { protein = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Fat, Total (g)",
-                value = fatTotal,
-                onValueChange = { fatTotal = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Saturated (g)",
-                value = saturatedFat,
-                onValueChange = { saturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Trans (mg)",
-                value = transFat,
-                onValueChange = { transFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Polyunsaturated (g)",
-                value = polyunsaturatedFat,
-                onValueChange = { polyunsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Monounsaturated (g)",
-                value = monounsaturatedFat,
-                onValueChange = { monounsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Carbohydrate (g)",
-                value = carbohydrate,
-                onValueChange = { carbohydrate = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Sugars (g)",
-                value = sugars,
-                onValueChange = { sugars = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Dietary Fibre (g)",
-                value = dietaryFibre,
-                onValueChange = { dietaryFibre = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Sodium (mg)",
-                value = sodium,
-                onValueChange = { sodium = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Calcium (mg)",
-                value = calciumCa,
-                onValueChange = { calciumCa = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Potassium (mg)",
-                value = potassiumK,
-                onValueChange = { potassiumK = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Thiamin B1 (mg)",
-                value = thiaminB1,
-                onValueChange = { thiaminB1 = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Riboflavin B2 (mg)",
-                value = riboflavinB2,
-                onValueChange = { riboflavinB2 = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Niacin B3 (mg)",
-                value = niacinB3,
-                onValueChange = { niacinB3 = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Folate (ug)",
-                value = folate,
-                onValueChange = { folate = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Iron (mg)",
-                value = ironFe,
-                onValueChange = { ironFe = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Magnesium (mg)",
-                value = magnesiumMg,
-                onValueChange = { magnesiumMg = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Vitamin C (mg)",
-                value = vitaminC,
-                onValueChange = { vitaminC = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Caffeine (mg)",
-                value = caffeine,
-                onValueChange = { caffeine = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Cholesterol (mg)",
-                value = cholesterol,
-                onValueChange = { cholesterol = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Alcohol (g)",
-                value = alcohol,
-                onValueChange = { alcohol = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Notes",
-                value = notes,
-                onValueChange = { notes = it }
-            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(16.dp)
+            ) {
+                LabeledValueField(
+                    label = "Description",
+                    value = description,
+                    onValueChange = { description = it },
+                    wrapLabel = true,
+                    labelSpacing = 8.dp,
+                    valueFillFraction = 1f
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                LabeledValueField(
+                    label = "Energy (kJ)",
+                    value = energy,
+                    onValueChange = { energy = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Protein (g)",
+                    value = protein,
+                    onValueChange = { protein = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Fat, Total (g)",
+                    value = fatTotal,
+                    onValueChange = { fatTotal = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Saturated (g)",
+                    value = saturatedFat,
+                    onValueChange = { saturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Trans (mg)",
+                    value = transFat,
+                    onValueChange = { transFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Polyunsaturated (g)",
+                    value = polyunsaturatedFat,
+                    onValueChange = { polyunsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Monounsaturated (g)",
+                    value = monounsaturatedFat,
+                    onValueChange = { monounsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Carbohydrate (g)",
+                    value = carbohydrate,
+                    onValueChange = { carbohydrate = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Sugars (g)",
+                    value = sugars,
+                    onValueChange = { sugars = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Dietary Fibre (g)",
+                    value = dietaryFibre,
+                    onValueChange = { dietaryFibre = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Sodium (mg)",
+                    value = sodium,
+                    onValueChange = { sodium = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Calcium (mg)",
+                    value = calciumCa,
+                    onValueChange = { calciumCa = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Potassium (mg)",
+                    value = potassiumK,
+                    onValueChange = { potassiumK = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Thiamin B1 (mg)",
+                    value = thiaminB1,
+                    onValueChange = { thiaminB1 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Riboflavin B2 (mg)",
+                    value = riboflavinB2,
+                    onValueChange = { riboflavinB2 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Niacin B3 (mg)",
+                    value = niacinB3,
+                    onValueChange = { niacinB3 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Folate (ug)",
+                    value = folate,
+                    onValueChange = { folate = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Iron (mg)",
+                    value = ironFe,
+                    onValueChange = { ironFe = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Magnesium (mg)",
+                    value = magnesiumMg,
+                    onValueChange = { magnesiumMg = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Vitamin C (mg)",
+                    value = vitaminC,
+                    onValueChange = { vitaminC = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Caffeine (mg)",
+                    value = caffeine,
+                    onValueChange = { caffeine = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Cholesterol (mg)",
+                    value = cholesterol,
+                    onValueChange = { cholesterol = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Alcohol (g)",
+                    value = alcohol,
+                    onValueChange = { alcohol = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Notes",
+                    value = notes,
+                    onValueChange = { notes = it }
+                )
+            }
         }
     }
 
@@ -2226,188 +2236,193 @@ fun InsertFoodScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
                 .padding(innerPadding)
-                .padding(16.dp)
         ) {
-            Row(
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(16.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = selectedType == "Solid", onClick = { selectedType = "Solid" })
-                    Text("Solid", style = MaterialTheme.typography.bodyLarge)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = selectedType == "Solid", onClick = { selectedType = "Solid" })
+                        Text("Solid", style = MaterialTheme.typography.bodyLarge)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = selectedType == "Liquid", onClick = { selectedType = "Liquid" })
+                        Text("Liquid", style = MaterialTheme.typography.bodyLarge)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = selectedType == "Recipe",
+                            onClick = {
+                                selectedType = "Recipe"
+                                navController.navigate("addRecipe")
+                            }
+                        )
+                        Text("Recipe", style = MaterialTheme.typography.bodyLarge)
+                    }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = selectedType == "Liquid", onClick = { selectedType = "Liquid" })
-                    Text("Liquid", style = MaterialTheme.typography.bodyLarge)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(
-                        selected = selectedType == "Recipe",
-                        onClick = {
-                            selectedType = "Recipe"
-                            navController.navigate("addRecipe")
-                        }
-                    )
-                    Text("Recipe", style = MaterialTheme.typography.bodyLarge)
-                }
+                LabeledValueField(
+                    label = "Description",
+                    value = description,
+                    onValueChange = { description = it },
+                    wrapLabel = true,
+                    labelSpacing = 8.dp,
+                    valueFillFraction = 1f
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                LabeledValueField(
+                    label = "Energy (kJ)",
+                    value = energy,
+                    onValueChange = { energy = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Protein (g)",
+                    value = protein,
+                    onValueChange = { protein = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Fat, Total (g)",
+                    value = fatTotal,
+                    onValueChange = { fatTotal = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Saturated (g)",
+                    value = saturatedFat,
+                    onValueChange = { saturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Trans (mg)",
+                    value = transFat,
+                    onValueChange = { transFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Polyunsaturated (g)",
+                    value = polyunsaturatedFat,
+                    onValueChange = { polyunsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Monounsaturated (g)",
+                    value = monounsaturatedFat,
+                    onValueChange = { monounsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Carbohydrate (g)",
+                    value = carbohydrate,
+                    onValueChange = { carbohydrate = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "- Sugars (g)",
+                    value = sugars,
+                    onValueChange = { sugars = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Dietary Fibre (g)",
+                    value = dietaryFibre,
+                    onValueChange = { dietaryFibre = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Sodium (mg)",
+                    value = sodium,
+                    onValueChange = { sodium = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Calcium (mg)",
+                    value = calciumCa,
+                    onValueChange = { calciumCa = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Potassium (mg)",
+                    value = potassiumK,
+                    onValueChange = { potassiumK = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Thiamin B1 (mg)",
+                    value = thiaminB1,
+                    onValueChange = { thiaminB1 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Riboflavin B2 (mg)",
+                    value = riboflavinB2,
+                    onValueChange = { riboflavinB2 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Niacin B3 (mg)",
+                    value = niacinB3,
+                    onValueChange = { niacinB3 = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Folate (ug)",
+                    value = folate,
+                    onValueChange = { folate = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Iron (mg)",
+                    value = ironFe,
+                    onValueChange = { ironFe = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Magnesium (mg)",
+                    value = magnesiumMg,
+                    onValueChange = { magnesiumMg = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Vitamin C (mg)",
+                    value = vitaminC,
+                    onValueChange = { vitaminC = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Caffeine (mg)",
+                    value = caffeine,
+                    onValueChange = { caffeine = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Cholesterol (mg)",
+                    value = cholesterol,
+                    onValueChange = { cholesterol = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Alcohol (g)",
+                    value = alcohol,
+                    onValueChange = { alcohol = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                    keyboardType = KeyboardType.Decimal
+                )
+                LabeledValueField(
+                    label = "Notes",
+                    value = notes,
+                    onValueChange = { notes = it }
+                )
             }
-            LabeledValueField(
-                label = "Description",
-                value = description,
-                onValueChange = { description = it },
-                wrapLabel = true,
-                labelSpacing = 8.dp,
-                valueFillFraction = 1f
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            LabeledValueField(
-                label = "Energy (kJ)",
-                value = energy,
-                onValueChange = { energy = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Protein (g)",
-                value = protein,
-                onValueChange = { protein = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Fat, Total (g)",
-                value = fatTotal,
-                onValueChange = { fatTotal = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Saturated (g)",
-                value = saturatedFat,
-                onValueChange = { saturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Trans (mg)",
-                value = transFat,
-                onValueChange = { transFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Polyunsaturated (g)",
-                value = polyunsaturatedFat,
-                onValueChange = { polyunsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Monounsaturated (g)",
-                value = monounsaturatedFat,
-                onValueChange = { monounsaturatedFat = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Carbohydrate (g)",
-                value = carbohydrate,
-                onValueChange = { carbohydrate = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "- Sugars (g)",
-                value = sugars,
-                onValueChange = { sugars = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Dietary Fibre (g)",
-                value = dietaryFibre,
-                onValueChange = { dietaryFibre = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Sodium (mg)",
-                value = sodium,
-                onValueChange = { sodium = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Calcium (mg)",
-                value = calciumCa,
-                onValueChange = { calciumCa = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Potassium (mg)",
-                value = potassiumK,
-                onValueChange = { potassiumK = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Thiamin B1 (mg)",
-                value = thiaminB1,
-                onValueChange = { thiaminB1 = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Riboflavin B2 (mg)",
-                value = riboflavinB2,
-                onValueChange = { riboflavinB2 = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Niacin B3 (mg)",
-                value = niacinB3,
-                onValueChange = { niacinB3 = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Folate (ug)",
-                value = folate,
-                onValueChange = { folate = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Iron (mg)",
-                value = ironFe,
-                onValueChange = { ironFe = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Magnesium (mg)",
-                value = magnesiumMg,
-                onValueChange = { magnesiumMg = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Vitamin C (mg)",
-                value = vitaminC,
-                onValueChange = { vitaminC = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Caffeine (mg)",
-                value = caffeine,
-                onValueChange = { caffeine = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Cholesterol (mg)",
-                value = cholesterol,
-                onValueChange = { cholesterol = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Alcohol (g)",
-                value = alcohol,
-                onValueChange = { alcohol = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                keyboardType = KeyboardType.Decimal
-            )
-            LabeledValueField(
-                label = "Notes",
-                value = notes,
-                onValueChange = { notes = it }
-            )
         }
     }
 
