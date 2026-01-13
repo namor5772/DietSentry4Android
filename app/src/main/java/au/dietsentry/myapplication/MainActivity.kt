@@ -4641,6 +4641,7 @@ The remaining fields are self expanatory.
         prefs.edit { remove(KEY_IMPORT_URI) }
     }
 
+
     val exportOverwritePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -5048,7 +5049,6 @@ The remaining fields are self expanatory.
                         Text("Add")
                     }
                 } else {
-                    val weightListMaxHeight = (32.dp * 5f) + 16.dp
                     WeightList(
                         weights = weightEntries,
                         selectedWeightId = selectedWeight?.weightId,
@@ -5057,7 +5057,7 @@ The remaining fields are self expanatory.
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(weightListMaxHeight)
+                            .weight(1f)
                             .align(Alignment.Start)
                     )
                 }

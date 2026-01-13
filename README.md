@@ -2,7 +2,7 @@
 
 ## 1. What this app is for and how to use it
 
-DietSentry is an offline food database and eaten-food tracker for Android. It ships with a bundled SQLite foods database and lets you search foods, view nutrition panels, and log what you actually ate. Logged entries store a nutrition snapshot scaled to the amount you entered, so later edits to a food do not change historical logs.
+DietSentry is an offline food database, eaten-food tracker, and weight logger for Android. It ships with a bundled SQLite foods database and lets you search foods, view nutrition panels, log what you actually ate, and record daily weights with optional comments. Logged entries store a nutrition snapshot scaled to the amount you entered, so later edits to a food do not change historical logs.
 
 How to use it in detail - :
 
@@ -22,7 +22,12 @@ How to use it in detail - :
   - Use the segmented button (Min, NIP, All) to control how much nutrition detail is shown.
   - Toggle Daily totals to consolidate entries by day and sum nutrients.
   - Toggle Filter by Date to show only a specific day.
+  - In All + Daily totals, each date also shows "My weight (kg)" and comments from the Weight table (or NA if not recorded).
   - When Daily totals is off, tap a log entry to edit its amount or time, or delete it.
+- Manage weights and exports on the Utilities screen:
+  - Export db / Import db: copy the internal `foods.db` to or from the device Download folder.
+  - Export csv: write `EatenDailyAll.csv` to Download with daily totals (All), including weight and comments columns.
+  - Weight Table: add, edit, or delete one weight entry per date, with optional comments.
 - Food types:
   - Solids use per-100g values; liquids use per-100mL values (marked by descriptions ending with " mL").
   - Recipes are encoded in the description and store per-100g values derived from ingredient totals.
@@ -51,7 +56,7 @@ How to use it in detail - :
       - `InsertFoodScreen`, `EditFoodScreen`, `CopyFoodScreen` handle food creation/editing flows.
       - `AddFoodByJsonScreen` parses JSON input into a new food entry.
       - `AddRecipeScreen`, `EditRecipeScreen`, `CopyRecipeScreen` manage recipe flows.
-      - `UtilitiesScreen` handles export/import of the internal database.
+      - `UtilitiesScreen` handles export/import of the internal database, Eaten daily totals CSV export, and Weight table management.
     - List/detail helpers: `EatenLogItem`, `NutritionalInfo`, `DailyTotalsCard`, `RecipeSelectionPanel`, `FoodList`-style rows for the UI panels.
     - Dialogs and pickers: `SelectAmountDialog`, `EditEatenItemDialog`, `DeleteConfirmationDialog`,
       `DeleteEatenItemConfirmationDialog`, `RecipeAmountDialog`, `ConvertFoodDialog`, `TimePickerDialog`.
@@ -65,6 +70,7 @@ How to use it in detail - :
     - Food CRUD: `readFoodsFromDatabase`, `searchFoods`, `insertFood`, `insertFoodReturningId`,
       `updateFood`, `deleteFood`, `getFoodById`.
     - Eaten log CRUD: `logEatenFood`, `updateEatenFood`, `readEatenFoods`, `deleteEatenFood`.
+    - Weight table CRUD: `insertWeight`, `readWeights`, `updateWeight`, `deleteWeight`.
     - Recipe CRUD: `insertRecipeFromFood`, `readRecipes`, `readCopiedRecipes`, `updateRecipe`,
       `deleteRecipe`, plus copy/duplicate helpers for temporary recipe records.
     - Cursor mapping helpers: `createFoodFromCursor`, `createEatenFoodFromCursor`, `createRecipeFromCursor`.
@@ -72,6 +78,7 @@ How to use it in detail - :
     - `Food.kt` defines the food master record and all nutrient fields.
     - `EatenFood.kt` defines logged entries with timestamps, amounts, and nutrient snapshots.
     - `RecipeItem.kt` defines per-ingredient rows for recipe composition.
+    - `WeightEntry.kt` defines weight records with date, value, and comments.
   - UI list components:
     - `FoodList.kt` renders a list of foods and nutrition rows (`FoodList`, `NutrientRow`).
     - `RecipeList.kt` renders recipe items and their key nutrients (`RecipeList`, `unitLabel`).
