@@ -90,6 +90,7 @@ class DatabaseHelper private constructor(context: Context, private val databaseN
         db.execSQL("UPDATE Foods SET notes = '' WHERE notes IS NULL")
     }
 
+
     @Synchronized
     fun replaceDatabaseFromStream(inputStream: InputStream): Boolean {
         val parentDir = databaseFile.parentFile ?: return false

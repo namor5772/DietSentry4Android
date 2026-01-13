@@ -161,13 +161,26 @@ private fun storeRecipeSearchQuery(mode: RecipeSearchMode, value: String) {
 private val mlSuffixRegex = Regex("mL#?$", RegexOption.IGNORE_CASE)
 private val trailingMarkersRegex = Regex(" #$| mL#?$", RegexOption.IGNORE_CASE)
 private val recipeMarkerRegex = Regex("\\{recipe=[^}]+\\}", RegexOption.IGNORE_CASE)
+private val trailingRecipeStarRegex = Regex("\\s*\\*$")
+private val trailingRecipeHashRegex = Regex("\\s*#\\s*$")
 
 private fun isLiquidDescription(description: String): Boolean = mlSuffixRegex.containsMatchIn(description)
 private fun descriptionUnit(description: String): String = if (isLiquidDescription(description)) "mL" else "g"
-private fun descriptionDisplayName(description: String): String = description.replace(trailingMarkersRegex, "")
+private fun descriptionDisplayName(description: String): String {
+    val cleaned = description.replace(trailingMarkersRegex, "")
+    return if (recipeMarkerRegex.containsMatchIn(cleaned)) {
+        stripTrailingRecipeSuffix(cleaned)
+    } else {
+        cleaned
+    }
+}
 private fun isRecipeDescription(description: String): Boolean = recipeMarkerRegex.containsMatchIn(description)
 private fun removeRecipeMarker(description: String): String =
-    recipeMarkerRegex.replace(description, "").trimEnd()
+    stripTrailingRecipeSuffix(recipeMarkerRegex.replace(description, "").trimEnd())
+private fun stripTrailingRecipeSuffix(description: String): String =
+    description.replace(trailingRecipeStarRegex, "")
+        .replace(trailingRecipeHashRegex, "")
+        .trimEnd()
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1055,7 +1068,7 @@ The notes field is optional free text and is shown only when the All option is s
 
 - **If a FoodDescription ends in the characters " mL" or " mL#"** the food is considered a Liquid, and nutrient values are per 100mL, The "#" character indicates that it is not part of the original database of foods.
 
-- **If a FoodDescription ends in the characters " {recipe=[weight]g} #" or " {recipe=[weight]g}"** the food is considered a Recipe and can only be made up of solids and thus its nutrient values are per 100g. It is also never a part of the original database.
+- **If a FoodDescription ends in the characters " {recipe=[weight]g}"** the food is considered a Recipe and can only be made up of solids and thus its nutrient values are per 100g. It is also never a part of the original database.
 
 - **If a FoodDescription ends in any other pattern of characters than those specified above** the food is considered a Solid, and nutrient values are per 100g. If additionally it ends in "#" then it is also never a part of the original database.
 
@@ -1737,7 +1750,13 @@ fun EditFoodScreen(
                 LabeledValueField(
                     label = "Notes",
                     value = notes,
-                    onValueChange = { notes = it }
+                    onValueChange = { notes = it },
+                    wrapLabel = true,
+                    labelSpacing = 8.dp,
+                    valueFillFraction = 1f,
+                    singleLine = false,
+                    minLines = 3,
+                    rowVerticalAlignment = Alignment.Top
                 )
             }
         }
@@ -2073,7 +2092,13 @@ fun CopyFoodScreen(
                 LabeledValueField(
                     label = "Notes",
                     value = notes,
-                    onValueChange = { notes = it }
+                    onValueChange = { notes = it },
+                    wrapLabel = true,
+                    labelSpacing = 8.dp,
+                    valueFillFraction = 1f,
+                    singleLine = false,
+                    minLines = 3,
+                    rowVerticalAlignment = Alignment.Top
                 )
             }
         }
@@ -2420,7 +2445,13 @@ fun InsertFoodScreen(
                 LabeledValueField(
                     label = "Notes",
                     value = notes,
-                    onValueChange = { notes = it }
+                    onValueChange = { notes = it },
+                    wrapLabel = true,
+                    labelSpacing = 8.dp,
+                    valueFillFraction = 1f,
+                    singleLine = false,
+                    minLines = 3,
+                    rowVerticalAlignment = Alignment.Top
                 )
             }
         }
@@ -2635,7 +2666,7 @@ A recipe food is a record in the Foods table AND and a collection of ingredient 
 
 For the purposes of logging consumption you select a recipe food (from the scrollable table viewer in the Foods Table screen) just like with the simpler solid and liquid foods. It is considered a solid in that its amount is measured in grams. Differences in processing are only apparent when you Edit, Add or Copy it. 
 
-You can identify a recipe food by noting that its FoodDescription field ends in text of the form " {recipe=[weight]g}" or " {recipe=[weight]g} *" where [weight] is the total amount in grams of the ingredient foods (all required to be solids or recipes).
+You can identify a recipe food by noting that its FoodDescription field ends in text of the form " {recipe=[weight]g}" where [weight] is the total amount in grams of the ingredient foods (all required to be solids or recipes).
 
 The **Recipe table structure** is as follows:
 ```
@@ -2681,7 +2712,7 @@ The **FoodDescription** is the same field as for that ingredients record in the 
 
 The remaining (**Energy** and **Nutrient fields**) are the same as for the corresponding Foods table record (the ingredient), except that they are scaled by the amount of the food used in the recipe. Eg. if Amount=250 then all these field values are multiplied by 2.5. This is analogous to what happens to records in the Eaten table.    
    
-Once all the ingredients of a recipe are known, the end markers of the recipes FoodDescription field in the Foods table record are set to " {recipe=[weight]g}" or " {recipe=[weight]g} *" where [weight] is the total amount in grams of all the ingredient foods. Furthermore the Energy and Nutrient fields (of this Foods table record) are scaled by 100/[weight]. This guarantees that when you LOG this recipe food using [weight] as the amount consumed you will get the correct Energy and Nutrient values (as if you had consumed the meal represented by the recipe).
+Once all the ingredients of a recipe are known, the end markers of the recipes FoodDescription field in the Foods table record are set to " {recipe=[weight]g}" where [weight] is the total amount in grams of all the ingredient foods. Furthermore the Energy and Nutrient fields (of this Foods table record) are scaled by 100/[weight]. This guarantees that when you LOG this recipe food using [weight] as the amount consumed you will get the correct Energy and Nutrient values (as if you had consumed the meal represented by the recipe).
  
 *** 
 # **Explanation of GUI elements**
@@ -2729,7 +2760,8 @@ fun AddRecipeScreen(
     navController: NavController,
     screenTitle: String = "Add Recipe",
     initialDescription: String = "",
-    editingFoodId: Int? = null
+    editingFoodId: Int? = null,
+    copySourceFoodId: Int? = null
 ) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
@@ -2757,10 +2789,18 @@ fun AddRecipeScreen(
     var showCannotAddDialog by remember { mutableStateOf(false) }
     var showRecipeAmountDialog by remember { mutableStateOf(false) }
     var showEditRecipeAmountDialog by remember { mutableStateOf(false) }
+    var showEditRecipeNotesDialog by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
     val searchFocusRequester = remember { FocusRequester() }
-    val existingRecipeNotes = remember(editingFoodId) {
-        editingFoodId?.let { dbHelper.getFoodById(it)?.notes } ?: ""
+    val initialRecipeNotes = remember(editingFoodId, copySourceFoodId) {
+        when {
+            editingFoodId != null -> dbHelper.getFoodById(editingFoodId)?.notes ?: ""
+            copySourceFoodId != null -> dbHelper.getFoodById(copySourceFoodId)?.notes ?: ""
+            else -> ""
+        }
+    }
+    var recipeNotes by rememberSaveable(editingFoodId, copySourceFoodId) {
+        mutableStateOf(initialRecipeNotes)
     }
 
     LaunchedEffect(searchQuery, recipeSearchMode) {
@@ -2804,6 +2844,8 @@ fun AddRecipeScreen(
     BackHandler {
         if (showHelpSheet) {
             showHelpSheet = false
+        } else if (showEditRecipeNotesDialog) {
+            showEditRecipeNotesDialog = false
         } else if (selectedFood != null) {
             selectedFood = null
             showCannotAddDialog = false
@@ -2834,12 +2876,33 @@ fun AddRecipeScreen(
                     .fillMaxWidth()
                     .padding(16.dp)
                     .navigationBarsPadding(),
-                horizontalArrangement = Arrangement.Center
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(onClick = {
+                        val currentRecipes = recipes
+                        recipeNotes = currentRecipes.joinToString(separator = "\n") { recipe ->
+                            "${formatAmount(recipe.amount)} ${recipe.foodDescription}"
+                        }
+                    }) {
+                        Text("Set notes")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = { showEditRecipeNotesDialog = true }) {
+                        Text("Edit notes")
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = {
                     val currentRecipes = recipes
                     val totalAmount = currentRecipes.sumOf { it.amount }
-                    if (description.isBlank()) {
+                    val sanitizedDescription = stripTrailingRecipeSuffix(description).trim()
+                    if (sanitizedDescription.isBlank()) {
                         showPlainToast(context, "Please enter a description")
                         return@Button
                     }
@@ -2878,7 +2941,7 @@ fun AddRecipeScreen(
                     val recipeWeightText = formatNumber(totalAmount, decimals = 0)
                     val baseFood = Food(
                         foodId = 0,
-                        foodDescription = "${description.trim()} {recipe=${recipeWeightText}g}",
+                        foodDescription = "${sanitizedDescription} {recipe=${recipeWeightText}g}",
                         energy = scaled(totalEnergy),
                         protein = scaled(totalProtein),
                         fatTotal = scaled(totalFat),
@@ -2902,7 +2965,7 @@ fun AddRecipeScreen(
                         caffeine = scaled(totalCaffeine),
                         cholesterol = scaled(totalCholesterol),
                         alcohol = scaled(totalAlcohol),
-                        notes = existingRecipeNotes
+                        notes = recipeNotes
                     )
 
                     if (editingFoodId == null) {
@@ -3204,6 +3267,17 @@ fun AddRecipeScreen(
             )
         }
     }
+
+    if (showEditRecipeNotesDialog) {
+        EditRecipeNotesDialog(
+            notes = recipeNotes,
+            onDismiss = { showEditRecipeNotesDialog = false },
+            onConfirm = { updatedNotes ->
+                recipeNotes = updatedNotes
+                showEditRecipeNotesDialog = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -3260,7 +3334,8 @@ fun CopyRecipeScreen(navController: NavController, foodId: Int) {
     AddRecipeScreen(
         navController = navController,
         screenTitle = "Copying Recipe",
-        initialDescription = initialDescription
+        initialDescription = initialDescription,
+        copySourceFoodId = foodId
     )
 }
 
@@ -3335,13 +3410,17 @@ private fun LabeledValueField(
     valueWeight: Float = 1f,
     wrapLabel: Boolean = false,
     labelSpacing: Dp = 0.dp,
-    valueFillFraction: Float = 0.5f
+    valueFillFraction: Float = 0.5f,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+    maxLines: Int = Int.MAX_VALUE,
+    rowVerticalAlignment: Alignment.Vertical = Alignment.CenterVertically
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 1.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = rowVerticalAlignment
     ) {
         val labelModifier = if (wrapLabel) {
             Modifier.padding(end = labelSpacing)
@@ -3358,14 +3437,24 @@ private fun LabeledValueField(
                 .weight(valueWeight)
                 .wrapContentWidth(Alignment.Start)
         ) {
+            val resolvedMinLines = if (singleLine) 1 else minLines.coerceAtLeast(1)
+            val resolvedMaxLines = if (singleLine) {
+                1
+            } else {
+                maxLines.coerceAtLeast(resolvedMinLines)
+            }
             CompactTextField(
                 value = value,
                 onValueChange = onValueChange,
                 keyboardType = keyboardType,
-                modifier = Modifier.fillMaxWidth(valueFillFraction)
+                modifier = Modifier.fillMaxWidth(valueFillFraction),
+                singleLine = singleLine,
+                minLines = resolvedMinLines,
+                maxLines = resolvedMaxLines
             )
         }
     }
+
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -3374,7 +3463,10 @@ private fun CompactTextField(
     value: String,
     onValueChange: (String) -> Unit,
     keyboardType: KeyboardType,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+    maxLines: Int = Int.MAX_VALUE
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val textColor = MaterialTheme.colorScheme.onSurface
@@ -3387,7 +3479,9 @@ private fun CompactTextField(
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        singleLine = true,
+        singleLine = singleLine,
+        minLines = minLines,
+        maxLines = maxLines,
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = textColor),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         modifier = modifier
@@ -3397,7 +3491,7 @@ private fun CompactTextField(
             value = value,
             innerTextField = innerTextField,
             enabled = true,
-            singleLine = true,
+            singleLine = singleLine,
             visualTransformation = VisualTransformation.None,
             interactionSource = interactionSource,
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
@@ -4072,6 +4166,44 @@ fun RecipeAmountDialog(
                         onConfirm(finalAmount)
                     },
                     enabled = amount.isNotBlank()
+                ) {
+                    Text("Confirm")
+                }
+            }
+        },
+        dismissButton = {}
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditRecipeNotesDialog(
+    notes: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var notesText by rememberSaveable(notes) { mutableStateOf(notes) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "Edit notes", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold) },
+        text = {
+            TextField(
+                value = notesText,
+                onValueChange = { notesText = it },
+                label = { Text("Notes") },
+                minLines = 3,
+                maxLines = 8,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(
+                    onClick = { onConfirm(notesText) }
                 ) {
                     Text("Confirm")
                 }
