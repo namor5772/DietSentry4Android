@@ -2932,7 +2932,9 @@ fun AddRecipeScreen(
                     Button(onClick = {
                         val currentRecipes = recipes
                         recipeNotes = currentRecipes.joinToString(separator = "\n") { recipe ->
-                            "${formatAmount(recipe.amount)} ${recipe.foodDescription}"
+                            val roundedAmount = recipe.amount.roundToInt()
+                            val amountLabel = String.format(Locale.US, "%3d g :", roundedAmount)
+                            "$amountLabel ${recipe.foodDescription}"
                         }
                     }) {
                         Text("Set notes")
