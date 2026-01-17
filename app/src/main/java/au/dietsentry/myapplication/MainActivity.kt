@@ -2933,7 +2933,7 @@ fun AddRecipeScreen(
                         val currentRecipes = recipes
                         recipeNotes = currentRecipes.joinToString(separator = "\n") { recipe ->
                             val roundedAmount = recipe.amount.roundToInt()
-                            val amountLabel = String.format(Locale.US, "%3d g :", roundedAmount)
+                            val amountLabel = String.format(Locale.US, "%d g :", roundedAmount)
                             "$amountLabel ${recipe.foodDescription}"
                         }
                     }) {
@@ -3719,6 +3719,7 @@ private fun RenderBlockQuote(
         }
     }
 }
+
 
 @Composable
 private fun RenderBulletList(
@@ -5107,7 +5108,13 @@ The remaining fields are self expanatory.
             },
             text = {
                 Column {
-                    Text("This will overwrite foods.db in the `Internal storage\\Download` directory. Think carefully before confirming!")
+                    Text("This will overwrite foods.db in the `Internal storage\\Download` directory.")
+                    Text(
+                        text = "THINK CAREFULLY BEFORE CONFIRMING!",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             },
             confirmButton = {
@@ -5141,7 +5148,13 @@ The remaining fields are self expanatory.
             },
             text = {
                 Column {
-                    Text("This will replace the app database with foods.db from the `Internal storage\\Download` directory. Think carefully before confirming!")
+                    Text("This will replace the app database with foods.db from the `Internal storage\\Download` directory.")
+                    Text(
+                        text = "THINK CAREFULLY BEFORE CONFIRMING!",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             },
             confirmButton = {
