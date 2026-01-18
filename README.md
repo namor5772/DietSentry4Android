@@ -1,7 +1,7 @@
 # DietSentry4Android
 
 _To build this app clone this repo into an Android Studio project on your Windows PC_
-_use the codex-playground branch, since this app was written ENTIRELY using OpenAI codex_
+_using the codex-playground branch, since this app was written ENTIRELY using OpenAI codex_
 
 ## 1. What this app is for and how to use it
 
