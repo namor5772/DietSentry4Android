@@ -287,7 +287,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising six rows:
             - The date of the foods time stamp
             - The text "Daily totals"
-            - The total amount consumed on the day, where the amounts are summed irrespective of units. This is a bit misleading but accurate enough if the density of the liquid foods is not too far away from 1.0 
+            - The total amount consumed on the day, labeled as g, mL, or "mixed units" if both are present. Amounts are still summed numerically, so mixed units are only an approximation if densities differ.
             - The total Energy (kJ), Fat, total (g), and Dietary Fibre (g) for the day.
     - **NIP**: There are two cases:
         - when the Daily totals checkbox is **unchecked**, logs for individual foods are displayed comprising ten rows:
@@ -298,7 +298,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising ten rows:
             - The date of the foods time stamp
             - The text "Daily totals"
-            - The total amount consumed on the day, where as before the amounts are summed irrespective of units.
+            - The total amount consumed on the day, labeled as g, mL, or "mixed units" as above.
             - The seven quantities mandated by FSANZ as the minimum required in a NIP, summed across all of the days food item logs.
     - **All**: There are two cases:
         - when the Daily totals checkbox is **unchecked**, logs for individual foods are displayed comprising 26 rows:
@@ -306,11 +306,12 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
             - The food description
             - The amount consumed (in g or mL as appropriate)
             - The 23 nutrient quantities we can record in the Foods table (including Energy) 
-        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising 27 rows:
+        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising 27 rows (or 28 if comments exist):
             - The date of the foods time stamp
             - The text "Daily totals"
+            - The text "Comments" followed by any Weight table comments for that date (only shown if present)
             - The text "My weight (kg)" followed by the corresponding weight entry for that date (or NA if not recorded)
-            - The total amount consumed on the day, where as before the amounts are summed irrespective of units.
+            - The total amount consumed on the day, labeled as g, mL, or "mixed units" as above.
             - The 23 nutrient quantities we can record in the Foods table (including Energy), summed across all of the days food item logs.
 - The **help button** `?` which displays this help screen.
 - The **navigation button** `<-` which transfers you back to the Foods Table screen.
@@ -321,7 +322,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
     - When **unchecked** all food logs are displayed. For all dates and times.
     - When **checked** only food logs of foods logged during the displayed date are displayed, whether summed or not.
 - A **date dialog** which displays a selected date.
-    - When this app is started the default is today's date. It is however persistent between app restarts.
+    - When this app is started the default is today's date. It remains persistent while the app stays open.
 - A **scrollable table viewer** which displays records (possibly consolidated by date) from the Eaten table. If a particular logged food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food log and its time stamp followed by two buttons below it:
     - **Edit**: It enables the amount and time stamp of the logged eaten food to be modified.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
@@ -1025,8 +1026,8 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         The type of a food (Solid, Liquid or Recipe) is coded in its description field, as explained in the next section.
     - **Convert**: converts a liquid food to a solid. 
         - If the food is a liquid it displays a dialog that enables the foods density to be input in g/mL
-        - A new solid food is then created on a per 100g basis.
-        - The description of this new food loses the liquids indicator " mL" near its end.
+        - A new solid food is then created on a per 100g basis using that density.
+        - The description of this new food removes the trailing " mL" marker and appends `{density=...g/mL}` plus the user-added ` #` suffix so you can see how it was derived.
     - **Delete**: deletes the selected food from the database.
         - It opens a dialog which warns you that you will be deleting the selected food.
         - This is irrevocable if you press the **Confirm** button.
@@ -1041,7 +1042,6 @@ Field name          Type    Units
 
 FoodId              INTEGER	
 FoodDescription     TEXT	
-notes               TEXT
 Energy              REAL    kJ
 Protein             REAL    g
 FatTotal            REAL    g
@@ -1076,6 +1076,7 @@ The notes field is optional free text and is shown only when the All option is s
 - **If a FoodDescription ends in the characters " {recipe=[weight]g}"** the food is considered a Recipe and can only be made up of solids and thus its nutrient values are per 100g. It is also never a part of the original database.
 
 - **If a FoodDescription ends in any other pattern of characters than those specified above** the food is considered a Solid, and nutrient values are per 100g. If additionally it ends in " #" then it is also never a part of the original database.
+- **Foods converted from liquids** include a `{density=...g/mL}` marker in the description to record the density used for conversion.
 
 ### **Mandatory Nutrients on a NIP**
 Under Standard 1.2.8 of the FSANZ Food Standards Code, most packaged foods must display a NIP showing:
@@ -1534,7 +1535,7 @@ fun EditFoodScreen(
         """
 # **Editing Liquid Food**
 - These are foods for which the Energy and nutrient values are given on a **per 100mL basis**
-- On first displaying this screen all the input fields will be populated with values from the selected Food, however the Description field will have the " mL" or " mL#" markers omitted. These will be reinstated after edit confirmation. This means you cannot change a Liquid food into a Solid one directly through editing. However it is possible to convert it to a solid by tapping the Convert button and then editing that solid food.
+- On first displaying this screen all the input fields will be populated with values from the selected Food, however the Description field will have the " mL" or " mL#" markers omitted. These will be reinstated after edit confirmation. This means you cannot change a Liquid food into a Solid one directly through editing. Use the Convert button on the Foods Table to create a new solid (annotated with a density marker) and edit that instead.
 - Modify fields as required using decimals where needed and tap Confirm to save your changes. If a field entry is not valid (eg. text, blank or not a number in a field requiring numbers) the Confirm button will be disabled.
 - Notes is an optional free text (multi-line) field. It is saved with the food and shown in the Foods table when All is selected.
 - You can press either of two "back" buttons to cancel the editing process and return focus to the Foods Table screen.
@@ -1544,7 +1545,7 @@ fun EditFoodScreen(
         """
 # **Editing Solid Food**
 - These are foods for which the Energy and nutrient values are given on a **per 100g basis**
-- On first displaying this screen all the input fields will be populated with values from the selected Food, however the Description field will have the " #" marker (if any) omitted. This will be reinstated after edit confirmation. Interestingly you can convert this food to a liquid by appending the text " mL" to the possibly edited description.
+- On first displaying this screen all the input fields will be populated with values from the selected Food, however the Description field will have the " #" marker (if any) omitted. This will be reinstated after edit confirmation. This screen preserves the solid suffix, so create a liquid food using Add or Copy if needed.
 - Modify fields as required using decimals where needed and tap Confirm to save your changes. If a field entry is not valid (eg. text, blank or not a number in a field requiring numbers) the Confirm button will be disabled.
 - Notes is an optional free text (multi-line) field. It is saved with the food and shown in the Foods table when All is selected.
 - You can press either of two "back" buttons to cancel the editing process and return focus to the Foods Table screen.
@@ -4430,13 +4431,14 @@ fun UtilitiesScreen(navController: NavController) {
 # **Utilities**
 This screen contains various miscellaneous utilities .
 
-- **Export db**: Pressing this button overwrites the `foods.db` file in the `Internal storage\Download` directory.
+- **Export db**: Pressing this button writes/overwrites the `foods.db` file in the `Internal storage\Download` directory when possible.
     - For safety it is mediated by a warning dialog.
-    - If there is no such file (eg. on first app use) then you are prompted to select that file in order to create a persistent link to it. Since it does not exist you will have to put an arbitrary file named foods.db into that directory first and then manually select it.
-    - The first time this occurs cancel the (attempted) export, create/put foods.db in the `Internal storage\Download` directory (it can contain anything) and try again.
-- **Import db**: Pressing this button replaces the app database with `foods.db` from the `Internal storage\Download` directory.
+    - The app will try to find an existing `foods.db` in Downloads or reuse a previously linked file.
+    - If it cannot find one, you will be prompted once to pick `foods.db` and the app will remember that link for future exports. If the link breaks, you'll be asked to relink.
+    - If you do not already have a `foods.db` file there, create or copy one into Downloads so it can be selected.
+- **Import db**: Pressing this button replaces the app database with `foods.db` from the `Internal storage\Download` directory (or another file you pick).
     - For safety it is mediated by a warning dialog.
-    - If needed, you'll be prompted to select the file once.
+    - The app will try to reuse a previously linked file; otherwise you will be prompted once to select it.
 - **Export csv**: Pressing this button writes/overwrites an `EatenDailyAll.csv` file to the `Internal storage\Download` directory.
     - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates.
     - it is in csv format with each date per row. With the columns corresponding to the fields displayed in the scrollable table viewer on the Eaten Table screen. This includes `My weight (kg)` and `Comments` as the second and third columns.

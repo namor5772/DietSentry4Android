@@ -17,7 +17,7 @@ How to use it in detail - :
   - Add: create a new food from scratch.
   - Json: add a food from JSON text (for non-recipe foods).
   - Copy: duplicate a food as a new entry.
-  - Convert: convert a liquid food to a solid by providing density (g/mL).
+  - Convert: convert a liquid food to a solid by providing density (g/mL); the new description includes a `{density=...g/mL}` marker for traceability.
   - Delete: remove a food from your local database.
   - Utilities: export or import the internal foods database to or from the device Download folder (`foods.db`).
 - Review and manage logged entries on the Eaten Table screen:
@@ -27,11 +27,12 @@ How to use it in detail - :
   - In All + Daily totals, each date also shows "My weight (kg)" and comments from the Weight table (or NA if not recorded).
   - When Daily totals is off, tap a log entry to edit its amount or time, or delete it.
 - Manage weights and exports on the Utilities screen:
-  - Export db / Import db: copy the internal `foods.db` to or from the device Download folder.
+  - Export db / Import db: copy the internal `foods.db` to or from the device Download folder; if the file is not found you will be prompted once to select it and the app will remember the link.
   - Export csv: write `EatenDailyAll.csv` to Download with daily totals (All), including weight and comments columns.
   - Weight Table: add, edit, or delete one weight entry per date, with optional comments.
 - Food types:
-  - Solids use per-100g values; liquids use per-100mL values (marked by descriptions ending with " mL").
+  - Solids use per-100g values; liquids use per-100mL values (marked by descriptions ending with " mL" or " mL#").
+  - Converted liquids add a `{density=...g/mL}` marker to the description to show the density used.
   - Recipes are encoded in the description and store per-100g values derived from ingredient totals.
 
 ## 2. Toolchain used to author this app
@@ -58,15 +59,16 @@ How to use it in detail - :
       - `InsertFoodScreen`, `EditFoodScreen`, `CopyFoodScreen` handle food creation/editing flows.
       - `AddFoodByJsonScreen` parses JSON input into a new food entry.
       - `AddRecipeScreen`, `EditRecipeScreen`, `CopyRecipeScreen` manage recipe flows.
-      - `UtilitiesScreen` handles export/import of the internal database, Eaten daily totals CSV export, and Weight table management.
+      - `UtilitiesScreen` handles export/import of the internal database, Eaten daily totals CSV export, and Weight table management (including SAF/MediaStore file picking for `foods.db`).
     - List/detail helpers: `EatenLogItem`, `NutritionalInfo`, `DailyTotalsCard`, `RecipeSelectionPanel`, `FoodList`-style rows for the UI panels.
     - Dialogs and pickers: `SelectAmountDialog`, `EditEatenItemDialog`, `DeleteConfirmationDialog`,
       `DeleteEatenItemConfirmationDialog`, `RecipeAmountDialog`, `ConvertFoodDialog`, `TimePickerDialog`.
+    - Aggregation/export helpers: `DailyTotals`, `aggregateDailyTotals`, and `buildEatenDailyAllCsv` (includes weight and comment columns).
     - Help/markdown rendering: `HelpBottomSheet`, `MarkdownText`, and the `RenderMarkdown*` helpers
       convert embedded markdown help text into Compose UI.
     - Session/prefs helpers: description parsing (`isLiquidDescription`, `descriptionUnit`, etc.),
-      recipe search state (`resolveRecipeSearchMode`, `loadRecipeSearchQuery`), and persistence
-      helpers for export/import URIs.
+      recipe search state (`resolveRecipeSearchMode`, `loadRecipeSearchQuery`), in-session filter
+      date storage, and persistence helpers for export/import URIs.
   - `DatabaseHelper.kt` is the SQLite access layer and singleton.
     - Database bootstrap/import: `copyDatabaseFromAssets`, `replaceDatabaseFromStream`, `getInstance`.
     - Food CRUD: `readFoodsFromDatabase`, `searchFoods`, `insertFood`, `insertFoodReturningId`,
