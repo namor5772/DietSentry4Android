@@ -1,5 +1,7 @@
 # DietSentry4Android
 
+## _To build this app clone this repo into an Android Studio project on your Windows PC_
+
 ## 1. What this app is for and how to use it
 
 DietSentry is an offline food database, eaten-food tracker, and weight logger for Android. It ships with a bundled SQLite foods database and lets you search foods, view nutrition panels, log what you actually ate, and record daily weights with optional comments. Logged entries store a nutrition snapshot scaled to the amount you entered, so later edits to a food do not change historical logs.
