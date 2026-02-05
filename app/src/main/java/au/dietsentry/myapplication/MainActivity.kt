@@ -10,8 +10,6 @@
 
 package au.dietsentry.myapplication
 
-import android.content.ContentUris
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -122,6 +120,9 @@ private const val KEY_DISPLAY_DAILY_TOTALS = "displayDailyTotals"
 private const val KEY_FILTER_EATEN_BY_DATE = "filterEatenByDate"
 private const val KEY_EXPORT_OVERWRITE_URI = "exportOverwriteUri"
 private const val KEY_IMPORT_URI = "importUri"
+private const val KEY_EXCHANGE_FOLDER_URI = "exchangeFolderUri"
+private const val DATABASE_FILE_NAME = "foods.db"
+private const val DAILY_CSV_FILE_NAME = "EatenDailyAll.csv"
 
 // Session-scoped in-memory state (persists while app stays alive)
 private var sessionSelectedFilterDateMillis: Long? = null
@@ -4409,435 +4410,138 @@ fun UtilitiesScreen(navController: NavController) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     val coroutineScope = rememberCoroutineScope()
-    var showHelpSheet by remember { mutableStateOf(false) }
-    var showExportWarning by remember { mutableStateOf(false) }
-    var showImportWarning by remember { mutableStateOf(false) }
-    var showAddWeightDialog by remember { mutableStateOf(false) }
-    var weightInput by rememberSaveable { mutableStateOf("") }
-    var weightCommentsInput by rememberSaveable { mutableStateOf("") }
-    var weightDateMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
-    var showWeightDatePicker by remember { mutableStateOf(false) }
-    var weightEntries by remember { mutableStateOf(emptyList<WeightEntry>()) }
-    var selectedWeight by remember { mutableStateOf<WeightEntry?>(null) }
-    var editingWeight by remember { mutableStateOf<WeightEntry?>(null) }
-    var deletingWeight by remember { mutableStateOf<WeightEntry?>(null) }
-    var editWeightInput by rememberSaveable { mutableStateOf("") }
-    var editWeightCommentsInput by rememberSaveable { mutableStateOf("") }
-    var editWeightDateMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
-    val weightDateFormat = remember { SimpleDateFormat("d-MMM-yy", Locale.getDefault()) }
-    val weightDatePickerState = rememberDatePickerState(initialSelectedDateMillis = weightDateMillis)
-    val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val utilitiesHelpText = """
-# **Utilities**
-This screen contains various miscellaneous utilities .
 
-- **Export db**: Pressing this button writes/overwrites the `foods.db` file in the `Internal storage\Download` directory when possible.
-    - For safety it is mediated by a warning dialog.
-    - The app will try to find an existing `foods.db` in Downloads or reuse a previously linked file.
-    - If it cannot find one, you will be prompted once to pick `foods.db` and the app will remember that link for future exports. If the link breaks, you'll be asked to relink.
-    - If you do not already have a `foods.db` file there, create or copy one into Downloads so it can be selected.
-- **Import db**: Pressing this button replaces the app database with `foods.db` from the `Internal storage\Download` directory (or another file you pick).
-    - For safety it is mediated by a warning dialog.
-    - The app will try to reuse a previously linked file; otherwise you will be prompted once to select it.
-- **Export csv**: Pressing this button writes/overwrites an `EatenDailyAll.csv` file to the `Internal storage\Download` directory.
-    - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates.
-    - it is in csv format with each date per row. With the columns corresponding to the fields displayed in the scrollable table viewer on the Eaten Table screen. This includes `My weight (kg)` and `Comments` as the second and third columns.
-    - There is no preliminary warning dialog, the export is just carried out when the button is pressed and a Toast message on completion.   
-- **Weight Table**: a scrollable table viewer which displays records from the weight table.
-    - Records are displayed in descending date order.
-    - When any record is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays details of the selected record followed by three buttons below it:
-        - **Add**: It enables a weight record to be added to the Weight table.
-            - It opens the **Add weight** dialog so you can enter a new weight and date.
-            - You can optionally enter Comments for the weight entry.
-            - The original selected weight record has no relevance to this activity. It is just a way of making the Add button available.
-            - You cannot use a date that already exists.
-            - Press the **Confirm** button when you are ready to confirm your changes. This wll be ignored if the date already exists or the weight is not a number or is blank. in these cases an appropriate Toast will be temporarily displayed.
-        - **Edit**: It enables the selected weight record to be modified.
-            - It opens the **Edit weight** dialog where you can modify the weight in kg. The date is shown but not editable.
-            - You can edit Comments for the weight entry.
-            - Press the **Confirm** button when you are ready to confirm your changes. This then transfers focus back to this screen where the just modified weight record will be visible. The selection panel is also closed.
-        - **Delete**: It deletes the selected weight record.
-            - It opens the **Delete weight?** warning dialog box.
-            - Press the **Confirm** button when you are ready to confirm the delete. This then transfers focus back to this screen where the deleted weight record will be disappear from this scrollable table viewer. The selection panel is also closed.
-        - You can abort these processes (from the above dialogs) by tapping anywhere outside the dialog box or pressing the "back" button on the bottom menu. This closes the dialog and transfers focus back to this screen. The selection panel is also closed.
-    - If the Weight Table is empty (which is usually the case if the app has just been installed with the default internal databse) there is no way to enable the selection panel so that a weight record can be created by pressing the Add button. Instead the message "The Weight table has no records" is displayed, followed by the **Add** button. Press it to add a new weight record. Once at least one record exists this GUI layout disappears.
-    - **The intention is** that each day at preferably the same time you weight yourself naked or with the same weight clothes and record this weight in the Weight table. When analysing your aggregated data from the Eaten table you will see your days weight together with your daily Energy and nutrient amounts. 
-***
-# **Weight table structure**
-```
-Field name          Type    Units
-
-WeightId            INTEGER	
-Weight              REAL    kg
-DateWeight          TEXT    d-MMM-yy
-Comments            TEXT
-```
-The **WeightId** field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
-
-The **Comments** field is optional and may be blank.
-
-The remaining fields are self expanatory.
-
-""".trimIndent()
-
-    fun refreshWeights() {
-        coroutineScope.launch {
-            val entries = withContext(Dispatchers.IO) {
-                dbHelper.readWeights()
-            }
-            weightEntries = entries
-            selectedWeight = selectedWeight?.let { selected ->
-                entries.find { it.weightId == selected.weightId }
-            }
-        }
-    }
-
-    fun parseWeightInput(input: String): Double? {
-        val normalized = input.trim().replace(" ", "").replace(',', '.')
-        return normalized.toDoubleOrNull()
-    }
-
-    LaunchedEffect(Unit) {
-        refreshWeights()
-    }
-
-    LaunchedEffect(editingWeight?.weightId) {
-        editWeightInput = editingWeight?.let { entry ->
-            formatWeight(entry.weight)
-        } ?: ""
-        editWeightCommentsInput = editingWeight?.comments ?: ""
-        editWeightDateMillis = editingWeight?.dateWeight
-            ?.takeIf { it.isNotBlank() }
-            ?.let { dateString ->
-                runCatching { weightDateFormat.parse(dateString)?.time }.getOrNull()
-            } ?: System.currentTimeMillis()
-    }
-
-    BackHandler(enabled = selectedWeight != null) {
-        selectedWeight = null
-    }
-
-    LaunchedEffect(weightDateMillis) {
-        weightDatePickerState.selectedDateMillis = weightDateMillis
-    }
-
-    fun exportDatabaseToUri(uri: Uri, onResult: (Boolean) -> Unit) {
-        coroutineScope.launch {
-            val exportSuccess = withContext(Dispatchers.IO) {
-                try {
-                    val dbFile = context.getDatabasePath("foods.db")
-                    if (!dbFile.exists()) return@withContext false
-                    context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-                        dbFile.inputStream().use { input ->
-                            input.copyTo(output)
-                        }
-                    } ?: return@withContext false
-                    true
-                } catch (_: Exception) {
-                    false
-                }
-            }
-            onResult(exportSuccess)
-        }
-    }
-
-    fun importDatabaseFromUri(uri: Uri, onResult: (Boolean) -> Unit) {
-        coroutineScope.launch {
-            val importSuccess = withContext(Dispatchers.IO) {
-                try {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        dbHelper.replaceDatabaseFromStream(input)
-                    } ?: false
-                } catch (_: Exception) {
-                    false
-                }
-            }
-            onResult(importSuccess)
-        }
-    }
-
-    fun findDownloadsDbUri(displayName: String): Uri? {
-        val volumes = buildList {
-            add(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-            add(MediaStore.VOLUME_EXTERNAL)
-            addAll(MediaStore.getExternalVolumeNames(context))
-        }.distinct()
-        val downloadsProjection = arrayOf(MediaStore.MediaColumns._ID)
-        val filesProjection = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.RELATIVE_PATH)
-        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=?"
-        val selectionArgs = arrayOf(displayName)
-        val sortOrder = "${MediaStore.MediaColumns.DATE_MODIFIED} DESC"
-        for (volume in volumes) {
-            val downloadsCollection = MediaStore.Downloads.getContentUri(volume)
-            context.contentResolver.query(
-                downloadsCollection,
-                downloadsProjection,
-                selection,
-                selectionArgs,
-                sortOrder
-            )?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID))
-                    return ContentUris.withAppendedId(downloadsCollection, id)
-                }
-            }
-            val collection = MediaStore.Files.getContentUri(volume)
-            var fallbackUri: Uri? = null
-            context.contentResolver.query(
-                collection,
-                filesProjection,
-                selection,
-                selectionArgs,
-                sortOrder
-            )?.use { cursor ->
-                val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
-                val pathIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
-                while (cursor.moveToNext()) {
-                    val id = cursor.getLong(idIndex)
-                    val relPath = cursor.getString(pathIndex) ?: ""
-                    val uri = ContentUris.withAppendedId(collection, id)
-                    if (relPath.startsWith("Download/") || relPath.startsWith("Downloads/")) {
-                        return uri
-                    }
-                    if (fallbackUri == null) {
-                        fallbackUri = uri
-                    }
-                }
-            }
-            if (fallbackUri != null) {
-                return fallbackUri
-            }
-        }
-        return null
-    }
-
-    fun loadExportOverwriteUri(): Uri? {
+    fun loadExchangeFolderUri(): Uri? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val uriString = prefs.getString(KEY_EXPORT_OVERWRITE_URI, null) ?: return null
+        val uriString = prefs.getString(KEY_EXCHANGE_FOLDER_URI, null) ?: return null
         return runCatching { uriString.toUri() }.getOrNull()
     }
 
-    fun storeExportOverwriteUri(uri: Uri) {
+    fun storeExchangeFolderUri(uri: Uri) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit { putString(KEY_EXPORT_OVERWRITE_URI, uri.toString()) }
+        prefs.edit { putString(KEY_EXCHANGE_FOLDER_URI, uri.toString()) }
     }
 
-    fun clearExportOverwriteUri() {
+    fun clearExchangeFolderUri() {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit { remove(KEY_EXPORT_OVERWRITE_URI) }
+        prefs.edit { remove(KEY_EXCHANGE_FOLDER_URI) }
     }
 
-    fun loadImportUri(): Uri? {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val importUriString = prefs.getString(KEY_IMPORT_URI, null)
-        val importUri = importUriString?.let { runCatching { it.toUri() }.getOrNull() }
-        if (importUri != null) return importUri
-        val exportUriString = prefs.getString(KEY_EXPORT_OVERWRITE_URI, null) ?: return null
-        return runCatching { exportUriString.toUri() }.getOrNull()
-    }
-
-    fun storeImportUri(uri: Uri) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit { putString(KEY_IMPORT_URI, uri.toString()) }
-    }
-
-    fun clearImportUri() {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit { remove(KEY_IMPORT_URI) }
-    }
-
-
-    val exportOverwritePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode != Activity.RESULT_OK) {
-            showPlainToast(context, "Export cancelled")
-            return@rememberLauncherForActivityResult
+    fun canReadAndroidTree(folderUri: Uri): Boolean {
+        return try {
+            val treeId = DocumentsContract.getTreeDocumentId(folderUri)
+            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(folderUri, treeId)
+            context.contentResolver.query(
+                childrenUri,
+                arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID),
+                null,
+                null,
+                null
+            )?.use { true } ?: false
+        } catch (_: Exception) {
+            false
         }
-        val uri = result.data?.data
-        if (uri == null) {
-            showPlainToast(context, "Export cancelled")
-            return@rememberLauncherForActivityResult
-        }
-        val flags = result.data?.flags ?: 0
-        val hasReadGrant = flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0
-        val hasWriteGrant = flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION != 0
-        if (hasReadGrant || hasWriteGrant) {
-            try {
-                when {
-                    hasReadGrant && hasWriteGrant -> context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                    )
-                    hasReadGrant -> context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                    else -> context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                    )
+    }
+
+    fun buildAndroidDirectoryDisplay(uri: Uri): String {
+        val fallback = "Selected folder"
+        return try {
+            val docId = DocumentsContract.getTreeDocumentId(uri)
+            if (docId.isNullOrBlank()) return fallback
+            val parts = docId.split(":", limit = 2).filter { it.isNotBlank() }
+            if (parts.isEmpty()) return docId
+            if (parts.size == 1) {
+                return if (parts[0].equals("primary", ignoreCase = true)) {
+                    "Internal storage"
+                } else {
+                    parts[0]
                 }
-            } catch (_: SecurityException) {
-                // Best effort; some providers don't allow persistable permissions.
             }
-        }
-        storeExportOverwriteUri(uri)
-        exportDatabaseToUri(uri) { exportSuccess ->
-            if (exportSuccess) {
-                showPlainToast(context, "Database exported")
+            val volume = parts[0]
+            val path = parts[1].trim('/')
+            if (volume.equals("primary", ignoreCase = true)) {
+                if (path.isBlank()) "Internal storage" else "Internal storage/$path"
             } else {
-                showPlainToast(context, "Failed to export database")
+                if (path.isBlank()) volume else "$volume/$path"
             }
+        } catch (_: Exception) {
+            fallback
         }
     }
 
-    val importPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode != Activity.RESULT_OK) {
-            showPlainToast(context, "Import cancelled")
-            return@rememberLauncherForActivityResult
-        }
-        val uri = result.data?.data
-        if (uri == null) {
-            showPlainToast(context, "Import cancelled")
-            return@rememberLauncherForActivityResult
-        }
-        val flags = result.data?.flags ?: 0
-        val hasReadGrant = flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0
-        if (hasReadGrant) {
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            } catch (_: SecurityException) {
-                // Best effort; some providers don't allow persistable permissions.
+    fun buildAndroidFileDisplay(uri: Uri, fileName: String): String {
+        val directory = buildAndroidDirectoryDisplay(uri)
+        return if (directory.isBlank()) fileName else "$directory/$fileName"
+    }
+
+    suspend fun findDocumentInFolder(folderUri: Uri, fileName: String): Uri? = withContext(Dispatchers.IO) {
+        try {
+            val treeId = DocumentsContract.getTreeDocumentId(folderUri)
+            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(folderUri, treeId)
+            context.contentResolver.query(
+                childrenUri,
+                arrayOf(
+                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME
+                ),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val idIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                val nameIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(nameIndex)
+                    if (!name.equals(fileName, ignoreCase = true)) continue
+                    val documentId = cursor.getString(idIndex)
+                    return@withContext DocumentsContract.buildDocumentUriUsingTree(folderUri, documentId)
+                }
             }
-        }
-        storeImportUri(uri)
-        importDatabaseFromUri(uri) { importSuccess ->
-            if (importSuccess) {
-                showPlainToast(context, "Database imported")
-            } else {
-                showPlainToast(context, "Failed to import database")
-            }
+            null
+        } catch (_: Exception) {
+            null
         }
     }
 
-    fun launchExport() {
-        coroutineScope.launch {
-            val storedUri = loadExportOverwriteUri()
-            if (storedUri != null) {
-                exportDatabaseToUri(storedUri) { exportSuccess ->
-                    if (exportSuccess) {
-                        showPlainToast(context, "Database exported")
-                    } else {
-                        clearExportOverwriteUri()
-                        showPlainToast(context, "Please relink foods.db")
-                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "*/*"
-                            putExtra(
-                                Intent.EXTRA_MIME_TYPES,
-                                arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
-                            )
-                            putExtra(
-                                DocumentsContract.EXTRA_INITIAL_URI,
-                                MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                            )
-                        }
-                        exportOverwritePickerLauncher.launch(intent)
-                    }
+    suspend fun ensureDocumentInFolder(folderUri: Uri, fileName: String, mimeType: String): Uri? =
+        withContext(Dispatchers.IO) {
+            findDocumentInFolder(folderUri, fileName)
+                ?: runCatching {
+                    val treeId = DocumentsContract.getTreeDocumentId(folderUri)
+                    val parentUri = DocumentsContract.buildDocumentUriUsingTree(folderUri, treeId)
+                    DocumentsContract.createDocument(
+                        context.contentResolver,
+                        parentUri,
+                        mimeType,
+                        fileName
+                    )
+                }.getOrNull()
+        }
+
+    suspend fun copyDatabaseToUri(uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val dbFile = context.getDatabasePath(DATABASE_FILE_NAME)
+            if (!dbFile.exists()) return@withContext false
+            context.contentResolver.openOutputStream(uri, "w")?.use { output ->
+                dbFile.inputStream().use { input ->
+                    input.copyTo(output)
                 }
-                return@launch
-            }
-            val uri = withContext(Dispatchers.IO) { findDownloadsDbUri("foods.db") }
-            if (uri != null) {
-                storeExportOverwriteUri(uri)
-                exportDatabaseToUri(uri) { exportSuccess ->
-                    if (exportSuccess) {
-                        showPlainToast(context, "Database exported")
-                    } else {
-                        showPlainToast(context, "Failed to export database")
-                    }
-                }
-                return@launch
-            }
-            showPlainToast(context, "Pick foods.db once to enable overwrite")
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "*/*"
-                putExtra(
-                    Intent.EXTRA_MIME_TYPES,
-                    arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
-                )
-                putExtra(
-                    DocumentsContract.EXTRA_INITIAL_URI,
-                    MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                )
-            }
-            exportOverwritePickerLauncher.launch(intent)
+            } ?: return@withContext false
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 
-    fun launchImport() {
-        coroutineScope.launch {
-            val storedUri = loadImportUri()
-            if (storedUri != null) {
-                importDatabaseFromUri(storedUri) { importSuccess ->
-                    if (importSuccess) {
-                        showPlainToast(context, "Database imported")
-                    } else {
-                        clearImportUri()
-                        showPlainToast(context, "Please relink foods.db")
-                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "*/*"
-                            putExtra(
-                                Intent.EXTRA_MIME_TYPES,
-                                arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
-                            )
-                            putExtra(
-                                DocumentsContract.EXTRA_INITIAL_URI,
-                                MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                            )
-                        }
-                        importPickerLauncher.launch(intent)
-                    }
-                }
-                return@launch
-            }
-            val uri = withContext(Dispatchers.IO) { findDownloadsDbUri("foods.db") }
-            if (uri != null) {
-                storeImportUri(uri)
-                importDatabaseFromUri(uri) { importSuccess ->
-                    if (importSuccess) {
-                        showPlainToast(context, "Database imported")
-                    } else {
-                        showPlainToast(context, "Failed to import database")
-                    }
-                }
-                return@launch
-            }
-            showPlainToast(context, "Pick foods.db once to enable import")
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "*/*"
-                putExtra(
-                    Intent.EXTRA_MIME_TYPES,
-                    arrayOf("application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3")
-                )
-                putExtra(
-                    DocumentsContract.EXTRA_INITIAL_URI,
-                    MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                )
-            }
-            importPickerLauncher.launch(intent)
+    suspend fun copyDatabaseFromUri(uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                dbHelper.replaceDatabaseFromStream(input)
+            } ?: false
+        } catch (_: Exception) {
+            false
         }
     }
-
 
     fun csvCell(value: String): String {
         val escaped = value.replace("\"", "\"\"")
@@ -4921,56 +4625,277 @@ The remaining fields are self expanatory.
         return lines.joinToString("\n")
     }
 
-    fun writeCsvToUri(uri: Uri, csv: String): Boolean {
-        return try {
-            context.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { writer ->
-                writer.write(csv)
-            } != null
-        } catch (_: Exception) {
-            false
+    suspend fun exportDatabaseToFolder(folderUri: Uri): Boolean {
+        val fileUri = ensureDocumentInFolder(folderUri, DATABASE_FILE_NAME, "application/octet-stream")
+            ?: return false
+        return copyDatabaseToUri(fileUri)
+    }
+
+    suspend fun importDatabaseFromFolder(folderUri: Uri): Boolean {
+        val sourceUri = findDocumentInFolder(folderUri, DATABASE_FILE_NAME) ?: return false
+        return copyDatabaseFromUri(sourceUri)
+    }
+
+    suspend fun exportCsvToFolder(folderUri: Uri): Boolean {
+        val fileUri = ensureDocumentInFolder(folderUri, DAILY_CSV_FILE_NAME, "text/csv") ?: return false
+        return withContext(Dispatchers.IO) {
+            val dailyTotals = aggregateDailyTotals(dbHelper.readEatenFoods())
+            val weightByDate = dbHelper.readWeights().associateBy { it.dateWeight }
+            val csv = buildEatenDailyAllCsv(dailyTotals, weightByDate)
+            try {
+                context.contentResolver.openOutputStream(fileUri, "w")?.bufferedWriter()?.use { writer ->
+                    writer.write(csv)
+                } ?: return@withContext false
+                true
+            } catch (_: Exception) {
+                false
+            }
         }
     }
 
-    fun createDownloadsFileUri(displayName: String, mimeType: String): Uri? {
-        val volumes = buildList {
-            add(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-            add(MediaStore.VOLUME_EXTERNAL)
-            addAll(MediaStore.getExternalVolumeNames(context))
-        }.distinct()
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
-            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-            put(MediaStore.MediaColumns.RELATIVE_PATH, "Download/")
-        }
-        for (volume in volumes) {
-            val collection = MediaStore.Downloads.getContentUri(volume)
-            val uri = runCatching { context.contentResolver.insert(collection, values) }.getOrNull()
-            if (uri != null) return uri
-        }
-        return null
-    }
+    var showHelpSheet by remember { mutableStateOf(false) }
+    var showExportWarning by remember { mutableStateOf(false) }
+    var showImportWarning by remember { mutableStateOf(false) }
+    var showExportCsvDialog by remember { mutableStateOf(false) }
+    var exchangeFolderUri by remember { mutableStateOf<Uri?>(loadExchangeFolderUri()) }
+    var exportTargetPath by remember { mutableStateOf<String?>(null) }
+    var importSourcePath by remember { mutableStateOf<String?>(null) }
+    var exportCsvTargetPath by remember { mutableStateOf<String?>(null) }
+    var importSourceUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingFolderAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var showAddWeightDialog by remember { mutableStateOf(false) }
+    var weightInput by rememberSaveable { mutableStateOf("") }
+    var weightCommentsInput by rememberSaveable { mutableStateOf("") }
+    var weightDateMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
+    var showWeightDatePicker by remember { mutableStateOf(false) }
+    var weightEntries by remember { mutableStateOf(emptyList<WeightEntry>()) }
+    var selectedWeight by remember { mutableStateOf<WeightEntry?>(null) }
+    var editingWeight by remember { mutableStateOf<WeightEntry?>(null) }
+    var deletingWeight by remember { mutableStateOf<WeightEntry?>(null) }
+    var editWeightInput by rememberSaveable { mutableStateOf("") }
+    var editWeightCommentsInput by rememberSaveable { mutableStateOf("") }
+    var editWeightDateMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
+    val weightDateFormat = remember { SimpleDateFormat("d-MMM-yy", Locale.getDefault()) }
+    val weightDatePickerState = rememberDatePickerState(initialSelectedDateMillis = weightDateMillis)
+    val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val utilitiesHelpText = """
+# **Utilities**
+This screen contains various miscellaneous utilities .
 
-    fun exportEatenDailyCsv() {
+- **Export db**: Writes/overwrites the `foods.db` file in the folder you choose. On first use you'll be asked to pick a folder (starts at Downloads); that choice is remembered.
+    - The dialog shows the target path and includes a **Change folder** button to relink if permissions are lost or you want a new location.
+- **Import db**: Replaces the app database with `foods.db` from the currently selected folder.
+    - The dialog shows the source path and a **Change folder** button to pick a new location. If `foods.db` is missing there, you'll be prompted to place it first.
+- **Export csv**: Writes/overwrites `EatenDailyAll.csv` in the selected folder (same remembered folder as above).
+    - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates.
+    - It is in csv format with each date per row. Columns match the scrollable table viewer on the Eaten Table screen and include `My weight (kg)` and `Comments` as the second and third columns.
+    - The dialog shows the target path and includes a **Change folder** button to relink when needed.
+- **Weight Table**: a scrollable table viewer which displays records from the weight table.
+    - Records are displayed in descending date order.
+    - When any record is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays details of the selected record followed by three buttons below it:
+        - **Add**: It enables a weight record to be added to the Weight table.
+            - It opens the **Add weight** dialog so you can enter a new weight and date.
+            - You can optionally enter Comments for the weight entry.
+            - The original selected weight record has no relevance to this activity. It is just a way of making the Add button available.
+            - You cannot use a date that already exists.
+            - Press the **Confirm** button when you are ready to confirm your changes. This wll be ignored if the date already exists or the weight is not a number or is blank. in these cases an appropriate Toast will be temporarily displayed.
+        - **Edit**: It enables the selected weight record to be modified.
+            - It opens the **Edit weight** dialog where you can modify the weight in kg. The date is shown but not editable.
+            - You can edit Comments for the weight entry.
+            - Press the **Confirm** button when you are ready to confirm your changes. This then transfers focus back to this screen where the just modified weight record will be visible. The selection panel is also closed.
+        - **Delete**: It deletes the selected weight record.
+            - It opens the **Delete weight?** warning dialog box.
+            - Press the **Confirm** button when you are ready to confirm the delete. This then transfers focus back to this screen where the deleted weight record will be disappear from this scrollable table viewer. The selection panel is also closed.
+        - You can abort these processes (from the above dialogs) by tapping anywhere outside the dialog box or pressing the "back" button on the bottom menu. This closes the dialog and transfers focus back to this screen. The selection panel is also closed.
+    - If the Weight Table is empty (which is usually the case if the app has just been installed with the default internal databse) there is no way to enable the selection panel so that a weight record can be created by pressing the Add button. Instead the message "The Weight table has no records" is displayed, followed by the **Add** button. Press it to add a new weight record. Once at least one record exists this GUI layout disappears.
+    - **The intention is** that each day at preferably the same time you weight yourself naked or with the same weight clothes and record this weight in the Weight table. When analysing your aggregated data from the Eaten table you will see your days weight together with your daily Energy and nutrient amounts. 
+***
+# **Weight table structure**
+```
+Field name          Type    Units
+
+WeightId            INTEGER	
+Weight              REAL    kg
+DateWeight          TEXT    d-MMM-yy
+Comments            TEXT
+```
+The **WeightId** field is never explicitly displayed or considered. It is a Primary Key that is auto incremented when a record is created.
+
+The **Comments** field is optional and may be blank.
+
+The remaining fields are self expanatory.
+
+""".trimIndent()
+
+    fun refreshWeights() {
         coroutineScope.launch {
-            val exportSuccess = withContext(Dispatchers.IO) {
-                val dailyTotals = aggregateDailyTotals(dbHelper.readEatenFoods())
-                val weightByDate = dbHelper.readWeights().associateBy { it.dateWeight }
-                val csv = buildEatenDailyAllCsv(dailyTotals, weightByDate)
-                val displayName = "EatenDailyAll.csv"
-                val existingUri = findDownloadsDbUri(displayName)
-                if (existingUri != null && writeCsvToUri(existingUri, csv)) {
-                    return@withContext true
-                }
-                val newUri = createDownloadsFileUri(displayName, "text/csv") ?: return@withContext false
-                writeCsvToUri(newUri, csv)
+            val entries = withContext(Dispatchers.IO) {
+                dbHelper.readWeights()
             }
-            if (exportSuccess) {
-                showPlainToast(context, "csv file exported sucessfully")
-            } else {
-                showPlainToast(context, "Failed to export Eaten daily")
+            weightEntries = entries
+            selectedWeight = selectedWeight?.let { selected ->
+                entries.find { it.weightId == selected.weightId }
             }
         }
     }
+
+    fun parseWeightInput(input: String): Double? {
+        val normalized = input.trim().replace(" ", "").replace(',', '.')
+        return normalized.toDoubleOrNull()
+    }
+
+    LaunchedEffect(Unit) {
+        refreshWeights()
+    }
+
+    LaunchedEffect(Unit) {
+        val storedFolder = exchangeFolderUri
+        if (storedFolder != null && canReadAndroidTree(storedFolder)) {
+            exportTargetPath = buildAndroidFileDisplay(storedFolder, DATABASE_FILE_NAME)
+            exportCsvTargetPath = buildAndroidFileDisplay(storedFolder, DAILY_CSV_FILE_NAME)
+        } else {
+            exchangeFolderUri = null
+            clearExchangeFolderUri()
+        }
+    }
+
+    LaunchedEffect(editingWeight?.weightId) {
+        editWeightInput = editingWeight?.let { entry ->
+            formatWeight(entry.weight)
+        } ?: ""
+        editWeightCommentsInput = editingWeight?.comments ?: ""
+        editWeightDateMillis = editingWeight?.dateWeight
+            ?.takeIf { it.isNotBlank() }
+            ?.let { dateString ->
+                runCatching { weightDateFormat.parse(dateString)?.time }.getOrNull()
+            } ?: System.currentTimeMillis()
+    }
+
+    BackHandler(enabled = selectedWeight != null) {
+        selectedWeight = null
+    }
+
+    LaunchedEffect(weightDateMillis) {
+        weightDatePickerState.selectedDateMillis = weightDateMillis
+    }
+
+    val exchangeFolderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            showPlainToast(context, "Folder selection cancelled")
+            pendingFolderAction = null
+            return@rememberLauncherForActivityResult
+        }
+        val uri = result.data?.data
+        if (uri == null) {
+            showPlainToast(context, "Folder selection cancelled")
+            pendingFolderAction = null
+            return@rememberLauncherForActivityResult
+        }
+        val flags = result.data?.flags ?: 0
+        try {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                (flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)) or
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        } catch (_: SecurityException) {
+            // Best effort; some providers don't allow persistable permissions.
+        }
+        storeExchangeFolderUri(uri)
+        exchangeFolderUri = uri
+        pendingFolderAction?.invoke()
+        pendingFolderAction = null
+    }
+
+    fun pickExchangeFolder(onPicked: (Uri) -> Unit) {
+        pendingFolderAction = {
+            val refreshed = exchangeFolderUri
+            if (refreshed != null && canReadAndroidTree(refreshed)) {
+                onPicked(refreshed)
+            } else {
+                showPlainToast(context, "Unable to access selected folder")
+            }
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+            )
+            exchangeFolderUri?.let { putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) }
+                ?: putExtra(DocumentsContract.EXTRA_INITIAL_URI, MediaStore.Downloads.EXTERNAL_CONTENT_URI)
+        }
+        exchangeFolderPickerLauncher.launch(intent)
+    }
+
+    fun withExchangeFolder(onReady: (Uri) -> Unit) {
+        pendingFolderAction = null
+        val stored = exchangeFolderUri
+        if (stored != null && !canReadAndroidTree(stored)) {
+            exchangeFolderUri = null
+            clearExchangeFolderUri()
+        }
+        if (stored != null && canReadAndroidTree(stored)) {
+            exportTargetPath = buildAndroidFileDisplay(stored, DATABASE_FILE_NAME)
+            exportCsvTargetPath = buildAndroidFileDisplay(stored, DAILY_CSV_FILE_NAME)
+            onReady(stored)
+            return
+        }
+        pendingFolderAction = {
+            val refreshed = exchangeFolderUri
+            if (refreshed != null && canReadAndroidTree(refreshed)) {
+                exportTargetPath = buildAndroidFileDisplay(refreshed, DATABASE_FILE_NAME)
+                exportCsvTargetPath = buildAndroidFileDisplay(refreshed, DAILY_CSV_FILE_NAME)
+                onReady(refreshed)
+            } else {
+                showPlainToast(context, "Unable to access selected folder")
+            }
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+            )
+            putExtra(DocumentsContract.EXTRA_INITIAL_URI, MediaStore.Downloads.EXTERNAL_CONTENT_URI)
+        }
+        exchangeFolderPickerLauncher.launch(intent)
+    }
+
+    fun startExportFlow() {
+        withExchangeFolder { folderUri ->
+            exportTargetPath = buildAndroidFileDisplay(folderUri, DATABASE_FILE_NAME)
+            showExportWarning = true
+        }
+    }
+
+    fun startImportFlow() {
+        importSourceUri = null
+        importSourcePath = null
+        withExchangeFolder { folderUri ->
+            coroutineScope.launch {
+                val sourceUri = findDocumentInFolder(folderUri, DATABASE_FILE_NAME)
+                if (sourceUri == null) {
+                    val displayDirectory = buildAndroidDirectoryDisplay(folderUri)
+                    showPlainToast(context, "No $DATABASE_FILE_NAME found in $displayDirectory")
+                    return@launch
+                }
+                importSourceUri = sourceUri
+                importSourcePath = buildAndroidFileDisplay(folderUri, DATABASE_FILE_NAME)
+                showImportWarning = true
+            }
+        }
+    }
+
+    fun startExportCsvFlow() {
+        withExchangeFolder { folderUri ->
+            exportCsvTargetPath = buildAndroidFileDisplay(folderUri, DAILY_CSV_FILE_NAME)
+            showExportCsvDialog = true
+        }
+    }
+
     if (showWeightDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showWeightDatePicker = false },
@@ -5024,13 +4949,13 @@ The remaining fields are self expanatory.
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(onClick = { showExportWarning = true }) {
+                    Button(onClick = { startExportFlow() }) {
                         Text("Export db")
                     }
-                    Button(onClick = { showImportWarning = true }) {
+                    Button(onClick = { startImportFlow() }) {
                         Text("Import db")
                     }
-                    Button(onClick = { exportEatenDailyCsv() }) {
+                    Button(onClick = { startExportCsvFlow() }) {
                         Text("Export csv")
                     }
                 }
@@ -5109,12 +5034,10 @@ The remaining fields are self expanatory.
                 )
             },
             text = {
-                Column {
-                    Text("This will overwrite foods.db in the `Internal storage\\Download` directory.")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This will overwrite $DATABASE_FILE_NAME in the selected folder.")
                     Text(
-                        text = "THINK CAREFULLY BEFORE CONFIRMING!",
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center,
+                        text = exportTargetPath ?: "Pick a folder to continue",
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -5122,11 +5045,29 @@ The remaining fields are self expanatory.
             confirmButton = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(onClick = {
+                    OutlinedButton(onClick = {
+                        pickExchangeFolder { folderUri ->
+                            exportTargetPath = buildAndroidFileDisplay(folderUri, DATABASE_FILE_NAME)
+                        }
+                    }) {
+                        Text("Change folder")
+                    }
+                    Button(
+                        enabled = exportTargetPath != null,
+                        onClick = {
                         showExportWarning = false
-                        launchExport()
+                        withExchangeFolder { folderUri ->
+                            coroutineScope.launch {
+                                val success = exportDatabaseToFolder(folderUri)
+                                showPlainToast(
+                                    context,
+                                    if (success) "Database exported" else "Failed to export database"
+                                )
+                            }
+                        }
                     }) {
                         Text("Confirm")
                     }
@@ -5138,7 +5079,11 @@ The remaining fields are self expanatory.
 
     if (showImportWarning) {
         AlertDialog(
-            onDismissRequest = { showImportWarning = false },
+            onDismissRequest = {
+                showImportWarning = false
+                importSourcePath = null
+                importSourceUri = null
+            },
             title = {
                 Text(
                     text = "Import Database?",
@@ -5149,12 +5094,10 @@ The remaining fields are self expanatory.
                 )
             },
             text = {
-                Column {
-                    Text("This will replace the app database with foods.db from the `Internal storage\\Download` directory.")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This will replace the app database with $DATABASE_FILE_NAME from:")
                     Text(
-                        text = "THINK CAREFULLY BEFORE CONFIRMING!",
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center,
+                        text = importSourcePath ?: "No $DATABASE_FILE_NAME found yet",
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -5162,11 +5105,103 @@ The remaining fields are self expanatory.
             confirmButton = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(onClick = {
+                    OutlinedButton(onClick = {
+                        pickExchangeFolder { folderUri ->
+                            coroutineScope.launch {
+                                val sourceUri = findDocumentInFolder(folderUri, DATABASE_FILE_NAME)
+                                if (sourceUri == null) {
+                                    val displayDirectory = buildAndroidDirectoryDisplay(folderUri)
+                                    showPlainToast(
+                                        context,
+                                        "No $DATABASE_FILE_NAME found in $displayDirectory"
+                                    )
+                                } else {
+                                    importSourceUri = sourceUri
+                                    importSourcePath = buildAndroidFileDisplay(folderUri, DATABASE_FILE_NAME)
+                                }
+                            }
+                        }
+                    }) {
+                        Text("Change folder")
+                    }
+                    Button(
+                        enabled = importSourcePath != null,
+                        onClick = {
                         showImportWarning = false
-                        launchImport()
+                        val folderUri = exchangeFolderUri
+                        if (folderUri == null || importSourceUri == null) {
+                            startImportFlow()
+                            return@Button
+                        }
+                        coroutineScope.launch {
+                            val success = importDatabaseFromFolder(folderUri)
+                            if (success) {
+                                refreshWeights()
+                                showPlainToast(context, "Database imported")
+                            } else {
+                                showPlainToast(context, "Failed to import database")
+                            }
+                            importSourcePath = null
+                            importSourceUri = null
+                        }
+                    }) {
+                        Text("Confirm")
+                    }
+                }
+            },
+            dismissButton = {}
+        )
+    }
+
+    if (showExportCsvDialog) {
+        AlertDialog(
+            onDismissRequest = { showExportCsvDialog = false },
+            title = {
+                Text(
+                    text = "Export CSV?",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This will save $DAILY_CSV_FILE_NAME to:")
+                    Text(
+                        text = exportCsvTargetPath ?: "Pick a folder to continue",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(onClick = {
+                        pickExchangeFolder { folderUri ->
+                            exportCsvTargetPath = buildAndroidFileDisplay(folderUri, DAILY_CSV_FILE_NAME)
+                        }
+                    }) {
+                        Text("Change folder")
+                    }
+                    Button(
+                        enabled = exportCsvTargetPath != null,
+                        onClick = {
+                        showExportCsvDialog = false
+                        withExchangeFolder { folderUri ->
+                            coroutineScope.launch {
+                                val success = exportCsvToFolder(folderUri)
+                                showPlainToast(
+                                    context,
+                                    if (success) "CSV exported" else "Failed to export CSV"
+                                )
+                            }
+                        }
                     }) {
                         Text("Confirm")
                     }
