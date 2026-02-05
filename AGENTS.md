@@ -24,6 +24,7 @@ the end of your task to catch compile errors.
     - `FoodSearchScreen` – shows foods and nutrition info.
     - `EatenLogScreen` (and related classes) – shows eaten items and, optionally,
       detailed nutrition per record.
+- `reference-MAUI/` is the MAUI reference app used to help in UI/behavior parity; treat it as read-only reference.
 
 When adding new screens or functions, follow the existing package structure and
 naming conventions rather than inventing new top-level packages.
@@ -65,6 +66,8 @@ naming conventions rather than inventing new top-level packages.
   existing AndroidX / Kotlin stdlib stack.
 - Do not reply at the end of your response with something like " Tests/build not run (SDK not configured here); please rebuild in Android Studio." just say something like "You can
   try running the app now"
+
+  
 
 When in doubt about architectural changes, ask for confirmation and present a
 short plan before making large refactors.

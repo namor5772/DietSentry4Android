@@ -54,3 +54,4 @@ clear -> clears terminal tab
 
 C:\Users\roman\AndroidStudioProjects\DietSentry4Android\app\src\main\assets\foods.db
 
+https://chatgpt.com/g/g-691af277ae808191b3f03f8091fd6d1e-nutrition-information-panel-nip-generator
