@@ -284,23 +284,23 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - when the Daily totals checkbox is **unchecked**, logs for individual foods are displayed comprising three rows:
             - The time stamp of the log (date+time)
             - The food description
-            - The amount consumed (in g or mL as appropriate)
+            - The amount consumed (in g or mL as appropriate), followed by the logged energy in kJ
         - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising six rows:
             - The date of the foods time stamp
             - The text "Daily totals"
             - The total amount consumed on the day, labeled as g, mL, or "mixed units" if both are present. Amounts are still summed numerically, so mixed units are only an approximation if densities differ.
             - The total Energy (kJ), Fat, total (g), and Dietary Fibre (g) for the day.
     - **NIP**: There are two cases:
-        - when the Daily totals checkbox is **unchecked**, logs for individual foods are displayed comprising ten rows:
+        - when the Daily totals checkbox is **unchecked**, logs for individual foods are displayed comprising eleven rows:
             - The time stamp of the log (date+time)
             - The food description
             - The amount consumed (in g or mL as appropriate)
-            - The seven quantities mandated by FSANZ as the minimum required in a NIP 
-        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising ten rows:
+            - The seven quantities mandated by FSANZ as the minimum required in a NIP, plus Dietary Fibre (g)
+        - when the Daily totals checkbox is **checked**, logs consolidated by date are displayed comprising eleven rows:
             - The date of the foods time stamp
             - The text "Daily totals"
             - The total amount consumed on the day, labeled as g, mL, or "mixed units" as above.
-            - The seven quantities mandated by FSANZ as the minimum required in a NIP, summed across all of the days food item logs.
+            - The seven quantities mandated by FSANZ as the minimum required in a NIP, plus Dietary Fibre (g), summed across all of the days food item logs.
     - **All**: There are two cases:
         - when the Daily totals checkbox is **unchecked**, logs for individual foods are displayed comprising 26 rows:
             - The time stamp of the log (date+time)
@@ -851,7 +851,8 @@ fun EatenLogItem(
                 NutritionalInfo(eatenFood = eatenFood, unit = unit, showExtraNutrients = showExtraNutrients)
             } else {
                 val amountText = formatAmount(eatenFood.amountEaten)
-                Text("$amountText$unit", style = MaterialTheme.typography.bodyMedium)
+                val energyText = formatNumber(eatenFood.energy, decimals = 0)
+                Text("$amountText$unit  ${energyText}kJ", style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -902,8 +903,8 @@ fun NutritionalInfo(
             add("Alcohol (g):" to eatenFood.alcohol)
         } else {
             add("Sodium (mg):" to eatenFood.sodiumNa)
+            add("Dietary Fibre (g):" to eatenFood.dietaryFibre)
             if (!hideFibreAndCalcium) {
-                add("Dietary Fibre (g):" to eatenFood.dietaryFibre)
                 add("Calcium (mg):" to eatenFood.calciumCa)
             }
         }
@@ -998,7 +999,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
 - The **heading** of the screen: "Foods Table". 
 - A **segmented button** with three options (Min, NIP, All). The selection is persistent between app restarts. 
     - **Min**: only displays the text description of food items.
-    - **NIP**: additionally displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in by FSANZ on Nutritional Information Panels (NIP)
+    - **NIP**: additionally displays the minimum mandated nutrient information (per 100g or 100mL of the food) as required in by FSANZ on Nutritional Information Panels (NIP), plus Dietary Fibre (g)
     - **All**: Displays all nutrient fields stored in the Foods table (there are 23, including Energy) PLUS the notes text field
 - The **help button** `?` which displays this help screen.
 - The **navigation button** `->` which transfers you to the Eaten Table screen.

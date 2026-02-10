@@ -76,6 +76,7 @@ fun FoodList(
                         NotesRow(label = "Notes:", value = food.notes)
                     } else {
                         NutrientRow(label = "Sodium (mg):", value = food.sodium)
+                        NutrientRow(label = "Dietary Fibre (g):", value = food.dietaryFibre)
                     }
                 }
             }
