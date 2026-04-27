@@ -1642,7 +1642,11 @@ fun EditFoodScreen(
                     onValueChange = { description = it },
                     wrapLabel = true,
                     labelSpacing = 8.dp,
-                    valueFillFraction = 1f
+                    valueFillFraction = 1f,
+                    singleLine = false,
+                    minLines = 3,
+                    rowVerticalAlignment = Alignment.Top,
+                    labelTopPadding = 3.5.dp
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 LabeledValueField(
@@ -1984,7 +1988,11 @@ fun CopyFoodScreen(
                     onValueChange = { description = it },
                     wrapLabel = true,
                     labelSpacing = 8.dp,
-                    valueFillFraction = 1f
+                    valueFillFraction = 1f,
+                    singleLine = false,
+                    minLines = 3,
+                    rowVerticalAlignment = Alignment.Top,
+                    labelTopPadding = 3.5.dp
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 LabeledValueField(
@@ -2337,7 +2345,11 @@ fun InsertFoodScreen(
                     onValueChange = { description = it },
                     wrapLabel = true,
                     labelSpacing = 8.dp,
-                    valueFillFraction = 1f
+                    valueFillFraction = 1f,
+                    singleLine = false,
+                    minLines = 3,
+                    rowVerticalAlignment = Alignment.Top,
+                    labelTopPadding = 3.5.dp
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 LabeledValueField(
@@ -3464,7 +3476,8 @@ private fun LabeledValueField(
     singleLine: Boolean = true,
     minLines: Int = 1,
     maxLines: Int = Int.MAX_VALUE,
-    rowVerticalAlignment: Alignment.Vertical = Alignment.CenterVertically
+    rowVerticalAlignment: Alignment.Vertical = Alignment.CenterVertically,
+    labelTopPadding: Dp = 0.dp
 ) {
     Row(
         modifier = Modifier
@@ -3473,9 +3486,9 @@ private fun LabeledValueField(
         verticalAlignment = rowVerticalAlignment
     ) {
         val labelModifier = if (wrapLabel) {
-            Modifier.padding(end = labelSpacing)
+            Modifier.padding(top = labelTopPadding, end = labelSpacing)
         } else {
-            Modifier.weight(labelWeight)
+            Modifier.weight(labelWeight).padding(top = labelTopPadding)
         }
         Text(
             text = label,
