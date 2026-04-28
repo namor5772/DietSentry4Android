@@ -2768,17 +2768,31 @@ private fun loadAiSystemContent(context: Context): AiSystemContent {
     return AiSystemContent(prompt, csv)
 }
 
-private fun buildGeneralSystemPrompt(enableWebSearch: Boolean): String {
-    val parts = mutableListOf<String>()
-    parts.add("You are a helpful assistant integrated into Diet Sentry, an offline Android app for food and nutrition tracking. The user may ask about any topic — nutrition, food, recipes, units, or general questions. Plain conversational replies are welcome.")
-    if (enableWebSearch) {
-        parts.add(
-            """You have a `web_search` tool available. You MUST call `web_search` (and not respond from your own knowledge alone) for any question whose answer depends on information that may have changed since your training data, including: current date or time of day, today's weather, exchange rates, news, sports scores, stock prices, current product specifications, on-pack NIPs, ingredient lists, store prices, or anything labelled "current", "today", "right now", "latest", or "recent".
+private data class GeneralPromptParts(val base: String, val webSearchClause: String)
 
-Do NOT say "I don't have access to real-time information" or "I can't browse the web". You CAN browse — call `web_search` instead, summarise findings, and cite source URLs."""
-        )
+private fun loadGeneralPromptParts(context: Context): GeneralPromptParts {
+    val base = try {
+        context.assets.open("GenericSysprompt.txt").bufferedReader().use { it.readText() }
+    } catch (_: Exception) {
+        "You are a helpful assistant for the Diet Sentry food tracking app."
     }
-    return parts.joinToString("\n\n")
+    val ws = try {
+        context.assets.open("GenericSysprompt_websearch.txt").bufferedReader().use { it.readText() }
+    } catch (_: Exception) {
+        ""
+    }
+    return GeneralPromptParts(base.trim(), ws.trim())
+}
+
+private fun buildGeneralSystemPrompt(
+    parts: GeneralPromptParts,
+    enableWebSearch: Boolean
+): String {
+    return if (enableWebSearch && parts.webSearchClause.isNotEmpty()) {
+        "${parts.base}\n\n${parts.webSearchClause}"
+    } else {
+        parts.base
+    }
 }
 
 private fun buildAnthropicRequestJson(
@@ -3126,7 +3140,10 @@ fun AddFoodByAiScreen(navController: NavController) {
     var nipModeEnabled by rememberSaveable {
         mutableStateOf(prefs.getBoolean(KEY_AI_USE_NIP_PROMPT, DEFAULT_AI_USE_NIP_PROMPT))
     }
-    val generalSystemPrompt = remember(webSearchEnabled) { buildGeneralSystemPrompt(webSearchEnabled) }
+    val generalPromptParts = remember { loadGeneralPromptParts(context) }
+    val generalSystemPrompt = remember(webSearchEnabled, generalPromptParts) {
+        buildGeneralSystemPrompt(generalPromptParts, webSearchEnabled)
+    }
     var showSettings by rememberSaveable { mutableStateOf(apiKey.isBlank()) }
     var showHelpSheet by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)

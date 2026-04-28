@@ -33,6 +33,8 @@ Always run `./gradlew assembleDebug` after non-trivial code changes to catch com
 - `foods.db` — SQLite seed database (Foods table; full schema in `DatabaseHelper.kt`)
 - `NIPsysprompt.txt` — system prompt for the AI NIP-extraction mode (FSANZ Std 1.2.8 / Schedules 11–12 + JSON output schema)
 - `Nutrient.csv` — AFCD/NUTTAB-derived reference table sent as cached system content alongside the NIP prompt
+- `GenericSysprompt.txt` — base system prompt for the AI general-chat mode (when NIP mode is off)
+- `GenericSysprompt_websearch.txt` — additional clause appended to `GenericSysprompt.txt` when the web-search toggle is on; instructs Claude to use `web_search` for time/date/recent-events queries
 
 ## Food type conventions
 
