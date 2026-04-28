@@ -1009,7 +1009,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
     - You can also type {text1}|{text2} to match descriptions that contain BOTH of these terms.
     - It is NOT case sensitive
 - The **clear text field button** `x` which clears the above text field    
-- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by eight buttons arranged in two rows. The top row holds the actions that operate on the selected food: **LOG**, **Edit**, **Copy**, **Convert**, **Delete**. The bottom row holds the actions that do not depend on the selection: **Add**, **Json**, **Utilities**.
+- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by nine buttons arranged in two rows. The top row holds the actions that operate on the selected food: **LOG**, **Edit**, **Copy**, **Convert**, **Delete**. The bottom row holds the actions that do not depend on the selection: **Add**, **Json**, **AI**, **Utilities**.
     - **LOG**: logs the selected food into the Eaten Table.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
         - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible. Read the help on that Screen for more help.
@@ -4385,6 +4385,7 @@ fun SelectionPanel(
     onEdit: () -> Unit,
     onAdd: () -> Unit,
     onJson: () -> Unit = {},
+    onAi: () -> Unit = {},
     onDelete: () -> Unit,
     onCopy: () -> Unit = {},
     onConvert: () -> Unit = {},
@@ -4394,7 +4395,7 @@ fun SelectionPanel(
     val density = LocalDensity.current
     val labelStyle = MaterialTheme.typography.labelLarge
     val buttonWidth = remember(density, labelStyle) {
-        val labels = listOf("LOG", "Edit", "Copy", "Convert", "Delete", "Add", "Json", "Utilities")
+        val labels = listOf("LOG", "Edit", "Copy", "Convert", "Delete", "Add", "Json", "AI", "Utilities")
         val maxPx = labels.maxOf { measurer.measure(it, labelStyle).size.width }
         with(density) { maxPx.toDp() } + 16.dp
     }
@@ -4432,6 +4433,7 @@ fun SelectionPanel(
             ) {
                 Button(onClick = onAdd, modifier = buttonModifier, contentPadding = buttonPadding) { Text("Add") }
                 Button(onClick = onJson, modifier = buttonModifier, contentPadding = buttonPadding) { Text("Json") }
+                Button(onClick = onAi, modifier = buttonModifier, contentPadding = buttonPadding) { Text("AI") }
                 Button(onClick = onUtilities, modifier = buttonModifier, contentPadding = buttonPadding) { Text("Utilities") }
             }
         }
