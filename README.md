@@ -9,7 +9,7 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
 - Foods Table:
   - Search foods by description (`text1|text2` means both terms must match).
   - Switch detail view with `Min`, `NIP`, `All`.
-  - Open per-food actions: `Log`, `Edit`, `Add`, `Json`, `Copy`, `Convert`, `Delete`, `Utilities`.
+  - Open per-food actions arranged in two rows. Top row (operate on selected food): `Log`, `Edit`, `Copy`, `Convert`, `Delete`. Bottom row (do not depend on selection): `Add`, `Json`, `Utilities`.
 - Eaten Table:
   - View eaten logs in `Min`, `NIP`, `All`.
   - Toggle `Daily totals` to aggregate by date.

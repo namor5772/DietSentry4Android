@@ -64,6 +64,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
@@ -1008,7 +1009,7 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
     - You can also type {text1}|{text2} to match descriptions that contain BOTH of these terms.
     - It is NOT case sensitive
 - The **clear text field button** `x` which clears the above text field    
-- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by seven buttons below it:
+- A **scrollable table viewer** which displays records from the Foods table. When a particular food is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays the description of the selected food followed by eight buttons arranged in two rows. The top row holds the actions that operate on the selected food: **LOG**, **Edit**, **Copy**, **Convert**, **Delete**. The bottom row holds the actions that do not depend on the selection: **Add**, **Json**, **Utilities**.
     - **LOG**: logs the selected food into the Eaten Table.
         - It opens a dialog box where you can specify the amount eaten as well as the date and time this has occurred (with the default being now).
         - Press the **Confirm** button when you are ready to log your food. This transfers focus to the Eaten Table screen where the just logged food will be visible. Read the help on that Screen for more help.
@@ -4389,6 +4390,17 @@ fun SelectionPanel(
     onConvert: () -> Unit = {},
     onUtilities: () -> Unit = {}
 ) {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val labelStyle = MaterialTheme.typography.labelLarge
+    val buttonWidth = remember(density, labelStyle) {
+        val labels = listOf("LOG", "Edit", "Copy", "Convert", "Delete", "Add", "Json", "Utilities")
+        val maxPx = labels.maxOf { measurer.measure(it, labelStyle).size.width }
+        with(density) { maxPx.toDp() } + 16.dp
+    }
+    val buttonModifier = Modifier.width(buttonWidth)
+    val buttonPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
@@ -4405,14 +4417,22 @@ fun SelectionPanel(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(onClick = onSelect) { Text("LOG") }
-                Button(onClick = onEdit) { Text("Edit") }
-                Button(onClick = onAdd) { Text("Add") }
-                Button(onClick = onJson) { Text("Json") }
-                Button(onClick = onCopy) { Text("Copy") }
-                Button(onClick = onConvert) { Text("Convert") }
-                Button(onClick = onDelete) { Text("Delete") }
-                Button(onClick = onUtilities) { Text("Utilities") }
+                Button(onClick = onSelect, modifier = buttonModifier, contentPadding = buttonPadding) { Text("LOG") }
+                Button(onClick = onEdit, modifier = buttonModifier, contentPadding = buttonPadding) { Text("Edit") }
+                Button(onClick = onCopy, modifier = buttonModifier, contentPadding = buttonPadding) { Text("Copy") }
+                Button(onClick = onConvert, modifier = buttonModifier, contentPadding = buttonPadding) { Text("Convert") }
+                Button(onClick = onDelete, modifier = buttonModifier, contentPadding = buttonPadding) { Text("Delete") }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(onClick = onAdd, modifier = buttonModifier, contentPadding = buttonPadding) { Text("Add") }
+                Button(onClick = onJson, modifier = buttonModifier, contentPadding = buttonPadding) { Text("Json") }
+                Button(onClick = onUtilities, modifier = buttonModifier, contentPadding = buttonPadding) { Text("Utilities") }
             }
         }
     }
