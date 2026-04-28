@@ -1,7 +1,7 @@
 # DietSentry4Android
 
 DietSentry is an offline Android app for food/nutrition lookup, eaten-food logging, recipe-based foods, and daily weight tracking.
-great
+
 This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled SQLite `foods.db` on first run, then reads/writes the internal app database.
 
 ## 1. What the app does
@@ -41,6 +41,9 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
   - Food `notes` are supported in add/edit/copy flows and JSON import, and shown in Foods Table when `All` is selected.
 - In-app help:
   - Main screens provide a `?` help button with markdown-rendered guidance.
+- Description input field:
+  - Edit/Copy/Insert Food screens now show the Description as a 3-row text area that grows for longer content, with the label top-aligned to the first text row.
+  - Recipe screens (Add/Edit/Copy Recipe) intentionally keep a single-row Description input.
 
 ## 3. Food type rules
 
