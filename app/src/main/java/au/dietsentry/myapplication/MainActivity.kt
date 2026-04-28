@@ -1054,6 +1054,11 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
     - **Json**: adds a new food to the database based on Json text (not applicable to recipe foods).
         - It opens a screen titled "Add Food using Json".  Press the help button on that screen for more help.
         - The original selected food has no relevance to this activity. It is just a way of making the Json button available.
+    - **AI**: adds a new food to the database using Anthropic's Claude (requires your own Anthropic API key — set it in the AI screen's settings dialog).
+        - It opens a screen titled "Add Food using AI". Press the help button on that screen for more help.
+        - In **NIP mode** (the default) Claude returns a Diet Sentry compatible JSON which is automatically "auto-pumped" into the **Add Food using Json** screen — one tap on **Confirm** there adds the food and lands on this Foods Table with the new food highlighted.
+        - In general mode Claude is a regular chat assistant; replies stay in the AI screen.
+        - The original selected food has no relevance to this activity. It is just a way of making the AI button available.
     - **Copy**: makes a copy of the selected food.
         - If the selected food is a Solid it opens a screen titled "Copying Solid Food"
         - If the selected food is a Liquid it opens a screen titled "Copying Liquid Food"
@@ -1112,6 +1117,7 @@ The notes field is optional free text and is shown only when the All option is s
 
 - **If a FoodDescription ends in any other pattern of characters than those specified above** the food is considered a Solid, and nutrient values are per 100g. If additionally it ends in " #" then it is also never a part of the original database.
 - **Foods converted from liquids** include a `{density=...g/mL}` marker in the description to record the density used for conversion.
+- **AI-generated foods** end with ` (AI) #` (solid) or ` (AI) mL#` (liquid). The `(AI)` marker plus trailing `#` make AI-sourced rows easy to identify and filter on in the Foods Table.
 
 ### **Mandatory Nutrients on a NIP**
 Under Standard 1.2.8 of the FSANZ Food Standards Code, most packaged foods must display a NIP showing:
@@ -2563,7 +2569,9 @@ fun AddFoodByJsonScreen(navController: NavController) {
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val jsonHelpText = """
 # **Add Food using Json**
-- When the **Json** button is tapped from the **Foods Table** screen, this screen called **Add Food using Json** is displayed.
+- This screen is reached two ways:
+    - **Manually**: tap the **Json** button on the **Foods Table** screen.
+    - **Automatically (auto-pump)**: when the **Add Food using AI** screen is in NIP mode and Claude's reply contains a JSON object, the reply is "auto-pumped" here with the JSON pre-filled in the text field — ready for one-tap **Confirm**.
 - Like other screens it has a **help** and a **navigation** button in the top row.
 - Following this is a **text field** that takes up the rest of the screen and is followed by a **Confirm** button.
 - Paste or enter JSON text describing a food item (liquid or solid, but **not recipe**).
@@ -2602,21 +2610,18 @@ NOTE: **Any line feeds, tabs and spaces outside of "any text" are entirely optio
  ```
 {"FoodDescription":"Cheese, Mersey Valley Classic #","Energy":1690,"Protein":23.7,"FatTotal":34.9,"SaturatedFat":22.4,"TransFat":1,"PolyunsaturatedFat":0.5,"MonounsaturatedFat":10,"Carbohydrate":0.1,"Sugars":0.1,"DietaryFibre":0,"SodiumNa":643,"CalciumCa":720,"PotassiumK":100,"ThiaminB1":0,"RiboflavinB2":0.3,"NiacinB3":0.1,"Folate":10,"IronFe":0.2,"MagnesiumMg":30,"VitaminC":0,"Caffeine":0,"Cholesterol":100,"Alcohol":0,"notes":"Used on-pack NIP for core nutrients. Remaining micronutrients estimated from AFCD/NUTTAB cheddar cheese equivalents. Website not checked—no URL provided."}   
 ```
-- Tap **Confirm** to process the JSON which adds the food to the Foods table. Focus will then pass to the Foods Table screen with the filter text being set to the just created foods description (with the liquid marker appended if relevant). This allows you to review the results of the foods creation, with this being especially important if the Description is unintuitive and finding the food in the table might be difficult.
+- Tap **Confirm** to process the JSON which adds the food to the Foods table. Focus then passes to the Foods Table screen with the filter text set to the just-created food's description (with the liquid marker appended if relevant) so the new food is visible and selectable. This works the same whether you got here manually or via the AI auto-pump — both paths land you on the Foods Table with the new food highlighted.
     - If the Json text is missing or invalid a Toast message will appear ("Please paste valid JSON" or "Invalid JSON or missing fields") and focus will remain unchanged.
-- **To abort any actions on this screen** you can press either of the two "back" buttons to clear any text from the text field and set focus to the Foods Table screen.
+- **To abort any actions on this screen** press either of the two "back" buttons. The destination depends on how you arrived here:
+    - If you came in via the **Json** button: you return to the Foods Table.
+    - If you came in via the AI auto-pump: you return to the **Add Food using AI** chat with your conversation preserved, so you can iterate (e.g. ask for a corrected JSON) and try again.
 ***
 # **AI generation of JSON**
-The easiest and supported way of obtaining JSON text is to use AI. The following workflow is recommended:
-- You are assumed to have access to the ChatGPT Pro paid plan (or better). This give you access to GPTs.
-- Log into ChatGpt (https://chatgpt.com) and Explore GPTs. Find the **NIP generator** GPT with the following description:
-```
-Given a food description returns its expanded Nutrition Information Panel (NIP) in Json format. It can be directly added to the Foods table of any Diet Sentry app database. It follows the FSANZ standard 1.2.8 and Schedules 11–12.
-```
-- Start chatting
-- You can attach photos of labels and product NIPs to the chat prompt as well as just a text description of the food you are interested in.
-- A Diet Sentry compatible JSON text will (almost always) be generated as a chat response. Copy and paste this into the text field on this screen.
-- You can edit this text as desired, eg. to tweak the FoodDescription field, but make sure it is a valid JSON file.
+The recommended way to obtain JSON for this screen is to use the app's own **Add Food using AI** screen — tap the **AI** button on the Foods Table.
+- With **NIP mode** on (the default), Claude is instructed by a bundled FSANZ-compliant NIP-extraction system prompt and the bundled `Nutrient.csv` knowledge base. Replies are Diet Sentry compatible JSON and are auto-pumped straight into this screen, so you can review and tap **Confirm**.
+- You can attach photos of labels or on-pack NIPs in the AI screen (the **+** button is multi-select) and Claude will read them.
+- If you'd rather use an external workflow, paid ChatGPT subscribers can use the "NIP generator" GPT (https://chatgpt.com → Explore GPTs) and copy-paste its reply into the text field above. The schema is the same.
+- You can hand-edit the JSON in the text field before pressing **Confirm** — for example, to tweak the FoodDescription, set/clear the liquid marker, or refine values. Just keep the JSON syntactically valid.
 """.trimIndent()
 
     Scaffold(
