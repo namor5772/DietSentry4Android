@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-DietSentry4Android is an offline Android app for food/nutrition lookup, eaten-food logging, recipe-based foods, and daily weight tracking. Written in Kotlin with Jetpack Compose. Uses a bundled SQLite database (`app/src/main/assets/foods.db`) bootstrapped on first run; no network layer.
+DietSentry4Android is a primarily-offline Android app for food/nutrition lookup, eaten-food logging, recipe-based foods, and daily weight tracking. Written in Kotlin with Jetpack Compose. Uses a bundled SQLite database (`app/src/main/assets/foods.db`) bootstrapped on first run.
+
+The only network usage is the optional **Add Food using AI** screen, which calls Anthropic's Messages API directly (`api.anthropic.com`) when the user supplies their own API key. Manifest carries `INTERNET` for that path; nothing else hits the network.
 
 ## Build commands
 
@@ -17,15 +19,20 @@ Always run `./gradlew assembleDebug` after non-trivial code changes to catch com
 
 ## Architecture
 
-**Single-activity Compose app** — `MainActivity.kt` (~5700 lines) contains all navigation routes, screen composables, dialogs, daily totals aggregation, CSV export, and markdown help rendering. There is no MVVM/MVI layer; screens call `DatabaseHelper` directly.
+**Single-activity Compose app** — `MainActivity.kt` (~6460 lines) contains all navigation routes, screen composables, dialogs, daily totals aggregation, CSV export, markdown help rendering, and the Anthropic API client. There is no MVVM/MVI layer; screens call `DatabaseHelper` directly. There is also no separate networking layer — the AI screen uses `HttpURLConnection` + `org.json` inline.
 
 **Key files** (all under `app/src/main/java/au/dietsentry/myapplication/`):
-- `MainActivity.kt` — NavHost with 10+ routes: foodSearch, eatenLog, editFood, copyFood, insertFood, addFoodByJson, addRecipe, copyRecipe, editRecipe, utilities
+- `MainActivity.kt` — NavHost with 11 routes: foodSearch, eatenLog, editFood, copyFood, insertFood, addFoodByJson, addFoodByAi, addRecipe, copyRecipe, editRecipe, utilities
 - `DatabaseHelper.kt` — Singleton SQLite helper with CRUD for Foods, Eaten, Recipe, Weight tables; schema migration guards; cursor-to-model mapping; database import/export via streams
 - `Food.kt`, `EatenFood.kt`, `RecipeItem.kt`, `WeightEntry.kt` — Data model classes
 - `FoodList.kt`, `RecipeList.kt` — LazyColumn composables for food/recipe display
 - `NumberFormatUtils.kt` — Locale-aware decimal formatting
 - `ToastUtils.kt` — Custom toast helper
+
+**Bundled assets** (under `app/src/main/assets/`):
+- `foods.db` — SQLite seed database (Foods table; full schema in `DatabaseHelper.kt`)
+- `NIPsysprompt.txt` — system prompt for the AI NIP-extraction mode (FSANZ Std 1.2.8 / Schedules 11–12 + JSON output schema)
+- `Nutrient.csv` — AFCD/NUTTAB-derived reference table sent as cached system content alongside the NIP prompt
 
 ## Food type conventions
 
@@ -34,12 +41,26 @@ These conventions are load-bearing throughout the codebase (search, display, rec
 - **Liquid food**: description ends with ` mL` or ` mL#`; nutrients per 100 mL
 - **Converted liquid-to-solid**: description contains `{density=...g/mL}`
 - **Recipe food**: description ends with ` {recipe=<weight>g}`; nutrients per 100 g derived from ingredients
+- **AI-generated food**: description ends with ` (AI) #` (solid) or ` (AI) mL#` (liquid). The system prompt enforces these suffixes so AI-sourced rows are easy to spot/filter in the Foods Table.
 
 ## Database rules
 
 - **Do NOT change database schema, table names, or column names** unless explicitly asked.
 - If a feature needs additional data, first propose using the existing schema or in-memory calculation.
 - If a schema change is truly necessary, present a migration plan before editing code.
+
+## AI integration (Add Food using AI screen)
+
+- **API client**: a single `suspend fun callAnthropicApi` in `MainActivity.kt` POSTs to `https://api.anthropic.com/v1/messages` via `HttpURLConnection`. JSON via `org.json`. No new third-party libraries.
+- **Persistence**: API key, selected model, web-search toggle, and NIP-mode toggle live in `SharedPreferences` (`PREFS_NAME`) under keys `KEY_ANTHROPIC_API_KEY`, `KEY_ANTHROPIC_MODEL`, `KEY_AI_WEB_SEARCH`, `KEY_AI_USE_NIP_PROMPT`. Default model is `claude-sonnet-4-6`.
+- **System prompts** are picked at request-build time:
+  - **NIP mode ON** (default): array-form `system` field with two text blocks — `NIPsysprompt.txt` then `Nutrient.csv` wrapped in a markdown header. The CSV block carries `cache_control: {type: "ephemeral"}` so the ~70K-token knowledge base is billed at full rate only on the first request per ~5-min window.
+  - **NIP mode OFF**: a single short general-assistant string built by `buildGeneralSystemPrompt(enableWebSearch)`. No knowledge base, no caching.
+- **Server tools**: web search (`web_search_20250305`, `max_uses: 5`) is added to the `tools` array when the toggle is on. The tool ID is GA so no `anthropic-beta` header is needed. Code execution is not wired in.
+- **Auto-pump to Json screen**: when NIP mode is on and a reply contains both `{` and `}`, the reply is stashed in the top-level `sessionPrefilledJson` var and the AI screen calls `navController.navigate("addFoodByJson")`. `AddFoodByJsonScreen` consumes the var inside its `rememberSaveable` initializer. On Confirm, the screen calls `popBackStack("foodSearch", inclusive = false)` so both manual and AI entry paths land on the Foods Table with the new food highlighted.
+- **Image attachments**: `ActivityResultContracts.PickMultipleVisualMedia()` for the picker; `loadImageForAi` downsizes via `inSampleSize` to ≤1568 px before JPEG-encoding and base64-stuffing into the request.
+- **Diagnostics**: `Log.d("AnthropicRequest", body)` and `Log.d("AnthropicResponse", text)` are emitted on every call. Useful with `adb logcat -s AnthropicRequest:D AnthropicResponse:D`. These should be stripped before any release build (they leak request bodies, including message text and image payloads, to logcat).
+- **Cost note**: per-turn input cost is dominated by the cached `Nutrient.csv` block; expect ~$0.20 first turn, ~$0.02 per subsequent turn within the cache TTL on Sonnet 4.6. Plus ~$0.01 per web search tool invocation.
 
 ## Coding guidelines
 
@@ -57,7 +78,8 @@ These conventions are load-bearing throughout the codebase (search, display, rec
 
 ## Tech stack versions
 
-- Gradle 9.2.1, AGP 9.0.0, Kotlin 2.3.10
+- Gradle 9.3.1, AGP 9.1.1, Kotlin 2.3.10
 - compileSdk/minSdk/targetSdk: 36, JVM target: 11
 - Compose BOM 2026.01.01, Navigation Compose 2.9.7, Material 3
 - commonmark 0.27.1 (markdown rendering with autolink, GFM tables, strikethrough, task lists)
+- Java standard library only for AI networking (`HttpURLConnection`, `org.json`); no OkHttp, Retrofit, or Anthropic SDK dependency

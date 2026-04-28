@@ -22,8 +22,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -33,6 +35,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,7 +45,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Help
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -52,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
@@ -67,6 +77,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -125,11 +136,29 @@ private const val KEY_EXCHANGE_FOLDER_URI = "exchangeFolderUri"
 private const val DATABASE_FILE_NAME = "foods.db"
 private const val DAILY_CSV_FILE_NAME = "EatenDailyAll.csv"
 
+// AI chat (Anthropic) — API key is held in plain SharedPreferences. The
+// app sandbox protects per-device storage and the user-supplied key is only
+// ever sent to api.anthropic.com over HTTPS.
+private const val KEY_ANTHROPIC_API_KEY = "anthropicApiKey"
+private const val KEY_ANTHROPIC_MODEL = "anthropicModel"
+private const val DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
+private const val ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+private const val ANTHROPIC_VERSION = "2023-06-01"
+private const val ANTHROPIC_MAX_TOKENS = 4096
+private const val AI_IMAGE_MAX_DIM = 1568
+private const val KEY_AI_WEB_SEARCH = "aiWebSearch"
+private const val DEFAULT_AI_WEB_SEARCH = true
+private const val WEB_SEARCH_TOOL_TYPE = "web_search_20250305"
+private const val WEB_SEARCH_MAX_USES = 5
+private const val KEY_AI_USE_NIP_PROMPT = "aiUseNipPrompt"
+private const val DEFAULT_AI_USE_NIP_PROMPT = true
+
 // Session-scoped in-memory state (persists while app stays alive)
 private var sessionSelectedFilterDateMillis: Long? = null
 private var sessionAddRecipeSearchQuery: String = ""
 private var sessionCopyRecipeSearchQuery: String = ""
 private var sessionEditRecipeSearchQuery: String = ""
+private var sessionPrefilledJson: String? = null
 
 private enum class RecipeSearchMode {
     ADD,
@@ -2527,7 +2556,9 @@ fun InsertFoodScreen(
 fun AddFoodByJsonScreen(navController: NavController) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
-    var jsonText by rememberSaveable { mutableStateOf("") }
+    var jsonText by rememberSaveable {
+        mutableStateOf(sessionPrefilledJson?.also { sessionPrefilledJson = null } ?: "")
+    }
     var showHelpSheet by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val jsonHelpText = """
@@ -2654,10 +2685,19 @@ Given a food description returns its expanded Nutrition Information Panel (NIP) 
                         )
                         val inserted = dbHelper.insertFood(newFood)
                         if (inserted) {
-                            navController.previousBackStackEntry
-                                ?.savedStateHandle
-                                ?.set("foodInsertedDescription", description)
-                            navController.popBackStack()
+                            val foodSearchEntry = runCatching {
+                                navController.getBackStackEntry("foodSearch")
+                            }.getOrNull()
+                            if (foodSearchEntry != null) {
+                                foodSearchEntry.savedStateHandle
+                                    .set("foodInsertedDescription", description)
+                                navController.popBackStack("foodSearch", inclusive = false)
+                            } else {
+                                navController.previousBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set("foodInsertedDescription", description)
+                                navController.popBackStack()
+                            }
                         } else {
                             showPlainToast(context, "Failed to insert food")
                         }
@@ -2697,14 +2737,441 @@ Given a food description returns its expanded Nutrition Information Panel (NIP) 
     }
 }
 
+private data class AiImage(val bytes: ByteArray, val mediaType: String) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is AiImage) return false
+        return mediaType == other.mediaType && bytes.contentEquals(other.bytes)
+    }
+    override fun hashCode(): Int = 31 * bytes.contentHashCode() + mediaType.hashCode()
+}
+
+private data class AiChatMessage(
+    val role: String,
+    val text: String,
+    val images: List<AiImage> = emptyList()
+)
+
+private data class AiSystemContent(val nipPrompt: String, val nutrientCsv: String)
+
+private fun loadAiSystemContent(context: Context): AiSystemContent {
+    val prompt = try {
+        context.assets.open("NIPsysprompt.txt").bufferedReader().use { it.readText() }
+    } catch (_: Exception) {
+        "You are a helpful assistant for the Diet Sentry food tracking app."
+    }
+    val csv = try {
+        context.assets.open("Nutrient.csv").bufferedReader().use { it.readText() }
+    } catch (_: Exception) {
+        ""
+    }
+    return AiSystemContent(prompt, csv)
+}
+
+private fun buildGeneralSystemPrompt(enableWebSearch: Boolean): String {
+    val parts = mutableListOf<String>()
+    parts.add("You are a helpful assistant integrated into Diet Sentry, an offline Android app for food and nutrition tracking. The user may ask about any topic — nutrition, food, recipes, units, or general questions. Plain conversational replies are welcome.")
+    if (enableWebSearch) {
+        parts.add(
+            """You have a `web_search` tool available. You MUST call `web_search` (and not respond from your own knowledge alone) for any question whose answer depends on information that may have changed since your training data, including: current date or time of day, today's weather, exchange rates, news, sports scores, stock prices, current product specifications, on-pack NIPs, ingredient lists, store prices, or anything labelled "current", "today", "right now", "latest", or "recent".
+
+Do NOT say "I don't have access to real-time information" or "I can't browse the web". You CAN browse — call `web_search` instead, summarise findings, and cite source URLs."""
+        )
+    }
+    return parts.joinToString("\n\n")
+}
+
+private fun buildAnthropicRequestJson(
+    model: String,
+    messages: List<AiChatMessage>,
+    enableWebSearch: Boolean,
+    nipMode: Boolean,
+    sysContent: AiSystemContent,
+    generalSystemPrompt: String
+): String {
+    val root = org.json.JSONObject()
+    root.put("model", model)
+    root.put("max_tokens", ANTHROPIC_MAX_TOKENS)
+    if (nipMode && sysContent.nutrientCsv.isNotEmpty()) {
+        val sysArr = org.json.JSONArray()
+        sysArr.put(
+            org.json.JSONObject()
+                .put("type", "text")
+                .put("text", sysContent.nipPrompt)
+        )
+        sysArr.put(
+            org.json.JSONObject()
+                .put("type", "text")
+                .put(
+                    "text",
+                    "## Knowledge base — Nutrient.csv\n\nThe following CSV is the AFCD/NUTTAB-derived primary reference table for foods. Each row matches the Diet Sentry Foods table schema (per 100 g for solids, per 100 mL for liquids). Use it as the primary data source per the rules in the system instructions above — search this table first by FoodDescription before falling back to AFCD/NUTTAB or other sources.\n\n```csv\n${sysContent.nutrientCsv}\n```"
+                )
+                .put("cache_control", org.json.JSONObject().put("type", "ephemeral"))
+        )
+        root.put("system", sysArr)
+    } else if (nipMode) {
+        root.put("system", sysContent.nipPrompt)
+    } else {
+        root.put("system", generalSystemPrompt)
+    }
+    if (enableWebSearch) {
+        val tools = org.json.JSONArray()
+        tools.put(
+            org.json.JSONObject()
+                .put("type", WEB_SEARCH_TOOL_TYPE)
+                .put("name", "web_search")
+                .put("max_uses", WEB_SEARCH_MAX_USES)
+        )
+        root.put("tools", tools)
+    }
+    val msgArr = org.json.JSONArray()
+    for (m in messages) {
+        val msgObj = org.json.JSONObject()
+        msgObj.put("role", m.role)
+        if (m.images.isNotEmpty()) {
+            val contentArr = org.json.JSONArray()
+            for (img in m.images) {
+                val source = org.json.JSONObject()
+                    .put("type", "base64")
+                    .put("media_type", img.mediaType)
+                    .put("data", android.util.Base64.encodeToString(img.bytes, android.util.Base64.NO_WRAP))
+                contentArr.put(org.json.JSONObject().put("type", "image").put("source", source))
+            }
+            if (m.text.isNotEmpty()) {
+                contentArr.put(org.json.JSONObject().put("type", "text").put("text", m.text))
+            }
+            msgObj.put("content", contentArr)
+        } else {
+            msgObj.put("content", m.text)
+        }
+        msgArr.put(msgObj)
+    }
+    root.put("messages", msgArr)
+    return root.toString()
+}
+
+private suspend fun callAnthropicApi(
+    apiKey: String,
+    model: String,
+    messages: List<AiChatMessage>,
+    enableWebSearch: Boolean,
+    nipMode: Boolean,
+    sysContent: AiSystemContent,
+    generalSystemPrompt: String
+): Result<String> = withContext(Dispatchers.IO) {
+    try {
+        val url = java.net.URL(ANTHROPIC_API_URL)
+        val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+            requestMethod = "POST"
+            setRequestProperty("x-api-key", apiKey)
+            setRequestProperty("anthropic-version", ANTHROPIC_VERSION)
+            setRequestProperty("content-type", "application/json")
+            connectTimeout = 30_000
+            readTimeout = 120_000
+            doOutput = true
+        }
+        val body = buildAnthropicRequestJson(model, messages, enableWebSearch, nipMode, sysContent, generalSystemPrompt)
+        android.util.Log.d("AnthropicRequest", body)
+        conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+
+        val code = conn.responseCode
+        if (code !in 200..299) {
+            val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            android.util.Log.d("AnthropicResponse", "HTTP $code: $errBody")
+            val parsed = try {
+                org.json.JSONObject(errBody).optJSONObject("error")?.optString("message", "") ?: ""
+            } catch (_: Exception) { "" }
+            val reason = if (parsed.isNotBlank()) parsed else "HTTP $code"
+            return@withContext Result.failure(Exception(reason))
+        }
+
+        val text = conn.inputStream.bufferedReader().use { it.readText() }
+        android.util.Log.d("AnthropicResponse", text)
+        val json = org.json.JSONObject(text)
+        val content = json.getJSONArray("content")
+        val sb = StringBuilder()
+        for (i in 0 until content.length()) {
+            val block = content.getJSONObject(i)
+            if (block.optString("type") == "text") {
+                sb.append(block.optString("text", ""))
+            }
+        }
+        Result.success(sb.toString())
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+}
+
+private suspend fun loadImageForAi(context: Context, uri: Uri): Result<AiImage> = withContext(Dispatchers.IO) {
+    try {
+        val resolver = context.contentResolver
+
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val boundsStream = resolver.openInputStream(uri)
+            ?: return@withContext Result.failure(Exception("Picker did not return a readable URI."))
+        boundsStream.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            return@withContext Result.failure(Exception("Image header could not be decoded."))
+        }
+
+        var sample = 1
+        while (bounds.outWidth / sample > AI_IMAGE_MAX_DIM || bounds.outHeight / sample > AI_IMAGE_MAX_DIM) {
+            sample *= 2
+        }
+        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+        val decodeStream = resolver.openInputStream(uri)
+            ?: return@withContext Result.failure(Exception("Image stream closed before decode."))
+        val bmp = decodeStream.use { android.graphics.BitmapFactory.decodeStream(it, null, opts) }
+            ?: return@withContext Result.failure(Exception("Bitmap decoder returned null."))
+
+        val out = java.io.ByteArrayOutputStream()
+        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+        Result.success(AiImage(out.toByteArray(), "image/jpeg"))
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+}
+
+@Composable
+private fun ChatBubble(
+    message: AiChatMessage,
+    onCopy: (() -> Unit)? = null
+) {
+    val isUser = message.role == "user"
+    val bubbleColor = if (isUser) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer
+        else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
+    ) {
+        Surface(
+            color = bubbleColor,
+            shape = RoundedCornerShape(12.dp),
+            modifier = if (isUser) Modifier.widthIn(max = 320.dp) else Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(10.dp)) {
+                message.images.forEach { img ->
+                    val bmp = remember(img) {
+                        android.graphics.BitmapFactory.decodeByteArray(img.bytes, 0, img.bytes.size)
+                    }
+                    if (bmp != null) {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .padding(bottom = if (message.text.isBlank()) 0.dp else 6.dp)
+                                .size(160.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    }
+                }
+                if (message.text.isNotBlank()) {
+                    Text(message.text, color = textColor)
+                }
+            }
+        }
+        if (!isUser && onCopy != null && message.text.isNotBlank()) {
+            TextButton(
+                onClick = onCopy,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                modifier = Modifier.padding(top = 2.dp)
+            ) {
+                Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Copy", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AiSettingsDialog(
+    initialApiKey: String,
+    initialModel: String,
+    initialWebSearch: Boolean,
+    initialNipMode: Boolean,
+    onSave: (String, String, Boolean, Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var keyText by rememberSaveable { mutableStateOf(initialApiKey) }
+    var modelText by rememberSaveable { mutableStateOf(initialModel) }
+    var webSearch by rememberSaveable { mutableStateOf(initialWebSearch) }
+    var nipMode by rememberSaveable { mutableStateOf(initialNipMode) }
+    var keyVisible by rememberSaveable { mutableStateOf(false) }
+    val knownModels = listOf(
+        "claude-opus-4-7" to "Opus 4.7 — highest quality",
+        "claude-sonnet-4-6" to "Sonnet 4.6 — balanced (default)",
+        "claude-haiku-4-5-20251001" to "Haiku 4.5 — fastest / cheapest"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("AI settings") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text("Anthropic API key", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = keyText,
+                    onValueChange = { keyText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("sk-ant-…") },
+                    singleLine = true,
+                    visualTransformation = if (keyVisible) VisualTransformation.None
+                        else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { keyVisible = !keyVisible }) {
+                            Icon(
+                                if (keyVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                contentDescription = if (keyVisible) "Hide key" else "Show key"
+                            )
+                        }
+                    }
+                )
+                Text(
+                    "Stored locally on this device. Never leaves except to api.anthropic.com.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                Spacer(Modifier.height(16.dp))
+                Text("Model", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(4.dp))
+                knownModels.forEach { (id, label) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { modelText = id }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = modelText == id, onClick = { modelText = id })
+                        Spacer(Modifier.width(8.dp))
+                        Text(label, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("Server-side tools", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { webSearch = !webSearch }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Switch(checked = webSearch, onCheckedChange = { webSearch = it })
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Web search", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "Lets Claude look up current product / NIP info on the web (~\$0.01 per search, max $WEB_SEARCH_MAX_USES per turn).",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("System prompt", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { nipMode = !nipMode }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Switch(checked = nipMode, onCheckedChange = { nipMode = it })
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("NIP mode", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "On: use the bundled NIP-extraction prompt + Nutrient.csv knowledge base; replies are JSON and auto-pumped into the Json screen for one-tap Confirm. Off: Claude is a general-purpose assistant.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(keyText.trim(), modelText, webSearch, nipMode) }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddFoodByAiScreen(navController: NavController) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    val sysContent = remember { loadAiSystemContent(context) }
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    var apiKey by rememberSaveable {
+        mutableStateOf(prefs.getString(KEY_ANTHROPIC_API_KEY, "") ?: "")
+    }
+    var model by rememberSaveable {
+        mutableStateOf(prefs.getString(KEY_ANTHROPIC_MODEL, DEFAULT_ANTHROPIC_MODEL) ?: DEFAULT_ANTHROPIC_MODEL)
+    }
+    var webSearchEnabled by rememberSaveable {
+        mutableStateOf(prefs.getBoolean(KEY_AI_WEB_SEARCH, DEFAULT_AI_WEB_SEARCH))
+    }
+    var nipModeEnabled by rememberSaveable {
+        mutableStateOf(prefs.getBoolean(KEY_AI_USE_NIP_PROMPT, DEFAULT_AI_USE_NIP_PROMPT))
+    }
+    val generalSystemPrompt = remember(webSearchEnabled) { buildGeneralSystemPrompt(webSearchEnabled) }
+    var showSettings by rememberSaveable { mutableStateOf(apiKey.isBlank()) }
     var showHelpSheet by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    var messages by remember { mutableStateOf(listOf<AiChatMessage>()) }
+    var pendingImages by remember { mutableStateOf(listOf<AiImage>()) }
+    var inputText by rememberSaveable { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+    var errorText by remember { mutableStateOf<String?>(null) }
+
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            scope.launch {
+                val results = uris.map { loadImageForAi(context, it) }
+                val loaded = results.mapNotNull { it.getOrNull() }
+                val errors = results.mapNotNull { it.exceptionOrNull() }
+                if (loaded.isNotEmpty()) {
+                    pendingImages = pendingImages + loaded
+                }
+                if (errors.isNotEmpty()) {
+                    errorText = "Skipped ${errors.size} image(s): ${errors.first().message}"
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(messages.size, loading) {
+        val target = (messages.size - 1).coerceAtLeast(0) + (if (loading) 1 else 0)
+        if (messages.isNotEmpty() || loading) {
+            listState.animateScrollToItem(target)
+        }
+    }
+
     val aiHelpText = """
 # **Add Food using AI**
-- (Help text to be added.)
+- This screen connects your phone to **Anthropic's Claude** models. The behaviour depends on the **NIP mode** toggle in settings:
+  - **NIP mode ON (default):** the bundled NIP-generation system prompt (`app/src/main/assets/NIPsysprompt.txt`) plus the bundled `Nutrient.csv` knowledge base are sent as system context. Every reply is a Diet Sentry compatible JSON object inside a ```json``` code block, and the reply is **auto-pumped into the Json screen** so you can hit Confirm to add the food to the database. The chat reply stays here too — hit Back from the Json screen to keep iterating.
+  - **NIP mode OFF:** Claude is a general-purpose assistant. Replies stay in this chat; nothing is auto-pumped.
+- **Setup:** Tap the **gear** icon in the top bar, paste your Anthropic API key (from `console.anthropic.com`), pick a model, choose your toggles, and **Save**. The key is stored only on this device.
+- **Asking:** Type a food description (e.g. "Mainland Lite cheddar 250 g block") and tap **Send** (➤). In NIP mode Claude follows FSANZ Standard 1.2.8 / Schedules 11–12 rounding, returns per-100 g (solid) or per-100 mL (liquid) values, and appends `(AI) #` or `(AI) mL#` to the FoodDescription so AI-generated entries are easy to spot in the Foods table.
+- **Attaching images:** Tap **+** at the left of the input to attach photos of food labels or on-pack NIPs. The picker is multi-select — long-press to select multiple, then **Done**. Large photos are downsized before sending.
+- **Web search:** When enabled in settings, Claude looks up the manufacturer or retailer's official product page first and copies the on-pack values verbatim. AFCD/NUTTAB are used as fallbacks. ~\$0.01 per search, capped at $WEB_SEARCH_MAX_USES per turn.
+- The chat is in-memory only — leaving this screen clears it. Settings (key, model, toggles) persist across app launches.
 """.trimIndent()
 
     Scaffold(
@@ -2712,6 +3179,9 @@ fun AddFoodByAiScreen(navController: NavController) {
             TopAppBar(
                 title = { Text("Add Food using AI", fontWeight = FontWeight.Bold) },
                 actions = {
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(Icons.Filled.Settings, contentDescription = "AI settings")
+                    }
                     HelpIconButton(onClick = { showHelpSheet = true })
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -2720,7 +3190,243 @@ fun AddFoodByAiScreen(navController: NavController) {
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {}
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                if (messages.isEmpty() && !loading) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "Chat with Claude",
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                when {
+                                    apiKey.isBlank() ->
+                                        "Tap the gear icon to add your Anthropic API key, then describe a food or attach a label photo."
+                                    nipModeEnabled ->
+                                        "NIP mode is ON. Describe a food (or attach a label photo) and the reply — a Diet Sentry JSON — will be auto-pumped into the Json screen for one-tap Confirm."
+                                    else ->
+                                        "General chat mode (NIP mode off in settings). Ask anything; replies stay here."
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 24.dp)
+                            )
+                        }
+                    }
+                }
+                items(messages) { msg ->
+                    ChatBubble(
+                        message = msg,
+                        onCopy = if (msg.role == "assistant") {
+                            {
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE)
+                                    as android.content.ClipboardManager
+                                cm.setPrimaryClip(android.content.ClipData.newPlainText("AI reply", msg.text))
+                                showPlainToast(context, "Copied")
+                            }
+                        } else null
+                    )
+                }
+                if (loading) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Thinking…", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
+
+            errorText?.let { err ->
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            err,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { errorText = null }) {
+                            Icon(Icons.Filled.Clear, contentDescription = "Dismiss")
+                        }
+                    }
+                }
+            }
+
+            if (pendingImages.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    pendingImages.forEachIndexed { idx, img ->
+                        Box(modifier = Modifier.size(72.dp)) {
+                            val bmp = remember(img) {
+                                android.graphics.BitmapFactory.decodeByteArray(img.bytes, 0, img.bytes.size)
+                            }
+                            if (bmp != null) {
+                                Image(
+                                    bitmap = bmp.asImageBitmap(),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(6.dp))
+                                )
+                            }
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(20.dp)
+                                    .clickable {
+                                        pendingImages = pendingImages.filterIndexed { i, _ -> i != idx }
+                                    }
+                            ) {
+                                Icon(
+                                    Icons.Filled.Clear,
+                                    contentDescription = "Remove image",
+                                    modifier = Modifier.padding(2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Surface(tonalElevation = 4.dp, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .navigationBarsPadding()
+                        .imePadding(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            imagePicker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        enabled = !loading
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = "Attach image")
+                    }
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Message Claude") },
+                        maxLines = 4,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
+                        )
+                    )
+                    val canSend = !loading && (inputText.isNotBlank() || pendingImages.isNotEmpty())
+                    IconButton(
+                        onClick = {
+                            val txt = inputText.trim()
+                            if (apiKey.isBlank()) {
+                                errorText = "Set your Anthropic API key first (gear icon)."
+                                showSettings = true
+                                return@IconButton
+                            }
+                            val imagesToSend = pendingImages
+                            val userMsg = AiChatMessage("user", txt, imagesToSend)
+                            messages = messages + userMsg
+                            inputText = ""
+                            pendingImages = emptyList()
+                            errorText = null
+                            loading = true
+                            keyboardController?.hide()
+                            scope.launch {
+                                val result = callAnthropicApi(
+                                    apiKey, model, messages, webSearchEnabled,
+                                    nipModeEnabled, sysContent, generalSystemPrompt
+                                )
+                                loading = false
+                                result
+                                    .onSuccess { reply ->
+                                        messages = messages + AiChatMessage("assistant", reply)
+                                        if (nipModeEnabled) {
+                                            val openIdx = reply.indexOf('{')
+                                            val closeIdx = reply.lastIndexOf('}')
+                                            if (openIdx >= 0 && closeIdx > openIdx) {
+                                                sessionPrefilledJson = reply
+                                                navController.navigate("addFoodByJson")
+                                            }
+                                        }
+                                    }
+                                    .onFailure { e ->
+                                        errorText = e.message ?: "Request failed."
+                                    }
+                            }
+                        },
+                        enabled = canSend
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSettings) {
+        AiSettingsDialog(
+            initialApiKey = apiKey,
+            initialModel = model,
+            initialWebSearch = webSearchEnabled,
+            initialNipMode = nipModeEnabled,
+            onSave = { newKey, newModel, newWebSearch, newNipMode ->
+                apiKey = newKey
+                model = newModel
+                webSearchEnabled = newWebSearch
+                nipModeEnabled = newNipMode
+                prefs.edit {
+                    putString(KEY_ANTHROPIC_API_KEY, newKey)
+                    putString(KEY_ANTHROPIC_MODEL, newModel)
+                    putBoolean(KEY_AI_WEB_SEARCH, newWebSearch)
+                    putBoolean(KEY_AI_USE_NIP_PROMPT, newNipMode)
+                }
+                showSettings = false
+            },
+            onDismiss = { showSettings = false }
+        )
     }
 
     if (showHelpSheet) {

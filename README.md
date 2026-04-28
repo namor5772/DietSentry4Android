@@ -1,6 +1,6 @@
 # DietSentry4Android
 
-DietSentry is an offline Android app for food/nutrition lookup, eaten-food logging, recipe-based foods, and daily weight tracking.
+DietSentry is a primarily-offline Android app for food/nutrition lookup, eaten-food logging, recipe-based foods, and daily weight tracking. It now also has an optional **Add Food using AI** screen that uses Anthropic's Claude models (with your own API key) to generate Nutrition Information Panel JSON from a description and/or label photos.
 
 This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled SQLite `foods.db` on first run, then reads/writes the internal app database.
 
@@ -20,6 +20,13 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
   - `Import db`: replace the internal database from external `foods.db`.
   - `Export csv`: export daily totals as `EatenDailyAll.csv`.
   - `Weight Table`: add/edit/delete dated weight entries with optional comments.
+- Add Food using AI:
+  - Tap the `AI` button on the Foods Table to open a chat with Anthropic's Claude.
+  - Settings (gear icon) hold your Anthropic API key, model selection (Opus 4.7 / Sonnet 4.6 / Haiku 4.5), and two toggles: **Web search** and **NIP mode**.
+  - With **NIP mode** on (default), the bundled `NIPsysprompt.txt` system prompt and `Nutrient.csv` knowledge base are sent as cached system context. Replies are Diet Sentry compatible JSON and are auto-pumped into the **Add Food using Json** screen — one tap on Confirm adds the food and lands on the Foods Table with the new food highlighted (same as the manual Json flow).
+  - With **NIP mode** off, Claude is a general assistant; replies stay in the chat with no auto-navigation.
+  - Multi-image attach: tap `+`, long-press to multi-select on-pack NIP photos, then `Done`.
+  - The chat is in-memory only; settings persist across launches.
 
 ## 2. Recent behavior updates reflected in this README
 
@@ -44,6 +51,13 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
 - Description input field:
   - Edit/Copy/Insert Food screens now show the Description as a 3-row text area that grows for longer content, with the label top-aligned to the first text row.
   - Recipe screens (Add/Edit/Copy Recipe) intentionally keep a single-row Description input.
+- AI integration (Anthropic Claude):
+  - The Foods Table selection panel now has nine buttons in two rows; the second row includes an `AI` button.
+  - The AI screen calls `api.anthropic.com/v1/messages` directly with your own API key. No SDK dependency.
+  - System prompt and knowledge base ship as bundled assets: `NIPsysprompt.txt`, `Nutrient.csv`. Edit either and rebuild to update at runtime.
+  - Anthropic prompt caching keeps the per-turn cost low after the first request — the ~70K-token CSV is cached for 5 min and refreshes on each hit.
+  - Web search (`web_search_20250305`) is wired as an optional Anthropic-hosted tool.
+  - The app gains the `INTERNET` permission for the AI flow only; all other features remain offline.
 
 ## 3. Food type rules
 
@@ -58,6 +72,10 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
 - Recipe food:
   - Description ends with ` {recipe=<weight>g}`.
   - Nutrients are stored per 100 g, derived from ingredient totals.
+- AI-generated food:
+  - Solid: description ends with ` (AI) #` (per 100 g).
+  - Liquid: description ends with ` (AI) mL#` (per 100 mL).
+  - The `(AI)` marker plus trailing `#` makes AI-sourced rows easy to identify and filter in the Foods Table.
 
 ## 4. Build and run
 
@@ -91,4 +109,7 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
     - `FoodList.kt`, `RecipeList.kt`, `NumberFormatUtils.kt`, `ToastUtils.kt`
   - Theme:
     - `ui/theme/Theme.kt`, `ui/theme/Color.kt`, `ui/theme/Type.kt`
-- Bundled DB asset: `app/src/main/assets/foods.db`
+- Bundled assets: `app/src/main/assets/`
+  - `foods.db` — SQLite seed database
+  - `NIPsysprompt.txt` — system prompt for AI NIP generator (FSANZ Std 1.2.8 / Schedules 11–12 + JSON output schema)
+  - `Nutrient.csv` — AFCD/NUTTAB-derived reference table sent as cached AI knowledge base
