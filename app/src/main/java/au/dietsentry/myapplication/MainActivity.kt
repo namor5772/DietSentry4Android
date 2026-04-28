@@ -218,6 +218,9 @@ class MainActivity : ComponentActivity() {
                     composable("addFoodByJson") {
                         AddFoodByJsonScreen(navController = navController)
                     }
+                    composable("addFoodByAi") {
+                        AddFoodByAiScreen(navController = navController)
+                    }
                     composable("addRecipe") {
                         AddRecipeScreen(navController = navController)
                     }
@@ -1291,6 +1294,10 @@ Some foods don’t require a NIP unless a nutrition claim is made:
                         onJson = {
                             selectedFood = null
                             navController.navigate("addFoodByJson")
+                        },
+                        onAi = {
+                            selectedFood = null
+                            navController.navigate("addFoodByAi")
                         },
                         onCopy = {
                             selectedFood = null
@@ -2684,6 +2691,41 @@ Given a food description returns its expanded Nutrition Information Panel (NIP) 
     if (showHelpSheet) {
         HelpBottomSheet(
             helpText = jsonHelpText,
+            sheetState = helpSheetState,
+            onDismiss = { showHelpSheet = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddFoodByAiScreen(navController: NavController) {
+    var showHelpSheet by remember { mutableStateOf(false) }
+    val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val aiHelpText = """
+# **Add Food using AI**
+- (Help text to be added.)
+""".trimIndent()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Add Food using AI", fontWeight = FontWeight.Bold) },
+                actions = {
+                    HelpIconButton(onClick = { showHelpSheet = true })
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(modifier = Modifier.padding(padding)) {}
+    }
+
+    if (showHelpSheet) {
+        HelpBottomSheet(
+            helpText = aiHelpText,
             sheetState = helpSheetState,
             onDismiss = { showHelpSheet = false }
         )
