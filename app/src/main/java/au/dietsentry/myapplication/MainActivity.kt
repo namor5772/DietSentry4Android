@@ -170,7 +170,7 @@ private const val CACHE_WRITE_MULTIPLIER = 1.25
 private const val CACHE_READ_MULTIPLIER = 0.1
 private const val LOOKUP_FOOD_TOOL_NAME = "lookup_food"
 private const val LOOKUP_FOOD_MAX_RESULTS = 5
-private const val MAX_TOOL_ITERATIONS = 6
+private const val MAX_TOOL_ITERATIONS = 12
 
 private data class AiPricing(val inputPerMillion: Double, val outputPerMillion: Double)
 
@@ -2805,8 +2805,7 @@ private data class AiChatMessage(
 private data class AiSystemContent(
     val nipPrompt: String,
     val recipePrompt: String,
-    val nutrientCsv: String,
-    val nutrientSmallCsv: String
+    val nutrientCsv: String
 )
 
 private data class AiUsage(
@@ -2878,12 +2877,7 @@ private fun loadAiSystemContent(context: Context): AiSystemContent {
     } catch (_: Exception) {
         ""
     }
-    val smallCsv = try {
-        context.assets.open("NutrientSMALL.csv").bufferedReader().use { it.readText() }
-    } catch (_: Exception) {
-        ""
-    }
-    return AiSystemContent(nip, recipe, csv, smallCsv)
+    return AiSystemContent(nip, recipe, csv)
 }
 
 private fun buildFullKnowledgeBlock(csv: String): String =
@@ -2891,13 +2885,6 @@ private fun buildFullKnowledgeBlock(csv: String): String =
     "The following CSV is the AFCD/NUTTAB-derived primary reference table for foods. " +
     "Each row matches the Diet Sentry Foods table schema (per 100 g for solids, per 100 mL for liquids). " +
     "Use it as the primary data source per the rules in the system instructions above — search this table first by FoodDescription before falling back to AFCD/NUTTAB or other sources.\n\n" +
-    "```csv\n$csv\n```"
-
-private fun buildSmallKnowledgeBlock(csv: String): String =
-    "## Knowledge base — NutrientSMALL.csv (slim food index)\n\n" +
-    "This CSV is a slim index of the Diet Sentry Foods table, containing only the FoodId and FoodDescription columns. " +
-    "Use it to identify each ingredient in the recipe by FoodDescription and reference it by its FoodId — the recipe object stored in the database links to ingredients by FoodId, and the per-ingredient nutrient values are read from the Foods table at recipe-display time, not from this index. " +
-    "This CSV does NOT contain nutrient values — for any nutrient lookup needed during recipe construction, draw on AFCD/NUTTAB knowledge, on-pack NIPs (via web_search), or your training data.\n\n" +
     "```csv\n$csv\n```"
 
 private data class GeneralPromptParts(val base: String, val webSearchClause: String)
@@ -2988,7 +2975,11 @@ private fun formatFoodAsCsvRow(f: Food): String {
         "${f.magnesiumMg},${f.vitaminC},${f.caffeine},${f.cholesterol},${f.alcohol}"
 }
 
-private fun executeFoodLookupTool(dbHelper: DatabaseHelper, input: org.json.JSONObject): String {
+private fun executeFoodLookupTool(
+    dbHelper: DatabaseHelper,
+    input: org.json.JSONObject,
+    recipeMode: Boolean
+): String {
     val query = input.optString("query", "").trim()
     if (query.isEmpty()) return "Tool error: 'query' parameter is required."
     val matches = try {
@@ -2996,10 +2987,33 @@ private fun executeFoodLookupTool(dbHelper: DatabaseHelper, input: org.json.JSON
     } catch (e: Exception) {
         return "Tool error: search failed: ${e.message}"
     }
-    if (matches.isEmpty()) return "No matches found for query: '$query'."
-    val limited = matches.take(LOOKUP_FOOD_MAX_RESULTS)
+    // Recipe mode requires solid, non-user-added ingredients. The "#" suffix
+    // marks AI-generated/user-added records (covers "#" and " mL#"); the "mL"
+    // suffix marks liquids. Filter both out before showing matches to Claude.
+    val filtered = if (recipeMode) {
+        matches.filter { f ->
+            val d = f.foodDescription
+            !d.endsWith("#") && !d.endsWith("mL")
+        }
+    } else {
+        matches
+    }
+    if (filtered.isEmpty()) {
+        val suffix = if (recipeMode) " (recipe mode excludes liquids and AI/user-added records)" else ""
+        return "No matches found for query: '$query'$suffix."
+    }
+    // searchFoods returns rows in FoodId order, so canonical AFCD records like
+    // "Tomato, paste, ..." (FoodIds 1536–1544) lose the top-5 race against
+    // earlier composite records like "Baked beans, canned in tomato sauce"
+    // (FoodId 44) that merely contain the query term. Re-rank so records whose
+    // FoodDescription STARTS with the first query term surface first.
+    val firstTerm = query.split("|").map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: query
+    val ranked = filtered.sortedByDescending { f ->
+        f.foodDescription.startsWith(firstTerm, ignoreCase = true)
+    }
+    val limited = ranked.take(LOOKUP_FOOD_MAX_RESULTS)
     val sb = StringBuilder()
-    sb.append("Found ${matches.size} match(es) for '$query'; showing top ${limited.size}.\n")
+    sb.append("Found ${ranked.size} match(es) for '$query'; showing top ${limited.size}.\n")
     sb.append("FoodId,FoodDescription,Energy,Protein,FatTotal,SaturatedFat,TransFat,PolyunsaturatedFat,MonounsaturatedFat,Carbohydrate,Sugars,DietaryFibre,SodiumNa,CalciumCa,PotassiumK,ThiaminB1,RiboflavinB2,NiacinB3,Folate,IronFe,MagnesiumMg,VitaminC,Caffeine,Cholesterol,Alcohol\n")
     for (f in limited) {
         sb.append(formatFoodAsCsvRow(f))
@@ -3087,6 +3101,7 @@ private suspend fun callAnthropicApi(
     extendedThinking: Boolean,
     enableFoodLookupTool: Boolean,
     dbHelper: DatabaseHelper?,
+    recipeMode: Boolean,
     onToolEvent: ((String) -> Unit)? = null
 ): Result<AiResponse> = withContext(Dispatchers.IO) {
     try {
@@ -3184,7 +3199,7 @@ private suspend fun callAnthropicApi(
                         }
                     }
                     val resultText = when (toolName) {
-                        LOOKUP_FOOD_TOOL_NAME -> executeFoodLookupTool(dbHelper, toolInput)
+                        LOOKUP_FOOD_TOOL_NAME -> executeFoodLookupTool(dbHelper, toolInput, recipeMode)
                         else -> "Unknown client tool: $toolName"
                     }
                     resultsContent.put(
@@ -3749,10 +3764,12 @@ fun AddFoodByAiScreen(navController: NavController) {
                             when {
                                 recipeIntent -> {
                                     activePrompt = sysContent.recipePrompt
-                                    activeKnowledgeBlock = if (sysContent.nutrientSmallCsv.isNotEmpty()) {
-                                        buildSmallKnowledgeBlock(sysContent.nutrientSmallCsv)
-                                    } else ""
-                                    enableFoodLookupTool = false
+                                    // Recipe mode now uses lookup_food against the live Foods
+                                    // table (no NutrientSMALL.csv attachment). The tool runs
+                                    // in recipeMode=true so it pre-filters out liquids and
+                                    // #-suffixed records before Claude sees the matches.
+                                    activeKnowledgeBlock = ""
+                                    enableFoodLookupTool = true
                                 }
                                 nipModeEnabled -> {
                                     activePrompt = sysContent.nipPrompt
@@ -3779,7 +3796,7 @@ fun AddFoodByAiScreen(navController: NavController) {
                                     apiKey, model, messages, webSearchEnabled,
                                     effectiveNipMode, activePrompt, activeKnowledgeBlock, generalSystemPrompt,
                                     extendedThinkingEnabled,
-                                    enableFoodLookupTool, dbHelper,
+                                    enableFoodLookupTool, dbHelper, recipeIntent,
                                     onToolEvent = { status -> toolStatusHistory = toolStatusHistory + status }
                                 )
                                 loading = false
@@ -3797,6 +3814,12 @@ fun AddFoodByAiScreen(navController: NavController) {
                                             "AiAutoPump",
                                             "effectiveNipMode=$effectiveNipMode replyLen=${annotatedReply.length} firstOpen=${annotatedReply.indexOf('{')} lastClose=${annotatedReply.lastIndexOf('}')}"
                                         )
+                                        // Both NIP-mode and recipe-mode JSON auto-pump to
+                                        // AddFoodByJsonScreen so the user always lands on the
+                                        // same review screen. Note: the screen's Confirm flow
+                                        // currently only knows the NIP schema, so Confirm on
+                                        // recipe JSON toasts "Invalid JSON or missing fields"
+                                        // until the recipe-insert path is wired in.
                                         if (effectiveNipMode) {
                                             val openIdx = annotatedReply.indexOf('{')
                                             val closeIdx = annotatedReply.lastIndexOf('}')
