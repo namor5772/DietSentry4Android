@@ -9,7 +9,6 @@
 )
 
 package au.dietsentry.myapplication
-
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -144,7 +143,12 @@ private const val KEY_ANTHROPIC_MODEL = "anthropicModel"
 private const val DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
 private const val ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 private const val ANTHROPIC_VERSION = "2023-06-01"
-private const val ANTHROPIC_MAX_TOKENS = 4096
+// Output-token cap for /v1/messages. Includes both extended-thinking tokens
+// and the visible reply, so it has to be generous enough that long thinking
+// + multi-iteration tool loops + a full NIP JSON all fit. Sonnet 4.6 / Opus
+// 4.7 accept up to 64000; Haiku 4.5 up to 8192. 16384 is the sweet spot for
+// our current workload — Claude only bills for tokens actually used.
+private const val ANTHROPIC_MAX_TOKENS = 16384
 private const val AI_IMAGE_MAX_DIM = 1568
 private const val KEY_AI_WEB_SEARCH = "aiWebSearch"
 private const val DEFAULT_AI_WEB_SEARCH = true
@@ -152,6 +156,29 @@ private const val WEB_SEARCH_TOOL_TYPE = "web_search_20250305"
 private const val WEB_SEARCH_MAX_USES = 5
 private const val KEY_AI_USE_NIP_PROMPT = "aiUseNipPrompt"
 private const val DEFAULT_AI_USE_NIP_PROMPT = true
+private const val KEY_AI_EXTENDED_THINKING = "aiExtendedThinking"
+private const val DEFAULT_AI_EXTENDED_THINKING = false
+
+// Models for which Anthropic accepts `thinking: {type: "adaptive", ...}` on /v1/messages.
+// Haiku 4.5 is NOT on this list — sending the thinking field with that model yields HTTP 400.
+private val EXTENDED_THINKING_MODELS = setOf(
+    "claude-opus-4-7",
+    "claude-sonnet-4-6"
+)
+private const val WEB_SEARCH_COST_PER_REQUEST = 0.01
+private const val CACHE_WRITE_MULTIPLIER = 1.25
+private const val CACHE_READ_MULTIPLIER = 0.1
+private const val LOOKUP_FOOD_TOOL_NAME = "lookup_food"
+private const val LOOKUP_FOOD_MAX_RESULTS = 5
+private const val MAX_TOOL_ITERATIONS = 6
+
+private data class AiPricing(val inputPerMillion: Double, val outputPerMillion: Double)
+
+private val ANTHROPIC_PRICING = mapOf(
+    "claude-opus-4-7" to AiPricing(15.0, 75.0),
+    "claude-sonnet-4-6" to AiPricing(3.0, 15.0),
+    "claude-haiku-4-5-20251001" to AiPricing(1.0, 5.0)
+)
 
 // Session-scoped in-memory state (persists while app stays alive)
 private var sessionSelectedFilterDateMillis: Long? = null
@@ -159,6 +186,7 @@ private var sessionAddRecipeSearchQuery: String = ""
 private var sessionCopyRecipeSearchQuery: String = ""
 private var sessionEditRecipeSearchQuery: String = ""
 private var sessionPrefilledJson: String? = null
+private var sessionPrefilledJsonCost: Double? = null
 
 private enum class RecipeSearchMode {
     ADD,
@@ -2565,6 +2593,9 @@ fun AddFoodByJsonScreen(navController: NavController) {
     var jsonText by rememberSaveable {
         mutableStateOf(sessionPrefilledJson?.also { sessionPrefilledJson = null } ?: "")
     }
+    val initialCallCost: Double? = remember {
+        sessionPrefilledJsonCost?.also { sessionPrefilledJsonCost = null }
+    }
     var showHelpSheet by remember { mutableStateOf(false) }
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val jsonHelpText = """
@@ -2721,6 +2752,20 @@ The recommended way to obtain JSON for this screen is to use the app's own **Add
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
+            initialCallCost?.let { cost ->
+                Surface(
+                    tonalElevation = 1.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                ) {
+                    Text(
+                        text = "AI call cost: ${formatUsdCost(cost)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
+            }
             TextField(
                 value = jsonText,
                 onValueChange = { jsonText = it },
@@ -2757,21 +2802,103 @@ private data class AiChatMessage(
     val images: List<AiImage> = emptyList()
 )
 
-private data class AiSystemContent(val nipPrompt: String, val nutrientCsv: String)
+private data class AiSystemContent(
+    val nipPrompt: String,
+    val recipePrompt: String,
+    val nutrientCsv: String,
+    val nutrientSmallCsv: String
+)
+
+private data class AiUsage(
+    val inputTokens: Int,
+    val outputTokens: Int,
+    val cacheCreationTokens: Int,
+    val cacheReadTokens: Int,
+    val webSearchRequests: Int
+)
+
+private data class AiResponse(val text: String, val usage: AiUsage)
+
+private fun computeAiCostUsd(usage: AiUsage, model: String): Double {
+    val pricing = ANTHROPIC_PRICING[model] ?: return 0.0
+    val million = 1_000_000.0
+    val inputCost = usage.inputTokens * pricing.inputPerMillion / million
+    val outputCost = usage.outputTokens * pricing.outputPerMillion / million
+    val cacheCreationCost = usage.cacheCreationTokens * pricing.inputPerMillion * CACHE_WRITE_MULTIPLIER / million
+    val cacheReadCost = usage.cacheReadTokens * pricing.inputPerMillion * CACHE_READ_MULTIPLIER / million
+    val webSearchCost = usage.webSearchRequests * WEB_SEARCH_COST_PER_REQUEST
+    return inputCost + outputCost + cacheCreationCost + cacheReadCost + webSearchCost
+}
+
+private fun formatUsdCost(amount: Double): String =
+    String.format(java.util.Locale.US, "$%.4f", amount)
+
+/**
+ * If `reply` contains a `{...}` JSON block, parse it, append a one-line
+ * "API cost: $X.XXXX" annotation to the existing `notes` field (or create
+ * the field if missing), and return the reply with the modified JSON
+ * substituted in place. Surrounding markdown fences and prose are
+ * preserved. If no JSON block is found or parsing fails, returns `reply`
+ * unchanged so the chat display and auto-pump pipeline both stay safe.
+ */
+private fun injectCostIntoJsonNotes(reply: String, costUsd: Double): String {
+    val openIdx = reply.indexOf('{')
+    val closeIdx = reply.lastIndexOf('}')
+    if (openIdx < 0 || closeIdx <= openIdx) return reply
+    val jsonText = reply.substring(openIdx, closeIdx + 1)
+    return try {
+        val obj = org.json.JSONObject(jsonText)
+        val existingNotes = obj.optString("notes", "").trim()
+        val costAnnotation = "API cost: ${formatUsdCost(costUsd)}"
+        val newNotes = if (existingNotes.isEmpty()) {
+            costAnnotation
+        } else {
+            "$existingNotes $costAnnotation"
+        }
+        obj.put("notes", newNotes)
+        reply.substring(0, openIdx) + obj.toString(2) + reply.substring(closeIdx + 1)
+    } catch (_: Exception) {
+        reply
+    }
+}
 
 private fun loadAiSystemContent(context: Context): AiSystemContent {
-    val prompt = try {
+    val nip = try {
         context.assets.open("NIPsysprompt.txt").bufferedReader().use { it.readText() }
     } catch (_: Exception) {
         "You are a helpful assistant for the Diet Sentry food tracking app."
+    }
+    val recipe = try {
+        context.assets.open("RECIPEsysprompt.txt").bufferedReader().use { it.readText() }
+    } catch (_: Exception) {
+        ""
     }
     val csv = try {
         context.assets.open("Nutrient.csv").bufferedReader().use { it.readText() }
     } catch (_: Exception) {
         ""
     }
-    return AiSystemContent(prompt, csv)
+    val smallCsv = try {
+        context.assets.open("NutrientSMALL.csv").bufferedReader().use { it.readText() }
+    } catch (_: Exception) {
+        ""
+    }
+    return AiSystemContent(nip, recipe, csv, smallCsv)
 }
+
+private fun buildFullKnowledgeBlock(csv: String): String =
+    "## Knowledge base — Nutrient.csv\n\n" +
+    "The following CSV is the AFCD/NUTTAB-derived primary reference table for foods. " +
+    "Each row matches the Diet Sentry Foods table schema (per 100 g for solids, per 100 mL for liquids). " +
+    "Use it as the primary data source per the rules in the system instructions above — search this table first by FoodDescription before falling back to AFCD/NUTTAB or other sources.\n\n" +
+    "```csv\n$csv\n```"
+
+private fun buildSmallKnowledgeBlock(csv: String): String =
+    "## Knowledge base — NutrientSMALL.csv (slim food index)\n\n" +
+    "This CSV is a slim index of the Diet Sentry Foods table, containing only the FoodId and FoodDescription columns. " +
+    "Use it to identify each ingredient in the recipe by FoodDescription and reference it by its FoodId — the recipe object stored in the database links to ingredients by FoodId, and the per-ingredient nutrient values are read from the Foods table at recipe-display time, not from this index. " +
+    "This CSV does NOT contain nutrient values — for any nutrient lookup needed during recipe construction, draw on AFCD/NUTTAB knowledge, on-pack NIPs (via web_search), or your training data.\n\n" +
+    "```csv\n$csv\n```"
 
 private data class GeneralPromptParts(val base: String, val webSearchClause: String)
 
@@ -2800,50 +2927,8 @@ private fun buildGeneralSystemPrompt(
     }
 }
 
-private fun buildAnthropicRequestJson(
-    model: String,
-    messages: List<AiChatMessage>,
-    enableWebSearch: Boolean,
-    nipMode: Boolean,
-    sysContent: AiSystemContent,
-    generalSystemPrompt: String
-): String {
-    val root = org.json.JSONObject()
-    root.put("model", model)
-    root.put("max_tokens", ANTHROPIC_MAX_TOKENS)
-    if (nipMode && sysContent.nutrientCsv.isNotEmpty()) {
-        val sysArr = org.json.JSONArray()
-        sysArr.put(
-            org.json.JSONObject()
-                .put("type", "text")
-                .put("text", sysContent.nipPrompt)
-        )
-        sysArr.put(
-            org.json.JSONObject()
-                .put("type", "text")
-                .put(
-                    "text",
-                    "## Knowledge base — Nutrient.csv\n\nThe following CSV is the AFCD/NUTTAB-derived primary reference table for foods. Each row matches the Diet Sentry Foods table schema (per 100 g for solids, per 100 mL for liquids). Use it as the primary data source per the rules in the system instructions above — search this table first by FoodDescription before falling back to AFCD/NUTTAB or other sources.\n\n```csv\n${sysContent.nutrientCsv}\n```"
-                )
-                .put("cache_control", org.json.JSONObject().put("type", "ephemeral"))
-        )
-        root.put("system", sysArr)
-    } else if (nipMode) {
-        root.put("system", sysContent.nipPrompt)
-    } else {
-        root.put("system", generalSystemPrompt)
-    }
-    if (enableWebSearch) {
-        val tools = org.json.JSONArray()
-        tools.put(
-            org.json.JSONObject()
-                .put("type", WEB_SEARCH_TOOL_TYPE)
-                .put("name", "web_search")
-                .put("max_uses", WEB_SEARCH_MAX_USES)
-        )
-        root.put("tools", tools)
-    }
-    val msgArr = org.json.JSONArray()
+private fun chatMessagesToJsonArray(messages: List<AiChatMessage>): org.json.JSONArray {
+    val arr = org.json.JSONArray()
     for (m in messages) {
         val msgObj = org.json.JSONObject()
         msgObj.put("role", m.role)
@@ -2863,9 +2948,130 @@ private fun buildAnthropicRequestJson(
         } else {
             msgObj.put("content", m.text)
         }
-        msgArr.put(msgObj)
+        arr.put(msgObj)
     }
-    root.put("messages", msgArr)
+    return arr
+}
+
+private fun buildFoodLookupToolDefinition(): org.json.JSONObject {
+    val querySchema = org.json.JSONObject()
+        .put("type", "string")
+        .put(
+            "description",
+            "The food name or category to search (e.g. 'cheddar cheese', 'olive oil', 'banana'). " +
+            "Case-insensitive substring match against FoodDescription. " +
+            "Join two terms with '|' to require both, e.g. 'cheese|cheddar'."
+        )
+    val properties = org.json.JSONObject().put("query", querySchema)
+    val schema = org.json.JSONObject()
+        .put("type", "object")
+        .put("properties", properties)
+        .put("required", org.json.JSONArray().put("query"))
+    return org.json.JSONObject()
+        .put("name", LOOKUP_FOOD_TOOL_NAME)
+        .put(
+            "description",
+            "Search the Diet Sentry Foods table — an Australian Food Composition Database derived from AFCD/NUTTAB. " +
+            "Returns up to $LOOKUP_FOOD_MAX_RESULTS matching rows as CSV, each with FoodId, FoodDescription, and full per-100 g (or per-100 mL for liquids) nutrient values across all 24 columns. " +
+            "Use this when you need exact micronutrient values (calcium, iron, folate, magnesium, vitamin C, etc.) for a specific food and you don't already know them from training or web search. " +
+            "FoodDescription suffix conventions: ' mL' or ' mL#' = liquid (per 100 mL); '#' alone = AI-generated/user-added record (prefer cleaner records when possible); '{recipe=Xg}' = recipe food."
+        )
+        .put("input_schema", schema)
+}
+
+private fun formatFoodAsCsvRow(f: Food): String {
+    val description = "\"" + f.foodDescription.replace("\"", "\"\"") + "\""
+    return "${f.foodId},$description,${f.energy},${f.protein},${f.fatTotal},${f.saturatedFat}," +
+        "${f.transFat},${f.polyunsaturatedFat},${f.monounsaturatedFat},${f.carbohydrate}," +
+        "${f.sugars},${f.dietaryFibre},${f.sodium},${f.calciumCa},${f.potassiumK}," +
+        "${f.thiaminB1},${f.riboflavinB2},${f.niacinB3},${f.folate},${f.ironFe}," +
+        "${f.magnesiumMg},${f.vitaminC},${f.caffeine},${f.cholesterol},${f.alcohol}"
+}
+
+private fun executeFoodLookupTool(dbHelper: DatabaseHelper, input: org.json.JSONObject): String {
+    val query = input.optString("query", "").trim()
+    if (query.isEmpty()) return "Tool error: 'query' parameter is required."
+    val matches = try {
+        dbHelper.searchFoods(query)
+    } catch (e: Exception) {
+        return "Tool error: search failed: ${e.message}"
+    }
+    if (matches.isEmpty()) return "No matches found for query: '$query'."
+    val limited = matches.take(LOOKUP_FOOD_MAX_RESULTS)
+    val sb = StringBuilder()
+    sb.append("Found ${matches.size} match(es) for '$query'; showing top ${limited.size}.\n")
+    sb.append("FoodId,FoodDescription,Energy,Protein,FatTotal,SaturatedFat,TransFat,PolyunsaturatedFat,MonounsaturatedFat,Carbohydrate,Sugars,DietaryFibre,SodiumNa,CalciumCa,PotassiumK,ThiaminB1,RiboflavinB2,NiacinB3,Folate,IronFe,MagnesiumMg,VitaminC,Caffeine,Cholesterol,Alcohol\n")
+    for (f in limited) {
+        sb.append(formatFoodAsCsvRow(f))
+        sb.append('\n')
+    }
+    return sb.toString()
+}
+
+private fun buildAnthropicRequestJson(
+    model: String,
+    messagesJson: org.json.JSONArray,
+    enableWebSearch: Boolean,
+    nipMode: Boolean,
+    primaryPrompt: String,
+    knowledgeBlock: String,
+    generalSystemPrompt: String,
+    extendedThinking: Boolean,
+    enableFoodLookupTool: Boolean
+): String {
+    val root = org.json.JSONObject()
+    root.put("model", model)
+    root.put("max_tokens", ANTHROPIC_MAX_TOKENS)
+    if (extendedThinking && model in EXTENDED_THINKING_MODELS) {
+        root.put(
+            "thinking",
+            org.json.JSONObject()
+                .put("type", "adaptive")
+                .put("display", "summarized")
+        )
+    }
+    if (nipMode && knowledgeBlock.isNotEmpty()) {
+        val sysArr = org.json.JSONArray()
+        sysArr.put(
+            org.json.JSONObject()
+                .put("type", "text")
+                .put("text", primaryPrompt)
+        )
+        sysArr.put(
+            org.json.JSONObject()
+                .put("type", "text")
+                .put("text", knowledgeBlock)
+                .put("cache_control", org.json.JSONObject().put("type", "ephemeral"))
+        )
+        root.put("system", sysArr)
+    } else if (nipMode) {
+        root.put("system", primaryPrompt)
+    } else {
+        root.put("system", generalSystemPrompt)
+    }
+    val tools = org.json.JSONArray()
+    if (enableWebSearch) {
+        tools.put(
+            org.json.JSONObject()
+                .put("type", WEB_SEARCH_TOOL_TYPE)
+                .put("name", "web_search")
+                .put("max_uses", WEB_SEARCH_MAX_USES)
+        )
+    }
+    if (enableFoodLookupTool) {
+        tools.put(buildFoodLookupToolDefinition())
+    }
+    if (tools.length() > 0) {
+        // Mark the last tool with cache_control to create a cache breakpoint covering
+        // the static prefix (model + system + all tools). Subsequent iterations of a
+        // tool-use loop, and consecutive turns within ~5 min, hit cache_read at ~10%
+        // of the base input rate. Below-minimum cacheable prefixes are silently
+        // ignored by the API, so this is safe even on small payloads.
+        val lastTool = tools.getJSONObject(tools.length() - 1)
+        lastTool.put("cache_control", org.json.JSONObject().put("type", "ephemeral"))
+        root.put("tools", tools)
+    }
+    root.put("messages", messagesJson)
     return root.toString()
 }
 
@@ -2875,47 +3081,132 @@ private suspend fun callAnthropicApi(
     messages: List<AiChatMessage>,
     enableWebSearch: Boolean,
     nipMode: Boolean,
-    sysContent: AiSystemContent,
-    generalSystemPrompt: String
-): Result<String> = withContext(Dispatchers.IO) {
+    primaryPrompt: String,
+    knowledgeBlock: String,
+    generalSystemPrompt: String,
+    extendedThinking: Boolean,
+    enableFoodLookupTool: Boolean,
+    dbHelper: DatabaseHelper?,
+    onToolEvent: ((String) -> Unit)? = null
+): Result<AiResponse> = withContext(Dispatchers.IO) {
     try {
-        val url = java.net.URL(ANTHROPIC_API_URL)
-        val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
-            requestMethod = "POST"
-            setRequestProperty("x-api-key", apiKey)
-            setRequestProperty("anthropic-version", ANTHROPIC_VERSION)
-            setRequestProperty("content-type", "application/json")
-            connectTimeout = 30_000
-            readTimeout = 120_000
-            doOutput = true
-        }
-        val body = buildAnthropicRequestJson(model, messages, enableWebSearch, nipMode, sysContent, generalSystemPrompt)
-        android.util.Log.d("AnthropicRequest", body)
-        conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        val workingMessages = chatMessagesToJsonArray(messages)
+        var totalInput = 0
+        var totalOutput = 0
+        var totalCacheCreate = 0
+        var totalCacheRead = 0
+        var totalWebSearch = 0
+        var lastTextOutput = ""
 
-        val code = conn.responseCode
-        if (code !in 200..299) {
-            val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-            android.util.Log.d("AnthropicResponse", "HTTP $code: $errBody")
-            val parsed = try {
-                org.json.JSONObject(errBody).optJSONObject("error")?.optString("message", "") ?: ""
-            } catch (_: Exception) { "" }
-            val reason = if (parsed.isNotBlank()) parsed else "HTTP $code"
-            return@withContext Result.failure(Exception(reason))
-        }
-
-        val text = conn.inputStream.bufferedReader().use { it.readText() }
-        android.util.Log.d("AnthropicResponse", text)
-        val json = org.json.JSONObject(text)
-        val content = json.getJSONArray("content")
-        val sb = StringBuilder()
-        for (i in 0 until content.length()) {
-            val block = content.getJSONObject(i)
-            if (block.optString("type") == "text") {
-                sb.append(block.optString("text", ""))
+        for (iteration in 0 until MAX_TOOL_ITERATIONS) {
+            val url = java.net.URL(ANTHROPIC_API_URL)
+            val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("x-api-key", apiKey)
+                setRequestProperty("anthropic-version", ANTHROPIC_VERSION)
+                setRequestProperty("content-type", "application/json")
+                connectTimeout = 30_000
+                readTimeout = 120_000
+                doOutput = true
             }
+            val body = buildAnthropicRequestJson(
+                model, workingMessages, enableWebSearch, nipMode,
+                primaryPrompt, knowledgeBlock, generalSystemPrompt, extendedThinking,
+                enableFoodLookupTool
+            )
+            android.util.Log.d("AnthropicRequest", body)
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                android.util.Log.d("AnthropicResponse", "HTTP $code: $errBody")
+                val parsed = try {
+                    org.json.JSONObject(errBody).optJSONObject("error")?.optString("message", "") ?: ""
+                } catch (_: Exception) { "" }
+                val reason = if (parsed.isNotBlank()) parsed else "HTTP $code"
+                return@withContext Result.failure(Exception(reason))
+            }
+
+            val text = conn.inputStream.bufferedReader().use { it.readText() }
+            android.util.Log.d("AnthropicResponse", text)
+            val json = org.json.JSONObject(text)
+
+            val usageObj = json.optJSONObject("usage")
+            totalInput += usageObj?.optInt("input_tokens", 0) ?: 0
+            totalOutput += usageObj?.optInt("output_tokens", 0) ?: 0
+            totalCacheCreate += usageObj?.optInt("cache_creation_input_tokens", 0) ?: 0
+            totalCacheRead += usageObj?.optInt("cache_read_input_tokens", 0) ?: 0
+            val wsFromUsage = usageObj
+                ?.optJSONObject("server_tool_use")
+                ?.optInt("web_search_requests", 0)
+                ?: 0
+
+            val content = json.getJSONArray("content")
+            val sb = StringBuilder()
+            var wsFromContent = 0
+            val toolUseBlocks = mutableListOf<org.json.JSONObject>()
+            for (i in 0 until content.length()) {
+                val block = content.getJSONObject(i)
+                when (block.optString("type")) {
+                    "text" -> sb.append(block.optString("text", ""))
+                    "server_tool_use" -> {
+                        if (block.optString("name") == "web_search") {
+                            wsFromContent++
+                            val wsQuery = block.optJSONObject("input")?.optString("query", "")
+                            if (!wsQuery.isNullOrBlank()) {
+                                onToolEvent?.invoke("Searched the web: '$wsQuery'")
+                            }
+                        }
+                    }
+                    "tool_use" -> toolUseBlocks.add(block)
+                }
+            }
+            totalWebSearch += maxOf(wsFromUsage, wsFromContent)
+            lastTextOutput = sb.toString()
+
+            val stopReason = json.optString("stop_reason")
+            if (stopReason == "tool_use" && toolUseBlocks.isNotEmpty() && dbHelper != null) {
+                workingMessages.put(
+                    org.json.JSONObject()
+                        .put("role", "assistant")
+                        .put("content", content)
+                )
+                val resultsContent = org.json.JSONArray()
+                for (toolUse in toolUseBlocks) {
+                    val toolName = toolUse.optString("name")
+                    val toolUseId = toolUse.optString("id")
+                    val toolInput = toolUse.optJSONObject("input") ?: org.json.JSONObject()
+                    if (toolName == LOOKUP_FOOD_TOOL_NAME) {
+                        val q = toolInput.optString("query", "").trim()
+                        if (q.isNotEmpty()) {
+                            onToolEvent?.invoke("Looking up '$q' in the Foods table…")
+                        }
+                    }
+                    val resultText = when (toolName) {
+                        LOOKUP_FOOD_TOOL_NAME -> executeFoodLookupTool(dbHelper, toolInput)
+                        else -> "Unknown client tool: $toolName"
+                    }
+                    resultsContent.put(
+                        org.json.JSONObject()
+                            .put("type", "tool_result")
+                            .put("tool_use_id", toolUseId)
+                            .put("content", resultText)
+                    )
+                }
+                workingMessages.put(
+                    org.json.JSONObject()
+                        .put("role", "user")
+                        .put("content", resultsContent)
+                )
+                continue
+            }
+
+            val totalUsage = AiUsage(totalInput, totalOutput, totalCacheCreate, totalCacheRead, totalWebSearch)
+            return@withContext Result.success(AiResponse(lastTextOutput, totalUsage))
         }
-        Result.success(sb.toString())
+
+        Result.failure(Exception("Tool-use loop exceeded $MAX_TOOL_ITERATIONS iterations."))
     } catch (e: Exception) {
         Result.failure(e)
     }
@@ -3013,13 +3304,15 @@ private fun AiSettingsDialog(
     initialModel: String,
     initialWebSearch: Boolean,
     initialNipMode: Boolean,
-    onSave: (String, String, Boolean, Boolean) -> Unit,
+    initialExtendedThinking: Boolean,
+    onSave: (String, String, Boolean, Boolean, Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     var keyText by rememberSaveable { mutableStateOf(initialApiKey) }
     var modelText by rememberSaveable { mutableStateOf(initialModel) }
     var webSearch by rememberSaveable { mutableStateOf(initialWebSearch) }
     var nipMode by rememberSaveable { mutableStateOf(initialNipMode) }
+    var extendedThinking by rememberSaveable { mutableStateOf(initialExtendedThinking) }
     var keyVisible by rememberSaveable { mutableStateOf(false) }
     val knownModels = listOf(
         "claude-opus-4-7" to "Opus 4.7 — highest quality",
@@ -3112,10 +3405,39 @@ private fun AiSettingsDialog(
                         )
                     }
                 }
+                Spacer(Modifier.height(16.dp))
+                Text("Reasoning", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(4.dp))
+                val thinkingSupported = modelText in EXTENDED_THINKING_MODELS
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = thinkingSupported) { extendedThinking = !extendedThinking }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Switch(
+                        checked = extendedThinking && thinkingSupported,
+                        onCheckedChange = { extendedThinking = it },
+                        enabled = thinkingSupported
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Extended thinking (adaptive)", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = if (thinkingSupported) {
+                                "Lets Claude reason internally before replying — the model decides when it's worthwhile. Thinking tokens are billed at the output rate, adding ~\$0.001–\$0.03 per harder turn (e.g. recipe nutrient calculations). No effect on simple lookups."
+                            } else {
+                                "Not supported on Haiku 4.5. Switch to Sonnet 4.6 or Opus 4.7 above to enable extended thinking. Your preference is preserved and will re-apply if you go back to a supported model."
+                            },
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(keyText.trim(), modelText, webSearch, nipMode) }) { Text("Save") }
+            TextButton(onClick = { onSave(keyText.trim(), modelText, webSearch, nipMode, extendedThinking) }) { Text("Save") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
@@ -3128,6 +3450,7 @@ private fun AiSettingsDialog(
 fun AddFoodByAiScreen(navController: NavController) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
     val sysContent = remember { loadAiSystemContent(context) }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -3145,6 +3468,9 @@ fun AddFoodByAiScreen(navController: NavController) {
     var nipModeEnabled by rememberSaveable {
         mutableStateOf(prefs.getBoolean(KEY_AI_USE_NIP_PROMPT, DEFAULT_AI_USE_NIP_PROMPT))
     }
+    var extendedThinkingEnabled by rememberSaveable {
+        mutableStateOf(prefs.getBoolean(KEY_AI_EXTENDED_THINKING, DEFAULT_AI_EXTENDED_THINKING))
+    }
     val generalPromptParts = remember { loadGeneralPromptParts(context) }
     val generalSystemPrompt = remember(webSearchEnabled, generalPromptParts) {
         buildGeneralSystemPrompt(generalPromptParts, webSearchEnabled)
@@ -3158,6 +3484,9 @@ fun AddFoodByAiScreen(navController: NavController) {
     var inputText by rememberSaveable { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
+    var sessionCostUsd by remember { mutableStateOf(0.0) }
+    var turnCount by remember { mutableStateOf(0) }
+    var currentToolStatus by remember { mutableStateOf<String?>(null) }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -3217,6 +3546,18 @@ fun AddFoodByAiScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            if (sessionCostUsd > 0.0) {
+                Surface(
+                    tonalElevation = 1.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Session cost: ${formatUsdCost(sessionCostUsd)} (${turnCount} ${if (turnCount == 1) "turn" else "turns"})",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -3279,7 +3620,10 @@ fun AddFoodByAiScreen(navController: NavController) {
                                 strokeWidth = 2.dp
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text("Thinking…", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = currentToolStatus ?: "Thinking…",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                     }
                 }
@@ -3390,28 +3734,76 @@ fun AddFoodByAiScreen(navController: NavController) {
                             }
                             val imagesToSend = pendingImages
                             val userMsg = AiChatMessage("user", txt, imagesToSend)
+                            val recipeIntent = txt.contains("recipe", ignoreCase = true) &&
+                                sysContent.recipePrompt.isNotBlank()
+                            val effectiveNipMode = nipModeEnabled || recipeIntent
+                            val activePrompt: String
+                            val activeKnowledgeBlock: String
+                            val enableFoodLookupTool: Boolean
+                            when {
+                                recipeIntent -> {
+                                    activePrompt = sysContent.recipePrompt
+                                    activeKnowledgeBlock = if (sysContent.nutrientSmallCsv.isNotEmpty()) {
+                                        buildSmallKnowledgeBlock(sysContent.nutrientSmallCsv)
+                                    } else ""
+                                    enableFoodLookupTool = false
+                                }
+                                nipModeEnabled -> {
+                                    activePrompt = sysContent.nipPrompt
+                                    // NIP mode: no longer attaches the full Nutrient.csv. Claude calls the
+                                    // lookup_food tool for specific micronutrient lookups instead.
+                                    activeKnowledgeBlock = ""
+                                    enableFoodLookupTool = true
+                                }
+                                else -> {
+                                    activePrompt = ""
+                                    activeKnowledgeBlock = ""
+                                    enableFoodLookupTool = false
+                                }
+                            }
                             messages = messages + userMsg
                             inputText = ""
                             pendingImages = emptyList()
                             errorText = null
                             loading = true
+                            currentToolStatus = null
                             keyboardController?.hide()
                             scope.launch {
                                 val result = callAnthropicApi(
                                     apiKey, model, messages, webSearchEnabled,
-                                    nipModeEnabled, sysContent, generalSystemPrompt
+                                    effectiveNipMode, activePrompt, activeKnowledgeBlock, generalSystemPrompt,
+                                    extendedThinkingEnabled,
+                                    enableFoodLookupTool, dbHelper,
+                                    onToolEvent = { status -> currentToolStatus = status }
                                 )
                                 loading = false
+                                currentToolStatus = null
                                 result
-                                    .onSuccess { reply ->
-                                        messages = messages + AiChatMessage("assistant", reply)
-                                        if (nipModeEnabled) {
-                                            val openIdx = reply.indexOf('{')
-                                            val closeIdx = reply.lastIndexOf('}')
+                                    .onSuccess { response ->
+                                        val callCostUsd = computeAiCostUsd(response.usage, model)
+                                        sessionCostUsd += callCostUsd
+                                        turnCount += 1
+                                        // Inject the API cost into the JSON's notes field if a JSON
+                                        // block is present. Returns the reply unchanged otherwise.
+                                        val annotatedReply = injectCostIntoJsonNotes(response.text, callCostUsd)
+                                        messages = messages + AiChatMessage("assistant", annotatedReply)
+                                        android.util.Log.d(
+                                            "AiAutoPump",
+                                            "effectiveNipMode=$effectiveNipMode replyLen=${annotatedReply.length} firstOpen=${annotatedReply.indexOf('{')} lastClose=${annotatedReply.lastIndexOf('}')}"
+                                        )
+                                        if (effectiveNipMode) {
+                                            val openIdx = annotatedReply.indexOf('{')
+                                            val closeIdx = annotatedReply.lastIndexOf('}')
                                             if (openIdx >= 0 && closeIdx > openIdx) {
-                                                sessionPrefilledJson = reply
+                                                android.util.Log.d("AiAutoPump", "navigating to addFoodByJson")
+                                                sessionPrefilledJson = annotatedReply
+                                                sessionPrefilledJsonCost = callCostUsd
                                                 navController.navigate("addFoodByJson")
+                                            } else {
+                                                android.util.Log.d("AiAutoPump", "no JSON braces found in reply — auto-pump skipped")
                                             }
+                                        } else {
+                                            android.util.Log.d("AiAutoPump", "effectiveNipMode is false — auto-pump skipped (NIP toggle off and no 'recipe' in message)")
                                         }
                                     }
                                     .onFailure { e ->
@@ -3434,16 +3826,19 @@ fun AddFoodByAiScreen(navController: NavController) {
             initialModel = model,
             initialWebSearch = webSearchEnabled,
             initialNipMode = nipModeEnabled,
-            onSave = { newKey, newModel, newWebSearch, newNipMode ->
+            initialExtendedThinking = extendedThinkingEnabled,
+            onSave = { newKey, newModel, newWebSearch, newNipMode, newExtendedThinking ->
                 apiKey = newKey
                 model = newModel
                 webSearchEnabled = newWebSearch
                 nipModeEnabled = newNipMode
+                extendedThinkingEnabled = newExtendedThinking
                 prefs.edit {
                     putString(KEY_ANTHROPIC_API_KEY, newKey)
                     putString(KEY_ANTHROPIC_MODEL, newModel)
                     putBoolean(KEY_AI_WEB_SEARCH, newWebSearch)
                     putBoolean(KEY_AI_USE_NIP_PROMPT, newNipMode)
+                    putBoolean(KEY_AI_EXTENDED_THINKING, newExtendedThinking)
                 }
                 showSettings = false
             },
