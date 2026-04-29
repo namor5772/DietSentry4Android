@@ -3486,7 +3486,7 @@ fun AddFoodByAiScreen(navController: NavController) {
     var errorText by remember { mutableStateOf<String?>(null) }
     var sessionCostUsd by remember { mutableStateOf(0.0) }
     var turnCount by remember { mutableStateOf(0) }
-    var currentToolStatus by remember { mutableStateOf<String?>(null) }
+    var toolStatusHistory by remember { mutableStateOf(listOf<String>()) }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -3611,19 +3611,25 @@ fun AddFoodByAiScreen(navController: NavController) {
                 }
                 if (loading) {
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = currentToolStatus ?: "Thinking…",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                        Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Thinking…",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                            toolStatusHistory.forEach { status ->
+                                Text(
+                                    text = status,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(start = 26.dp, top = 4.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -3766,7 +3772,7 @@ fun AddFoodByAiScreen(navController: NavController) {
                             pendingImages = emptyList()
                             errorText = null
                             loading = true
-                            currentToolStatus = null
+                            toolStatusHistory = emptyList()
                             keyboardController?.hide()
                             scope.launch {
                                 val result = callAnthropicApi(
@@ -3774,10 +3780,10 @@ fun AddFoodByAiScreen(navController: NavController) {
                                     effectiveNipMode, activePrompt, activeKnowledgeBlock, generalSystemPrompt,
                                     extendedThinkingEnabled,
                                     enableFoodLookupTool, dbHelper,
-                                    onToolEvent = { status -> currentToolStatus = status }
+                                    onToolEvent = { status -> toolStatusHistory = toolStatusHistory + status }
                                 )
                                 loading = false
-                                currentToolStatus = null
+                                toolStatusHistory = emptyList()
                                 result
                                     .onSuccess { response ->
                                         val callCostUsd = computeAiCostUsd(response.usage, model)
