@@ -1079,13 +1079,15 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
     - **Add**: adds a new food to the database.
         - It opens a screen titled "Add Food". Press the help button on that screen for more help.
         - The original selected food has no relevance to this activity. It is just a way of making the Add button available.
-    - **Json**: adds a new food to the database based on Json text (not applicable to recipe foods).
+    - **Json**: adds a new food (or a recipe) to the database based on Json text.
         - It opens a screen titled "Add Food using Json".  Press the help button on that screen for more help.
+        - Both NIP food JSON (24 nutrient fields) and Recipe JSON (`type: "recipe"`, `ingredients[]`) are accepted on that screen. Recipe JSON creates a full recipe (Foods row + Recipe rows linked by FoodId) on Confirm — same as building it by hand on the Add Recipe screen.
         - The original selected food has no relevance to this activity. It is just a way of making the Json button available.
     - **AI**: adds a new food to the database using Anthropic's Claude (requires your own Anthropic API key — set it in the AI screen's settings dialog).
         - It opens a screen titled "Add Food using AI". Press the help button on that screen for more help.
         - In **NIP mode** (the default) Claude returns a Diet Sentry compatible JSON which is automatically "auto-pumped" into the **Add Food using Json** screen — one tap on **Confirm** there adds the food and lands on this Foods Table with the new food highlighted.
-        - In general mode Claude is a regular chat assistant; replies stay in the AI screen.
+        - If your message contains the word "recipe", Claude swaps to a recipe-mode prompt and the auto-pumped JSON is a Recipe JSON instead — Confirm builds the full recipe (Foods row + Recipe rows linked by FoodId).
+        - In general mode (NIP toggle off) Claude is a regular chat assistant; replies stay in the AI screen.
         - The original selected food has no relevance to this activity. It is just a way of making the AI button available.
     - **Copy**: makes a copy of the selected food.
         - If the selected food is a Solid it opens a screen titled "Copying Solid Food"
@@ -1145,7 +1147,7 @@ The notes field is optional free text and is shown only when the All option is s
 
 - **If a FoodDescription ends in any other pattern of characters than those specified above** the food is considered a Solid, and nutrient values are per 100g. If additionally it ends in " #" then it is also never a part of the original database.
 - **Foods converted from liquids** include a `{density=...g/mL}` marker in the description to record the density used for conversion.
-- **AI-generated foods** end with ` (AI) #` (solid) or ` (AI) mL#` (liquid). The `(AI)` marker plus trailing `#` make AI-sourced rows easy to identify and filter on in the Foods Table.
+- **AI-generated foods** end with ` (AI) #` (solid), ` (AI) mL#` (liquid), or ` (AI) {recipe=<weight>g}` (recipe). The `(AI)` substring makes AI-sourced rows easy to identify and filter on in the Foods Table.
 
 ### **Mandatory Nutrients on a NIP**
 Under Standard 1.2.8 of the FSANZ Food Standards Code, most packaged foods must display a NIP showing:
@@ -2585,6 +2587,116 @@ fun InsertFoodScreen(
     }
 }
 
+// Inserts a recipe-shaped JSON into the Foods + Recipe tables, replicating the
+// AddRecipeScreen Confirm math. On success returns the new recipe's full
+// FoodDescription (with the trailing " {recipe=Xg}" marker) so the caller can
+// highlight it on the Foods Table.
+private fun insertRecipeFromRecipeJson(
+    json: org.json.JSONObject,
+    dbHelper: DatabaseHelper
+): Result<String> {
+    val rawDescription = json.optString("FoodDescription").trim()
+    if (rawDescription.isBlank()) {
+        return Result.failure(Exception("Recipe FoodDescription is required"))
+    }
+    val ingredientsJson = json.optJSONArray("ingredients")
+        ?: return Result.failure(Exception("Recipe ingredients[] is required"))
+    if (ingredientsJson.length() == 0) {
+        return Result.failure(Exception("Recipe needs at least one ingredient"))
+    }
+
+    data class ResolvedIngredient(val food: Food, val amount: Double)
+    val resolved = mutableListOf<ResolvedIngredient>()
+    for (i in 0 until ingredientsJson.length()) {
+        val ing = ingredientsJson.optJSONObject(i)
+            ?: return Result.failure(Exception("ingredients[$i] is not an object"))
+        val fid = ing.optInt("FoodId", -1)
+        if (fid <= 0) {
+            return Result.failure(Exception("ingredients[$i] missing FoodId"))
+        }
+        val amount = ing.optDouble("AmountUsed", -1.0)
+        if (amount.isNaN() || amount <= 0.0) {
+            return Result.failure(Exception("ingredients[$i] AmountUsed must be > 0"))
+        }
+        val food = dbHelper.getFoodById(fid)
+            ?: return Result.failure(Exception("FoodId $fid not in Foods table"))
+        if (isLiquidDescription(food.foodDescription)) {
+            return Result.failure(Exception("FoodId $fid is a liquid; recipes need solids"))
+        }
+        resolved.add(ResolvedIngredient(food, amount))
+    }
+
+    // Clear orphan temp rows from any aborted manual recipe-add session so the
+    // updateRecipeFoodIdForTemporaryRecords call below only links our rows.
+    dbHelper.deleteRecipesWithFoodIdZero()
+
+    for (ri in resolved) {
+        val ok = dbHelper.insertRecipeFromFood(
+            food = ri.food,
+            amount = ri.amount.toFloat(),
+            foodId = 0,
+            copyFlag = 0
+        )
+        if (!ok) {
+            dbHelper.deleteRecipesWithFoodIdZero()
+            return Result.failure(Exception("Unable to add ingredient to Recipe table"))
+        }
+    }
+
+    val totalAmount = resolved.sumOf { it.amount }
+    fun aggregate(field: (Food) -> Double): Double =
+        resolved.sumOf { field(it.food) * it.amount / 100.0 }
+    val scale = 100.0 / totalAmount
+    fun scaled(s: Double) = s * scale
+
+    val sanitized = stripTrailingRecipeSuffix(rawDescription).trim()
+    val recipeWeightText = formatNumber(totalAmount, decimals = 0)
+    val notes = json.optString("notes", "").trim()
+    val baseFood = Food(
+        foodId = 0,
+        // Append " (AI)" before the trailing {recipe=Xg} marker so AI-generated
+        // recipes are visibly distinguishable in the Foods Table — mirrors the
+        // " (AI) #" convention used for non-recipe AI foods.
+        foodDescription = "$sanitized (AI) {recipe=${recipeWeightText}g}",
+        energy = scaled(aggregate { it.energy }),
+        protein = scaled(aggregate { it.protein }),
+        fatTotal = scaled(aggregate { it.fatTotal }),
+        saturatedFat = scaled(aggregate { it.saturatedFat }),
+        transFat = scaled(aggregate { it.transFat }),
+        polyunsaturatedFat = scaled(aggregate { it.polyunsaturatedFat }),
+        monounsaturatedFat = scaled(aggregate { it.monounsaturatedFat }),
+        carbohydrate = scaled(aggregate { it.carbohydrate }),
+        sugars = scaled(aggregate { it.sugars }),
+        dietaryFibre = scaled(aggregate { it.dietaryFibre }),
+        sodium = scaled(aggregate { it.sodium }),
+        calciumCa = scaled(aggregate { it.calciumCa }),
+        potassiumK = scaled(aggregate { it.potassiumK }),
+        thiaminB1 = scaled(aggregate { it.thiaminB1 }),
+        riboflavinB2 = scaled(aggregate { it.riboflavinB2 }),
+        niacinB3 = scaled(aggregate { it.niacinB3 }),
+        folate = scaled(aggregate { it.folate }),
+        ironFe = scaled(aggregate { it.ironFe }),
+        magnesiumMg = scaled(aggregate { it.magnesiumMg }),
+        vitaminC = scaled(aggregate { it.vitaminC }),
+        caffeine = scaled(aggregate { it.caffeine }),
+        cholesterol = scaled(aggregate { it.cholesterol }),
+        alcohol = scaled(aggregate { it.alcohol }),
+        notes = notes
+    )
+
+    val newFoodId = dbHelper.insertFoodReturningId(baseFood)
+    if (newFoodId == null) {
+        dbHelper.deleteRecipesWithFoodIdZero()
+        return Result.failure(Exception("Unable to save recipe to Foods table"))
+    }
+    val linked = dbHelper.updateRecipeFoodIdForTemporaryRecords(newFoodId)
+    if (!linked) {
+        dbHelper.deleteRecipesWithFoodIdZero()
+        return Result.failure(Exception("Recipe items not linked to new food"))
+    }
+    return Result.success(baseFood.foodDescription)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddFoodByJsonScreen(navController: NavController) {
@@ -2600,14 +2712,16 @@ fun AddFoodByJsonScreen(navController: NavController) {
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val jsonHelpText = """
 # **Add Food using Json**
-- This screen is reached two ways:
+- Reached two ways:
     - **Manually**: tap the **Json** button on the **Foods Table** screen.
-    - **Automatically (auto-pump)**: when the **Add Food using AI** screen is in NIP mode and Claude's reply contains a JSON object, the reply is "auto-pumped" here with the JSON pre-filled in the text field — ready for one-tap **Confirm**.
-- Like other screens it has a **help** and a **navigation** button in the top row.
-- Following this is a **text field** that takes up the rest of the screen and is followed by a **Confirm** button.
-- Paste or enter JSON text describing a food item (liquid or solid, but **not recipe**).
-- The notes field is optional free text. If provided it is stored with the food and shown in the Foods table when All is selected.
-- The format of the JSON text needs to be precisely as shown in the example below:
+    - **Automatically (auto-pump)**: when the **Add Food using AI** screen produces a JSON reply, it is "auto-pumped" here pre-filled in the text field — ready for one-tap **Confirm**. Both NIP-mode JSON (regular food) and recipe-mode JSON (recipe of ingredients) auto-pump.
+- Like other screens it has a **help** and a **navigation** button in the top row, then a **text field** that takes up the rest of the screen, followed by a **Confirm** button.
+- Two JSON shapes are accepted:
+    - **NIP food JSON** — `FoodDescription` plus the 24 nutrient fields. On Confirm a single Food row is added.
+    - **Recipe JSON** — `type: "recipe"`, `FoodDescription`, `ingredients[]` (each entry has `FoodId`, `AmountUsed`, `FoodDescription`), and `notes`. On Confirm the app validates every ingredient against the live Foods table (rejecting unknown FoodIds and any liquid ingredients), then creates a Foods row plus Recipe rows linked by FoodId — same database state as building the recipe by hand on the **Add Recipe** screen.
+- The notes field is optional free text. If provided it is stored with the food (or recipe) and shown in the Foods Table when **All** is selected.
+
+The format of an **NIP food JSON** is precisely:
 ```
 {
   "FoodDescription": "Cheese, Mersey Valley Classic #",
@@ -2634,25 +2748,48 @@ fun AddFoodByJsonScreen(navController: NavController) {
   "Caffeine": 0,
   "Cholesterol": 100,
   "Alcohol": 0,
-  "notes": "Used on-pack NIP for core nutrients. Remaining micronutrients estimated from AFCD/NUTTAB cheddar cheese equivalents. Website not checked—no URL provided."
+  "notes": "Used on-pack NIP for core nutrients. Remaining micronutrients estimated from AFCD/NUTTAB cheddar cheese equivalents."
 }
 ```
-NOTE: **Any line feeds, tabs and spaces outside of "any text" are entirely optional** which means that this Json text is also valid though not easy to read for a human:
- ```
-{"FoodDescription":"Cheese, Mersey Valley Classic #","Energy":1690,"Protein":23.7,"FatTotal":34.9,"SaturatedFat":22.4,"TransFat":1,"PolyunsaturatedFat":0.5,"MonounsaturatedFat":10,"Carbohydrate":0.1,"Sugars":0.1,"DietaryFibre":0,"SodiumNa":643,"CalciumCa":720,"PotassiumK":100,"ThiaminB1":0,"RiboflavinB2":0.3,"NiacinB3":0.1,"Folate":10,"IronFe":0.2,"MagnesiumMg":30,"VitaminC":0,"Caffeine":0,"Cholesterol":100,"Alcohol":0,"notes":"Used on-pack NIP for core nutrients. Remaining micronutrients estimated from AFCD/NUTTAB cheddar cheese equivalents. Website not checked—no URL provided."}   
+
+The format of a **Recipe JSON** is:
 ```
-- Tap **Confirm** to process the JSON which adds the food to the Foods table. Focus then passes to the Foods Table screen with the filter text set to the just-created food's description (with the liquid marker appended if relevant) so the new food is visible and selectable. This works the same whether you got here manually or via the AI auto-pump — both paths land you on the Foods Table with the new food highlighted.
-    - If the Json text is missing or invalid a Toast message will appear ("Please paste valid JSON" or "Invalid JSON or missing fields") and focus will remain unchanged.
-- **To abort any actions on this screen** press either of the two "back" buttons. The destination depends on how you arrived here:
+{
+  "type": "recipe",
+  "FoodDescription": "Spaghetti bolognese, with mince and tomato",
+  "ingredients": [
+    {
+      "FoodId": 1538,
+      "AmountUsed": 200,
+      "FoodDescription": "Tomato, paste, no added salt"
+    },
+    {
+      "FoodId": 567,
+      "AmountUsed": 500,
+      "FoodDescription": "Beef, mince, regular, raw"
+    }
+  ],
+  "notes": "API cost: \$0.0431"
+}
+```
+AI-generated recipes also get ` (AI)` appended to the recipe's FoodDescription before the trailing `{recipe=Xg}` marker the app computes from ingredient totals.
+
+NOTE: **Any line feeds, tabs and spaces outside of "any text" are entirely optional** — minified JSON works too.
+
+- Tap **Confirm** to process the JSON. Focus passes to the **Foods Table** screen with the filter set to the new food's (or recipe's) description, so it's visible and selectable.
+    - For **NIP food JSON**, errors show as a Toast: "Please paste valid JSON" or "Invalid JSON or missing fields".
+    - For **Recipe JSON**, errors are more specific Toasts, e.g. "FoodId 12345 not in Foods table", "FoodId 12345 is a liquid; recipes need solids", or "ingredients[2] AmountUsed must be > 0". Validation is atomic — a single bad ingredient rejects the whole recipe with no partial state.
+- **To abort any actions on this screen** press either of the two "back" buttons. Destination depends on how you got here:
     - If you came in via the **Json** button: you return to the Foods Table.
-    - If you came in via the AI auto-pump: you return to the **Add Food using AI** chat with your conversation preserved, so you can iterate (e.g. ask for a corrected JSON) and try again.
+    - If you came in via the AI auto-pump: you return to the **Add Food using AI** chat with your conversation preserved, so you can iterate (e.g. ask for a corrected JSON).
 ***
 # **AI generation of JSON**
-The recommended way to obtain JSON for this screen is to use the app's own **Add Food using AI** screen — tap the **AI** button on the Foods Table.
-- With **NIP mode** on (the default), Claude is instructed by a bundled FSANZ-compliant NIP-extraction system prompt and the bundled `Nutrient.csv` knowledge base. Replies are Diet Sentry compatible JSON and are auto-pumped straight into this screen, so you can review and tap **Confirm**.
+The recommended way to obtain JSON for this screen is the app's own **Add Food using AI** screen — tap the **AI** button on the Foods Table.
+- With **NIP mode** on (default), Claude follows a FSANZ-compliant NIP-extraction prompt and calls a `lookup_food` tool that queries the live Foods table for nutrient values on demand (no big knowledge-base attachment). Replies are Diet Sentry compatible NIP JSON and auto-pump straight into this screen.
+- If your message contains the word "recipe", Claude swaps to the recipe prompt and produces a Recipe JSON instead. Same auto-pump path; Confirm builds the recipe.
 - You can attach photos of labels or on-pack NIPs in the AI screen (the **+** button is multi-select) and Claude will read them.
-- If you'd rather use an external workflow, paid ChatGPT subscribers can use the "NIP generator" GPT (https://chatgpt.com → Explore GPTs) and copy-paste its reply into the text field above. The schema is the same.
-- You can hand-edit the JSON in the text field before pressing **Confirm** — for example, to tweak the FoodDescription, set/clear the liquid marker, or refine values. Just keep the JSON syntactically valid.
+- For an external workflow, paid ChatGPT subscribers can use the "NIP generator" GPT (https://chatgpt.com → Explore GPTs) and copy-paste its reply into the text field above. The NIP schema is the same.
+- You can hand-edit the JSON in the text field before pressing **Confirm** — for example, to tweak the FoodDescription or refine values. Just keep the JSON syntactically valid.
 """.trimIndent()
 
     Scaffold(
@@ -2685,6 +2822,30 @@ The recommended way to obtain JSON for this screen is to use the app's own **Add
                     val jsonPayload = jsonText.substring(jsonStart, jsonEnd + 1)
                     try {
                         val json = org.json.JSONObject(jsonPayload)
+                        if (json.optString("type") == "recipe") {
+                            insertRecipeFromRecipeJson(json, dbHelper).fold(
+                                onSuccess = { newDescription ->
+                                    val foodSearchEntry = runCatching {
+                                        navController.getBackStackEntry("foodSearch")
+                                    }.getOrNull()
+                                    if (foodSearchEntry != null) {
+                                        foodSearchEntry.savedStateHandle.set("foodInserted", true)
+                                        foodSearchEntry.savedStateHandle.set("foodInsertedDescription", newDescription)
+                                        foodSearchEntry.savedStateHandle.set("sortFoodsDescOnce", true)
+                                        navController.popBackStack("foodSearch", inclusive = false)
+                                    } else {
+                                        navController.previousBackStackEntry
+                                            ?.savedStateHandle
+                                            ?.set("foodInsertedDescription", newDescription)
+                                        navController.popBackStack()
+                                    }
+                                },
+                                onFailure = { e ->
+                                    showPlainToast(context, e.message ?: "Failed to insert recipe")
+                                }
+                            )
+                            return@Button
+                        }
                         val description = json.getString("FoodDescription").trim()
                         if (description.isBlank()) {
                             showPlainToast(context, "FoodDescription is required")
@@ -3530,14 +3691,18 @@ fun AddFoodByAiScreen(navController: NavController) {
 
     val aiHelpText = """
 # **Add Food using AI**
-- This screen connects your phone to **Anthropic's Claude** models. The behaviour depends on the **NIP mode** toggle in settings:
-  - **NIP mode ON (default):** the bundled NIP-generation system prompt (`app/src/main/assets/NIPsysprompt.txt`) plus the bundled `Nutrient.csv` knowledge base are sent as system context. Every reply is a Diet Sentry compatible JSON object inside a ```json``` code block, and the reply is **auto-pumped into the Json screen** so you can hit Confirm to add the food to the database. The chat reply stays here too — hit Back from the Json screen to keep iterating.
+- Connects your phone to **Anthropic's Claude** models. Behaviour depends on the **NIP mode** toggle in settings and on whether your message contains the word "recipe":
+  - **NIP mode ON, no "recipe":** the bundled NIP system prompt (`NIPsysprompt.txt`) is sent as system context. Claude calls a `lookup_food` tool that queries the live Foods table SQLite database for nutrient values on demand (no big knowledge-base attachment). Every reply is a Diet Sentry compatible JSON object inside a ```json``` code block and is **auto-pumped into the Json screen** so you can hit Confirm to add the food.
+  - **NIP mode ON, "recipe" in message:** Claude switches to the recipe prompt (`RECIPEsysprompt.txt`). The same `lookup_food` tool runs in *recipe mode* — pre-filtering out liquids and AI/user-added records (FoodDescriptions ending in `mL`, `mL#`, or `#`) so only solid, non-user-added foods can be picked as ingredients. The reply is a recipe JSON (`type: "recipe"`, `ingredients[]`) and auto-pumps into the Json screen too — Confirm there creates the recipe (a Foods row plus linked Recipe rows), then lands on the Foods Table with the new recipe highlighted.
   - **NIP mode OFF:** Claude is a general-purpose assistant. Replies stay in this chat; nothing is auto-pumped.
-- **Setup:** Tap the **gear** icon in the top bar, paste your Anthropic API key (from `console.anthropic.com`), pick a model, choose your toggles, and **Save**. The key is stored only on this device.
-- **Asking:** Type a food description (e.g. "Mainland Lite cheddar 250 g block") and tap **Send** (➤). In NIP mode Claude follows FSANZ Standard 1.2.8 / Schedules 11–12 rounding, returns per-100 g (solid) or per-100 mL (liquid) values, and appends `(AI) #` or `(AI) mL#` to the FoodDescription so AI-generated entries are easy to spot in the Foods table.
-- **Attaching images:** Tap **+** at the left of the input to attach photos of food labels or on-pack NIPs. The picker is multi-select — long-press to select multiple, then **Done**. Large photos are downsized before sending.
-- **Web search:** When enabled in settings, Claude looks up the manufacturer or retailer's official product page first and copies the on-pack values verbatim. AFCD/NUTTAB are used as fallbacks. ~\$0.01 per search, capped at $WEB_SEARCH_MAX_USES per turn.
-- The chat is in-memory only — leaving this screen clears it. Settings (key, model, toggles) persist across app launches.
+- **Setup:** Tap the **gear** icon, paste your Anthropic API key (from `console.anthropic.com`), pick a model (Opus 4.7 / Sonnet 4.6 / Haiku 4.5), choose your toggles, and **Save**. The key is stored only on this device. All five settings (key, model, Web search, NIP mode, Extended thinking) persist across launches.
+- **Asking:** Type a food description (e.g. "Mainland Lite cheddar 250 g block") and tap **Send** (➤). In NIP mode Claude follows FSANZ Standard 1.2.8 / Schedules 11–12 rounding and returns per-100 g (solid) or per-100 mL (liquid) values. AI-sourced rows are tagged in the FoodDescription: `(AI) #` (solid), `(AI) mL#` (liquid), or ` (AI) {recipe=Xg}` (recipe). The `(AI)` substring makes AI-sourced rows easy to filter on in the Foods Table.
+- **Attaching images:** Tap **+** at the left of the input to attach photos of food labels or on-pack NIPs. The picker is multi-select — long-press, then **Done**. Large photos are downsized before sending.
+- **Web search** (toggle in settings): Claude looks up the manufacturer or retailer's official product page first and copies on-pack values verbatim. AFCD/NUTTAB and the `lookup_food` tool are used as fallbacks. ~\$0.01 per search, capped at $WEB_SEARCH_MAX_USES per turn.
+- **Extended thinking** (toggle in settings): gives Claude an adaptive thinking budget for harder reasoning tasks. Effective on Opus 4.7 / Sonnet 4.6 — the toggle is automatically disabled when Haiku 4.5 is selected, since it doesn't support thinking.
+- **Live tool-call indicator:** while a query is processing, the loading row stacks lines like "Looking up '<query>' in the Foods table…" (each `lookup_food` call) and "Searched the web: '<query>'" (each web search) so you can see what Claude is doing.
+- **Cost transparency:** the small status row at the top of this screen shows the cumulative session cost (e.g. "Session cost: \$0.0143 (3 turns)"). Per-call cost is also appended to each reply's JSON `notes` field, so it rides through to the Foods table when you Confirm.
+- The chat is in-memory only — leaving this screen clears it.
 """.trimIndent()
 
     Scaffold(
