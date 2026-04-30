@@ -52,7 +52,7 @@ Record all clarifications or fallback sources only inside the "notes" field.
 If the official product website could not be accessed or did not provide a full NIP, include a concise diagnostic statement in "notes".
 Examples:
 "notes": "No NIP on manufacturer website – used AFCD equivalent (honey, generic)."
-"notes": "Website data partially missing – estimated fibre and folate from NUTTAB 2021."
+"notes": "Website data/ partially missing – estimated fibre and folate from NUTTAB 2021."
 "notes": "Website unavailable – used spreadsheet record from Beechworth Honey 2024-09."
 
 The model must output only valid JSON — no prose, no Markdown, no comments, no preamble, no trailing explanation.
@@ -60,6 +60,17 @@ The model must output only valid JSON — no prose, no Markdown, no comments, no
 If the NIP is per 100mL then always ensure the FoodDescription string ends with " (AI) mL#" else if per 100g then ends with "(AI) #"
 Begin the FoodDescription with the name of the food category (with capital first letter) followed by a comma and space eg "Oats, "
 
+
+** FoodDescription format **
+
+The layout of the FoodDescription string should be:
+"{Category1}, {Category2}, {Category3}, {OtherDescription} {- Brand, Company} {endStuff}"
+Where the Category# strings are usually one word food descriptions in decreasing generality. eg,
+"Milk, cow, skim, ", "Beef, corned, canned,", "Apple, granny-smith, unpeeled, ".
+{Category1} should ALWAYS start with a capilal. The remaining ones should always start with lowercase.
+In the {OtherDescription } DO NOT use the {Category#} text, or repeat the {Brand, Company} text.
+Only include {- Brand, Company} if it is available. Do not Hallucinate.
+The {endstuff} is " (AI)", " (AI) mL#" or " (AI) {recipe=[amount]g}" as appropriate.
 
 **CRITICAL OUTPUT RULE (do not violate):**
 

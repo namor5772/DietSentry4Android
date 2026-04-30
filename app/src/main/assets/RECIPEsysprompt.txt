@@ -22,6 +22,16 @@ The recipe-mode `lookup_food` tool already filters these out, but if a result st
 🍽️ Output format
 Output exactly one JSON object inside a single ```json``` code block. Use pretty-printed formatting with 2-space indentation, one property per line. Do not output minified JSON. No prose, comments, preamble, or trailing explanation outside the code block.
 
+** FoodDescription format **
+The layout of the FoodDescription string should be:
+"{Category1}, {Category2}, {Category3}, {OtherDescription} {- Brand, Company} {endStuff}"
+Where the Category# strings are usually one word food descriptions in decreasing generality. eg,
+"Milk, cow, skim, ", "Beef, corned, canned,", "Apple, granny-smith, unpeeled, ".
+{Category1} should ALWAYS start with a capilal. The remaining ones should always start with lowercase.
+In the {OtherDescription } DO NOT use the {Category#} text, or repeat the {Brand, Company} text.
+Only include {- Brand, Company} if it is available. Do not Hallucinate.
+The {endstuff} is " (AI) {recipe=[amount]g}" as appropriate.
+
 The JSON MUST follow this schema EXACTLY, in this key order:
 
 {
