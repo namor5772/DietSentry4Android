@@ -515,7 +515,6 @@ The remaining (**Energy** and **Nutrient fields**) are the same as for the corre
             enableWebSearch = false,
             nipMode = true,
             primaryPrompt = explainSystemPrompt,
-            knowledgeBlock = "",
             generalSystemPrompt = "",
             extendedThinking = false,
             enableFoodLookupTool = false,
@@ -3213,7 +3212,6 @@ private data class AiChatMessage(
 private data class AiSystemContent(
     val nipPrompt: String,
     val recipePrompt: String,
-    val nutrientCsv: String
 )
 
 private data class AiUsage(
@@ -3280,12 +3278,7 @@ private fun loadAiSystemContent(context: Context): AiSystemContent {
     } catch (_: Exception) {
         ""
     }
-    val csv = try {
-        context.assets.open("Nutrient.csv").bufferedReader().use { it.readText() }
-    } catch (_: Exception) {
-        ""
-    }
-    return AiSystemContent(nip, recipe, csv)
+    return AiSystemContent(nip, recipe)
 }
 
 private fun loadExplainSystemPrompt(context: Context): String {
@@ -3347,13 +3340,6 @@ private fun formatDailyTotalsForAi(
     sb.append("\nPlease explain my nutritional intake for this day.")
     return sb.toString()
 }
-
-private fun buildFullKnowledgeBlock(csv: String): String =
-    "## Knowledge base — Nutrient.csv\n\n" +
-    "The following CSV is the AFCD/NUTTAB-derived primary reference table for foods. " +
-    "Each row matches the Diet Sentry Foods table schema (per 100 g for solids, per 100 mL for liquids). " +
-    "Use it as the primary data source per the rules in the system instructions above — search this table first by FoodDescription before falling back to AFCD/NUTTAB or other sources.\n\n" +
-    "```csv\n$csv\n```"
 
 private data class GeneralPromptParts(val base: String, val webSearchClause: String)
 
@@ -3496,7 +3482,6 @@ private fun buildAnthropicRequestJson(
     enableWebSearch: Boolean,
     nipMode: Boolean,
     primaryPrompt: String,
-    knowledgeBlock: String,
     generalSystemPrompt: String,
     extendedThinking: Boolean,
     enableFoodLookupTool: Boolean
@@ -3512,21 +3497,7 @@ private fun buildAnthropicRequestJson(
                 .put("display", "summarized")
         )
     }
-    if (nipMode && knowledgeBlock.isNotEmpty()) {
-        val sysArr = org.json.JSONArray()
-        sysArr.put(
-            org.json.JSONObject()
-                .put("type", "text")
-                .put("text", primaryPrompt)
-        )
-        sysArr.put(
-            org.json.JSONObject()
-                .put("type", "text")
-                .put("text", knowledgeBlock)
-                .put("cache_control", org.json.JSONObject().put("type", "ephemeral"))
-        )
-        root.put("system", sysArr)
-    } else if (nipMode) {
+    if (nipMode) {
         root.put("system", primaryPrompt)
     } else {
         root.put("system", generalSystemPrompt)
@@ -3564,7 +3535,6 @@ private suspend fun callAnthropicApi(
     enableWebSearch: Boolean,
     nipMode: Boolean,
     primaryPrompt: String,
-    knowledgeBlock: String,
     generalSystemPrompt: String,
     extendedThinking: Boolean,
     enableFoodLookupTool: Boolean,
@@ -3594,7 +3564,7 @@ private suspend fun callAnthropicApi(
             }
             val body = buildAnthropicRequestJson(
                 model, workingMessages, enableWebSearch, nipMode,
-                primaryPrompt, knowledgeBlock, generalSystemPrompt, extendedThinking,
+                primaryPrompt, generalSystemPrompt, extendedThinking,
                 enableFoodLookupTool
             )
             android.util.Log.d("AnthropicRequest", body)
@@ -3883,7 +3853,7 @@ private fun AiSettingsDialog(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("NIP mode", style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            "On: use the bundled NIP-extraction prompt + Nutrient.csv knowledge base; replies are JSON and auto-pumped into the Json screen for one-tap Confirm. Off: Claude is a general-purpose assistant.",
+                            "On: use the bundled NIP-extraction prompt with the lookup_food tool against the live foods.db; replies are JSON and auto-pumped into the Json screen for one-tap Confirm. Off: Claude is a general-purpose assistant.",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -4233,28 +4203,20 @@ fun AddFoodByAiScreen(navController: NavController) {
                                 sysContent.recipePrompt.isNotBlank()
                             val effectiveNipMode = nipModeEnabled || recipeIntent
                             val activePrompt: String
-                            val activeKnowledgeBlock: String
                             val enableFoodLookupTool: Boolean
                             when {
                                 recipeIntent -> {
                                     activePrompt = sysContent.recipePrompt
-                                    // Recipe mode now uses lookup_food against the live Foods
-                                    // table (no NutrientSMALL.csv attachment). The tool runs
-                                    // in recipeMode=true so it pre-filters out liquids and
-                                    // #-suffixed records before Claude sees the matches.
-                                    activeKnowledgeBlock = ""
+                                    // recipeMode=true filters liquids and #-suffixed (AI/user-added)
+                                    // rows out of lookup_food results before Claude sees them.
                                     enableFoodLookupTool = true
                                 }
                                 nipModeEnabled -> {
                                     activePrompt = sysContent.nipPrompt
-                                    // NIP mode: no longer attaches the full Nutrient.csv. Claude calls the
-                                    // lookup_food tool for specific micronutrient lookups instead.
-                                    activeKnowledgeBlock = ""
                                     enableFoodLookupTool = true
                                 }
                                 else -> {
                                     activePrompt = ""
-                                    activeKnowledgeBlock = ""
                                     enableFoodLookupTool = false
                                 }
                             }
@@ -4268,7 +4230,7 @@ fun AddFoodByAiScreen(navController: NavController) {
                             scope.launch {
                                 val result = callAnthropicApi(
                                     apiKey, model, messages, webSearchEnabled,
-                                    effectiveNipMode, activePrompt, activeKnowledgeBlock, generalSystemPrompt,
+                                    effectiveNipMode, activePrompt, generalSystemPrompt,
                                     extendedThinkingEnabled,
                                     enableFoodLookupTool, dbHelper, recipeIntent,
                                     onToolEvent = { status -> toolStatusHistory = toolStatusHistory + status }
