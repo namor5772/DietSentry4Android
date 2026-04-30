@@ -158,6 +158,7 @@ private const val KEY_AI_USE_NIP_PROMPT = "aiUseNipPrompt"
 private const val DEFAULT_AI_USE_NIP_PROMPT = true
 private const val KEY_AI_EXTENDED_THINKING = "aiExtendedThinking"
 private const val DEFAULT_AI_EXTENDED_THINKING = false
+private const val KEY_AI_USER_PROFILE = "aiUserProfile"
 
 // Models for which Anthropic accepts `thinking: {type: "adaptive", ...}` on /v1/messages.
 // Haiku 4.5 is NOT on this list — sending the thinking field with that model yields HTTP 400.
@@ -394,7 +395,20 @@ The GUI elements on the screen are (starting at the top left hand corner and wor
         - It opens a dialog which warns you that you will be deleting the selected food log from the Eaten table.
         - This is irrevocable if you press the **Delete** button.
         - You can change you mind about doing this by just tapping anywhere outside the dialog box. This closes it and returns focus to the Eaten Table screen. The selection panel (with the Edit and Deleted buttons) is also closed.
-    - If food logs consolidated by date are displayed (ie. the "Daily totals" check box is ticked), selection for editing or deletion is not possible, so nothing happens.       
+    - If food logs consolidated by date are displayed (ie. the "Daily totals" check box is ticked), selection for editing or deletion is not possible. Instead, tapping a day's daily totals card opens a bottom sheet with two actions (see next section).
+***
+# **AI explanation of a day's daily totals**
+When the **Daily totals** checkbox is ticked, tapping any day's totals card slides up a bottom sheet from the bottom of the screen with two actions:
+- **Explain this day (AI)** — sends the day's complete totals (all 24 nutrient values, the total amount eaten, and any recorded weight + weight comments) plus your **profile** text (see below) to Anthropic's Claude. The reply — 2 to 3 short paragraphs assessing intake against Australian NHMRC NRVs — appears in a dialog with the per-call API cost shown underneath. Requires an Anthropic API key set on the **Add Food using AI** screen (gear icon).
+- **Edit my profile** — opens a free-text editor (the **Custom Instructions** field) for a small persistent paragraph that describes you (e.g. "age 67 male, weight 89kg, dietary goals: low sodium"). The text is sent alongside each daily totals query so Claude can tailor its assessment. Empty profile is fine — Claude will give general adult Australian guidance. The text persists across app launches.
+
+**Settings used by this flow:**
+- **API key** and **model** are read from the AI Settings dialog on the **Add Food using AI** screen — switching from Sonnet 4.6 to Haiku 4.5 over there changes the next Explain call too.
+- **User profile** persists in SharedPreferences under `KEY_AI_USER_PROFILE`.
+- **Web search** and **Extended thinking** toggles are *not* honoured by this flow — they're hardcoded off so each Explain call has a predictable cost (~\$0.01 on Sonnet 4.6, ~\$0.003 on Haiku 4.5). Those toggles still apply to the AI chat screen.
+- **System prompt** is always `EXPLAINsysprompt.txt` (different from the AI chat's NIP/Recipe/General prompts) — the NIP-mode toggle in AI Settings has no effect here.
+
+The system prompt is bundled at `app/src/main/assets/EXPLAINsysprompt.txt` and instructs Claude to use NHMRC NRVs, Australian English, and to flag nutrients that are notably under- or over-consumed (e.g. saturated fat above ~22 g, sodium above ~2300 mg, alcohol present in non-trivial amounts).
 ***
 # **Eaten table structure**
 ```
@@ -468,6 +482,57 @@ The remaining (**Energy** and **Nutrient fields**) are the same as for the corre
                 dbHelper.readWeights()
             }
         }
+    }
+
+    // Daily-totals AI explain state — populated when the user taps a daily-totals card.
+    var selectedDailyTotals by remember { mutableStateOf<DailyTotals?>(null) }
+    var explanationDailyTotals by remember { mutableStateOf<DailyTotals?>(null) }
+    var explanationState by remember { mutableStateOf<EatenExplanationState>(EatenExplanationState.Idle) }
+    var showProfileDialog by remember { mutableStateOf(false) }
+    val explainSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val explainSystemPrompt = remember { loadExplainSystemPrompt(context) }
+    val sheetScope = rememberCoroutineScope()
+
+    LaunchedEffect(explanationDailyTotals) {
+        val totals = explanationDailyTotals ?: return@LaunchedEffect
+        val apiKey = sharedPreferences.getString(KEY_ANTHROPIC_API_KEY, null)
+        if (apiKey.isNullOrBlank()) {
+            explanationState = EatenExplanationState.Error(
+                "No Anthropic API key set.\nGo to Foods Table → AI button → gear icon to add your key."
+            )
+            return@LaunchedEffect
+        }
+        val model = sharedPreferences.getString(KEY_ANTHROPIC_MODEL, DEFAULT_ANTHROPIC_MODEL)
+            ?: DEFAULT_ANTHROPIC_MODEL
+        val userProfile = sharedPreferences.getString(KEY_AI_USER_PROFILE, "") ?: ""
+        val weightEntry = weightByDate[totals.date]
+        val userMessage = formatDailyTotalsForAi(totals, weightEntry, userProfile)
+        explanationState = EatenExplanationState.Loading
+        val result = callAnthropicApi(
+            apiKey = apiKey,
+            model = model,
+            messages = listOf(AiChatMessage(role = "user", text = userMessage)),
+            enableWebSearch = false,
+            nipMode = true,
+            primaryPrompt = explainSystemPrompt,
+            knowledgeBlock = "",
+            generalSystemPrompt = "",
+            extendedThinking = false,
+            enableFoodLookupTool = false,
+            dbHelper = null,
+            recipeMode = false
+        )
+        explanationState = result.fold(
+            onSuccess = { response ->
+                EatenExplanationState.Success(
+                    text = response.text,
+                    costUsd = computeAiCostUsd(response.usage, model)
+                )
+            },
+            onFailure = { e ->
+                EatenExplanationState.Error(e.message ?: "Unknown error")
+            }
+        )
     }
 
     BackHandler(enabled = selectedEatenFood != null) {
@@ -578,7 +643,8 @@ The remaining (**Energy** and **Nutrient fields**) are the same as for the corre
                                 showNutritionalInfo = showNutritionalInfo,
                                 showExtraNutrients = showExtraNutrients,
                                 weightEntry = weightEntry,
-                                showWeightComments = showExtraNutrients
+                                showWeightComments = showExtraNutrients,
+                                onClick = { selectedDailyTotals = totals }
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                         }
@@ -685,6 +751,156 @@ The remaining (**Energy** and **Nutrient fields**) are the same as for the corre
             DatePicker(state = filterDatePickerState)
         }
     }
+
+    // Action sheet shown when a daily-totals card is tapped.
+    val sheetTotals = selectedDailyTotals
+    if (sheetTotals != null) {
+        ModalBottomSheet(
+            onDismissRequest = { selectedDailyTotals = null },
+            sheetState = explainSheetState
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp)) {
+                Text(
+                    text = "${sheetTotals.date} — ${formatNumber(sheetTotals.amountEaten, decimals = 1)} ${sheetTotals.unitLabel}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            // Animate the sheet closed before opening the result
+                            // dialog, so the modal-focus stack unwinds cleanly.
+                            val t = sheetTotals
+                            sheetScope.launch {
+                                explainSheetState.hide()
+                                selectedDailyTotals = null
+                                explanationDailyTotals = t
+                            }
+                        }
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Explain this day (AI)",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            // Animate the sheet closed before opening the profile
+                            // dialog, otherwise the AlertDialog's TextField fails
+                            // to claim window focus and the cursor doesn't appear.
+                            sheetScope.launch {
+                                explainSheetState.hide()
+                                selectedDailyTotals = null
+                                showProfileDialog = true
+                            }
+                        }
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Edit my profile",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
+        }
+    }
+
+    // Result dialog for the explanation request.
+    if (explanationState !is EatenExplanationState.Idle) {
+        AlertDialog(
+            onDismissRequest = {
+                explanationState = EatenExplanationState.Idle
+                explanationDailyTotals = null
+            },
+            title = {
+                Text(
+                    when (explanationState) {
+                        is EatenExplanationState.Loading -> "Analysing…"
+                        is EatenExplanationState.Success -> "Daily totals explanation"
+                        is EatenExplanationState.Error -> "Error"
+                        else -> ""
+                    }
+                )
+            },
+            text = {
+                when (val state = explanationState) {
+                    is EatenExplanationState.Loading -> {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                    is EatenExplanationState.Success -> {
+                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                            Text(text = state.text)
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = "API cost: ${formatUsdCost(state.costUsd)}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                    is EatenExplanationState.Error -> {
+                        Text(text = state.message)
+                    }
+                    else -> {}
+                }
+            },
+            confirmButton = {
+                if (explanationState !is EatenExplanationState.Loading) {
+                    TextButton(onClick = {
+                        explanationState = EatenExplanationState.Idle
+                        explanationDailyTotals = null
+                    }) { Text("OK") }
+                }
+            }
+        )
+    }
+
+    // Profile editor — mirrors the BloodPressureTracker "Custom Instructions"
+    // field: OutlinedTextField in a Column inside AlertDialog.text, with
+    // minLines=4 / maxLines=4 (fixed height, no placeholder).
+    if (showProfileDialog) {
+        var profileText by remember {
+            mutableStateOf(sharedPreferences.getString(KEY_AI_USER_PROFILE, "") ?: "")
+        }
+        AlertDialog(
+            onDismissRequest = { showProfileDialog = false },
+            title = { Text("My profile") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = profileText,
+                        onValueChange = { profileText = it },
+                        label = { Text("Custom Instructions") },
+                        minLines = 4,
+                        maxLines = 4,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    sharedPreferences.edit {
+                        putString(KEY_AI_USER_PROFILE, profileText.trim())
+                    }
+                    showProfileDialog = false
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showProfileDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
 }
 
 data class DailyTotals(
@@ -764,12 +980,18 @@ fun DailyTotalsCard(
     showNutritionalInfo: Boolean,
     showExtraNutrients: Boolean,
     weightEntry: WeightEntry?,
-    showWeightComments: Boolean
+    showWeightComments: Boolean,
+    onClick: (() -> Unit)? = null
 ) {
     val weightText = weightEntry?.let { formatWeight(it.weight) } ?: "NA"
     val commentsText = weightEntry?.comments?.trim()
+    val cardModifier = if (onClick != null) {
+        Modifier.fillMaxWidth().clickable(onClick = onClick)
+    } else {
+        Modifier.fillMaxWidth()
+    }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = cardModifier,
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -2776,9 +2998,34 @@ AI-generated recipes also get ` (AI)` appended to the recipe's FoodDescription b
 
 NOTE: **Any line feeds, tabs and spaces outside of "any text" are entirely optional** — minified JSON works too.
 
-- Tap **Confirm** to process the JSON. Focus passes to the **Foods Table** screen with the filter set to the new food's (or recipe's) description, so it's visible and selectable.
-    - For **NIP food JSON**, errors show as a Toast: "Please paste valid JSON" or "Invalid JSON or missing fields".
-    - For **Recipe JSON**, errors are more specific Toasts, e.g. "FoodId 12345 not in Foods table", "FoodId 12345 is a liquid; recipes need solids", or "ingredients[2] AmountUsed must be > 0". Validation is atomic — a single bad ingredient rejects the whole recipe with no partial state.
+- Tap **Confirm** to process the JSON. Both shapes end on the **Foods Table** with the new food (or recipe) highlighted, but the processing in between is very different.
+
+**NIP food JSON pipeline (3 steps):**
+
+1. **Parse** — read the `FoodDescription` and the 24 nutrient fields from the JSON.
+2. **Insert** — write one row to the **Foods** table with those values exactly. No lookup, no scaling, no linking — the JSON *is* the Foods row.
+3. **Navigate** — pop back to the Foods Table with the new food highlighted via the filter.
+
+Errors show as a Toast: `"Please paste valid JSON"` if there are no JSON braces, or `"Invalid JSON or missing fields"` if any of the 24 nutrient fields is missing or non-numeric.
+
+**Recipe JSON pipeline (8 steps)** — produces the same database state as building the recipe by hand on the **Add Recipe** screen, just driven from JSON instead of taps:
+
+1. **Detect** the `type: "recipe"` discriminator at the top of the JSON. Without that key the JSON falls through to the NIP pipeline above.
+2. **Resolve every ingredient** against the live Foods table — for each entry in `ingredients[]`:
+    - `FoodId > 0` and `AmountUsed > 0` (in grams).
+    - The `FoodId` resolves to an actual Food row via `getFoodById(FoodId)`.
+    - The resolved Food is **solid** — its `FoodDescription` must not end in `mL` or `mL#`. Same gram-only rule the manual **Add Recipe** screen enforces with its "Only foods measured in grams can be added to a recipe" dialog.
+3. **Atomic check** — if *any* ingredient fails validation, a specific Toast appears (e.g. `"FoodId 12345 not in Foods table"`, `"FoodId 12345 is a liquid; recipes need solids"`, `"ingredients[2] AmountUsed must be > 0"`) and the whole recipe is rejected. **No database writes happen** — there is no partial state to clean up.
+4. **Stage Recipe rows** — for each validated ingredient, write one row into the **Recipe** table with `FoodId = 0` (a temp marker, the link target isn't known yet), `Amount = AmountUsed`, `FoodDescription` copied from the resolved Food, and all 24 nutrient fields **scaled by `AmountUsed / 100`** (so a 250 g ingredient stores nutrient values that are 2.5× the per-100 g values from its Food row).
+5. **Aggregate** — sum the per-row nutrient values across all staged Recipe rows (that's the recipe's total nutrient mass at its natural weight). Compute `totalAmount = sum of AmountUsed` (in g) and a scaling factor `scale = 100 / totalAmount`.
+6. **Build the parent Food row** with:
+    - `FoodDescription = "<JSON's FoodDescription> (AI) {recipe=<totalAmount>g}"`. The ` (AI)` marker tags this row as AI-generated; the trailing `{recipe=<weight>g}` marker is the standard recipe identifier the rest of the app reads.
+    - The 24 nutrient fields = step 5's totals × `scale` — i.e. per 100 g of recipe.
+    - `notes` copied from the JSON (which already includes the API-cost annotation appended by the AI screen).
+7. **Insert the parent** via `insertFoodReturningId(...)` to get a fresh `FoodId`, then **link** the staged Recipe rows by running `UPDATE Recipe SET FoodId = <new id> WHERE FoodId = 0` — every staged row now points back at the parent. (The same staging-and-link pattern the manual Add Recipe screen uses on its Confirm.)
+8. **Navigate** to the Foods Table with the new recipe highlighted, using the same `foodInserted`, `foodInsertedDescription`, and `sortFoodsDescOnce` saved-state-handle keys the manual Add Recipe screen sets — so the result feels identical regardless of how the recipe was built.
+
+The end state in `foods.db` is byte-identical to clicking Confirm on the manual Add Recipe screen with the same ingredients and amounts. There is no separate "AI recipe" code path in the database — the only visible difference is the ` (AI)` substring in the FoodDescription, which lets you spot AI-built recipes in the Foods Table.
 - **To abort any actions on this screen** press either of the two "back" buttons. Destination depends on how you got here:
     - If you came in via the **Json** button: you return to the Foods Table.
     - If you came in via the AI auto-pump: you return to the **Add Food using AI** chat with your conversation preserved, so you can iterate (e.g. ask for a corrected JSON).
@@ -3039,6 +3286,66 @@ private fun loadAiSystemContent(context: Context): AiSystemContent {
         ""
     }
     return AiSystemContent(nip, recipe, csv)
+}
+
+private fun loadExplainSystemPrompt(context: Context): String {
+    return try {
+        context.assets.open("EXPLAINsysprompt.txt").bufferedReader().use { it.readText() }
+    } catch (_: Exception) {
+        "You are a friendly nutrition assistant for the Diet Sentry food tracking app. Briefly explain the user's daily food totals against Australian NHMRC NRVs in 2–3 plain-language paragraphs."
+    }
+}
+
+private sealed interface EatenExplanationState {
+    data object Idle : EatenExplanationState
+    data object Loading : EatenExplanationState
+    data class Success(val text: String, val costUsd: Double) : EatenExplanationState
+    data class Error(val message: String) : EatenExplanationState
+}
+
+private fun formatDailyTotalsForAi(
+    totals: DailyTotals,
+    weightEntry: WeightEntry?,
+    userProfile: String
+): String {
+    val sb = StringBuilder()
+    sb.append("My daily food totals:\n")
+    sb.append("Date: ${totals.date}\n")
+    sb.append("Total amount eaten: ${formatNumber(totals.amountEaten, decimals = 1)} ${totals.unitLabel}\n")
+    sb.append("Energy: ${formatNumber(totals.energy, decimals = 0)} kJ\n")
+    sb.append("Protein: ${formatNumber(totals.protein, decimals = 1)} g\n")
+    sb.append("Fat, total: ${formatNumber(totals.fatTotal, decimals = 1)} g\n")
+    sb.append("Saturated fat: ${formatNumber(totals.saturatedFat, decimals = 1)} g\n")
+    sb.append("Trans fat: ${formatNumber(totals.transFat, decimals = 1)} mg\n")
+    sb.append("Polyunsaturated fat: ${formatNumber(totals.polyunsaturatedFat, decimals = 1)} g\n")
+    sb.append("Monounsaturated fat: ${formatNumber(totals.monounsaturatedFat, decimals = 1)} g\n")
+    sb.append("Carbohydrate: ${formatNumber(totals.carbohydrate, decimals = 1)} g\n")
+    sb.append("Sugars: ${formatNumber(totals.sugars, decimals = 1)} g\n")
+    sb.append("Dietary fibre: ${formatNumber(totals.dietaryFibre, decimals = 1)} g\n")
+    sb.append("Sodium (Na): ${formatNumber(totals.sodiumNa, decimals = 0)} mg\n")
+    sb.append("Calcium (Ca): ${formatNumber(totals.calciumCa, decimals = 0)} mg\n")
+    sb.append("Potassium (K): ${formatNumber(totals.potassiumK, decimals = 0)} mg\n")
+    sb.append("Thiamin (B1): ${formatNumber(totals.thiaminB1, decimals = 2)} mg\n")
+    sb.append("Riboflavin (B2): ${formatNumber(totals.riboflavinB2, decimals = 2)} mg\n")
+    sb.append("Niacin (B3): ${formatNumber(totals.niacinB3, decimals = 2)} mg\n")
+    sb.append("Folate: ${formatNumber(totals.folate, decimals = 0)} µg\n")
+    sb.append("Iron (Fe): ${formatNumber(totals.ironFe, decimals = 1)} mg\n")
+    sb.append("Magnesium (Mg): ${formatNumber(totals.magnesiumMg, decimals = 0)} mg\n")
+    sb.append("Vitamin C: ${formatNumber(totals.vitaminC, decimals = 1)} mg\n")
+    sb.append("Caffeine: ${formatNumber(totals.caffeine, decimals = 0)} mg\n")
+    sb.append("Cholesterol: ${formatNumber(totals.cholesterol, decimals = 0)} mg\n")
+    sb.append("Alcohol: ${formatNumber(totals.alcohol, decimals = 1)} g\n")
+    if (weightEntry != null) {
+        sb.append("My weight that day: ${formatWeight(weightEntry.weight)} kg\n")
+        if (weightEntry.comments.isNotBlank()) {
+            sb.append("Weight notes: ${weightEntry.comments.trim()}\n")
+        }
+    }
+    if (userProfile.isNotBlank()) {
+        sb.append("\nMy personal profile:\n${userProfile.trim()}\n")
+    }
+    sb.append("\nPlease explain my nutritional intake for this day.")
+    return sb.toString()
 }
 
 private fun buildFullKnowledgeBlock(csv: String): String =
@@ -3702,6 +4009,7 @@ fun AddFoodByAiScreen(navController: NavController) {
 - **Extended thinking** (toggle in settings): gives Claude an adaptive thinking budget for harder reasoning tasks. Effective on Opus 4.7 / Sonnet 4.6 — the toggle is automatically disabled when Haiku 4.5 is selected, since it doesn't support thinking.
 - **Live tool-call indicator:** while a query is processing, the loading row stacks lines like "Looking up '<query>' in the Foods table…" (each `lookup_food` call) and "Searched the web: '<query>'" (each web search) so you can see what Claude is doing.
 - **Cost transparency:** the small status row at the top of this screen shows the cumulative session cost (e.g. "Session cost: \$0.0143 (3 turns)"). Per-call cost is also appended to each reply's JSON `notes` field, so it rides through to the Foods table when you Confirm.
+- **Cross-feature** — the **Eaten Table** screen reuses your API key + model (set here) for an *Explain this day (AI)* flow on daily totals. That flow is a single-shot single-message call (no tools, no thinking, no web search) driven by the bundled `EXPLAINsysprompt.txt` system prompt; the Web search / Extended thinking / NIP-mode toggles above don't apply to it. See the Eaten Table's `?` help for details.
 - The chat is in-memory only — leaving this screen clears it.
 """.trimIndent()
 

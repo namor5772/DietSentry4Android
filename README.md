@@ -15,6 +15,7 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
   - Toggle `Daily totals` to aggregate by date.
   - Toggle `Filter by date` and choose a date from the date picker.
   - Edit/delete individual log entries when daily totals are off.
+  - With `Daily totals` ticked, tap any day's totals card to slide up a bottom sheet with **Explain this day (AI)** and **Edit my profile** actions — the AI assesses the day's intake against Australian NHMRC NRVs in 2–3 short paragraphs, personalised by a free-text user profile (e.g. "age 67 male, weight 89kg, dietary goals: low sodium") that persists across launches.
 - Utilities:
   - `Export db`: export internal `foods.db`.
   - `Import db`: replace the internal database from external `foods.db`.
@@ -64,6 +65,7 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
   - **Web search** (`web_search_20250305`) is wired as an optional Anthropic-hosted tool.
   - **Extended thinking (adaptive)** is wired as an optional toggle for Sonnet 4.6 / Opus 4.7. Haiku 4.5 doesn't support extended thinking — the toggle is automatically disabled when Haiku is selected.
   - **Output token cap** (`max_tokens`) set to 16,384 to leave room for thinking + multi-iteration tool use + a full NIP JSON without truncation.
+  - **Daily totals explain flow**: a second AI entry point lives on the **Eaten Table** screen. With `Daily totals` ticked, tapping any day's card opens a bottom sheet with **Explain this day (AI)** and **Edit my profile** actions. Explain sends all 24 nutrient totals + total amount + weight + a free-text user profile to Claude using the bundled `EXPLAINsysprompt.txt` system prompt. Reuses the API key and model from the AI Settings dialog (`KEY_ANTHROPIC_API_KEY`, `KEY_ANTHROPIC_MODEL`); profile persists at `KEY_AI_USER_PROFILE`. Hardcodes web search and extended thinking off for cost predictability — typical cost is ~$0.01/call on Sonnet 4.6, ~$0.003 on Haiku 4.5. The bottom sheet → AlertDialog handoff uses `scope.launch { sheetState.hide() }` so the modal-focus stack unwinds cleanly before the TextField claims keyboard focus.
   - The app gains the `INTERNET` permission for the AI flow only; all other features remain offline.
 
 ## 3. Food type rules
@@ -121,6 +123,7 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
   - `foods.db` — SQLite seed database (also the live nutrient source the `lookup_food` AI tool queries via `DatabaseHelper.searchFoods`).
   - `NIPsysprompt.txt` — system prompt for AI NIP-mode replies (FSANZ Std 1.2.8 / Schedules 11–12 + JSON output schema, with explicit `lookup_food` tool guidance).
   - `RECIPEsysprompt.txt` — system prompt for AI recipe-mode replies (triggered when the user message contains "recipe"). Tells Claude to use `lookup_food` for ingredient lookup, the AFCD `Category, descriptor` query strategy, and the recipe JSON output schema (`type: "recipe"`, `ingredients[]`).
+  - `EXPLAINsysprompt.txt` — system prompt for the **Eaten Table → Daily totals → Explain this day (AI)** flow. Instructs Claude to assess the day's intake against Australian NHMRC NRVs in 2–3 plain-language paragraphs, in Australian English, flagging nutrients that are notably under- or over-consumed.
   - `NutrientSMALL.csv` — slim FoodId + FoodDescription index (~25K tokens). Bundled as a reference; no longer load-bearing at AI runtime since recipe mode now uses `lookup_food` against the live `foods.db`.
   - `GenericSysprompt.txt` + `GenericSysprompt_websearch.txt` — base + optional web-search clause for AI general-chat mode (NIP toggle off).
   - `Nutrient.csv` — full AFCD/NUTTAB nutrient table. Bundled as a reference document; no longer load-bearing at AI runtime since NIP mode now queries `foods.db` directly via the `lookup_food` tool.
