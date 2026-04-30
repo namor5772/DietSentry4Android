@@ -4228,7 +4228,8 @@ fun AddFoodByAiScreen(navController: NavController) {
                             }
                             val imagesToSend = pendingImages
                             val userMsg = AiChatMessage("user", txt, imagesToSend)
-                            val recipeIntent = txt.contains("recipe", ignoreCase = true) &&
+                            val recipeIntent = nipModeEnabled &&
+                                txt.contains("recipe", ignoreCase = true) &&
                                 sysContent.recipePrompt.isNotBlank()
                             val effectiveNipMode = nipModeEnabled || recipeIntent
                             val activePrompt: String
