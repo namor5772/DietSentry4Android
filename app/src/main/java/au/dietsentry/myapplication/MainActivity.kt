@@ -3559,7 +3559,7 @@ private suspend fun callAnthropicApi(
                 setRequestProperty("anthropic-version", ANTHROPIC_VERSION)
                 setRequestProperty("content-type", "application/json")
                 connectTimeout = 30_000
-                readTimeout = 120_000
+                readTimeout = 240_000
                 doOutput = true
             }
             val body = buildAnthropicRequestJson(
