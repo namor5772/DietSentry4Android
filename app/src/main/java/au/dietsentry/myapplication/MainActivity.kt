@@ -3281,6 +3281,10 @@ private fun loadAiSystemContent(context: Context): AiSystemContent {
     return AiSystemContent(nip, recipe)
 }
 
+private fun aiLog(tag: String, msg: String) {
+    if (BuildConfig.DEBUG) android.util.Log.d(tag, msg)
+}
+
 private fun loadExplainSystemPrompt(context: Context): String {
     return try {
         context.assets.open("EXPLAINsysprompt.txt").bufferedReader().use { it.readText() }
@@ -3567,13 +3571,13 @@ private suspend fun callAnthropicApi(
                 primaryPrompt, generalSystemPrompt, extendedThinking,
                 enableFoodLookupTool
             )
-            android.util.Log.d("AnthropicRequest", body)
+            aiLog("AnthropicRequest", body)
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
             val code = conn.responseCode
             if (code !in 200..299) {
                 val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-                android.util.Log.d("AnthropicResponse", "HTTP $code: $errBody")
+                aiLog("AnthropicResponse", "HTTP $code: $errBody")
                 val parsed = try {
                     org.json.JSONObject(errBody).optJSONObject("error")?.optString("message", "") ?: ""
                 } catch (_: Exception) { "" }
@@ -3582,7 +3586,7 @@ private suspend fun callAnthropicApi(
             }
 
             val text = conn.inputStream.bufferedReader().use { it.readText() }
-            android.util.Log.d("AnthropicResponse", text)
+            aiLog("AnthropicResponse", text)
             val json = org.json.JSONObject(text)
 
             val usageObj = json.optJSONObject("usage")
@@ -4246,7 +4250,7 @@ fun AddFoodByAiScreen(navController: NavController) {
                                         // block is present. Returns the reply unchanged otherwise.
                                         val annotatedReply = injectCostIntoJsonNotes(response.text, callCostUsd)
                                         messages = messages + AiChatMessage("assistant", annotatedReply)
-                                        android.util.Log.d(
+                                        aiLog(
                                             "AiAutoPump",
                                             "effectiveNipMode=$effectiveNipMode replyLen=${annotatedReply.length} firstOpen=${annotatedReply.indexOf('{')} lastClose=${annotatedReply.lastIndexOf('}')}"
                                         )
@@ -4260,15 +4264,15 @@ fun AddFoodByAiScreen(navController: NavController) {
                                             val openIdx = annotatedReply.indexOf('{')
                                             val closeIdx = annotatedReply.lastIndexOf('}')
                                             if (openIdx >= 0 && closeIdx > openIdx) {
-                                                android.util.Log.d("AiAutoPump", "navigating to addFoodByJson")
+                                                aiLog("AiAutoPump", "navigating to addFoodByJson")
                                                 sessionPrefilledJson = annotatedReply
                                                 sessionPrefilledJsonCost = callCostUsd
                                                 navController.navigate("addFoodByJson")
                                             } else {
-                                                android.util.Log.d("AiAutoPump", "no JSON braces found in reply — auto-pump skipped")
+                                                aiLog("AiAutoPump", "no JSON braces found in reply — auto-pump skipped")
                                             }
                                         } else {
-                                            android.util.Log.d("AiAutoPump", "effectiveNipMode is false — auto-pump skipped (NIP toggle off and no 'recipe' in message)")
+                                            aiLog("AiAutoPump", "effectiveNipMode is false — auto-pump skipped (NIP toggle off and no 'recipe' in message)")
                                         }
                                     }
                                     .onFailure { e ->
