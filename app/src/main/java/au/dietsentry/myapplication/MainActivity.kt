@@ -1022,6 +1022,26 @@ private enum class GraphMetric(
     ALCOHOL("Alcohol", "g", 1, { it.alcohol })
 }
 
+/**
+ * Material 3's DateRangePicker returns selected dates as UTC midnight. The
+ * Eaten Table's daily-totals timestamps are at *local* midnight (parsed via
+ * SimpleDateFormat in the JVM default timezone). Filtering one against the
+ * other directly drops days near timezone boundaries. This helper takes the
+ * picker's UTC-midnight value and returns the local-midnight value of the
+ * same calendar date.
+ */
+private fun pickerMillisToLocalMidnight(utcMillis: Long): Long {
+    val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    utcCal.timeInMillis = utcMillis
+    val year = utcCal.get(Calendar.YEAR)
+    val month = utcCal.get(Calendar.MONTH)
+    val day = utcCal.get(Calendar.DAY_OF_MONTH)
+    val localCal = Calendar.getInstance()
+    localCal.set(year, month, day, 0, 0, 0)
+    localCal.set(Calendar.MILLISECOND, 0)
+    return localCal.timeInMillis
+}
+
 private enum class DateRangePreset(val displayName: String) {
     LAST_WEEK("1W"),
     LAST_MONTH("1M"),
@@ -1123,7 +1143,15 @@ fun EatenGraphScreen(navController: NavController) {
                 ).minOrNull() ?: 0L
                 Pair(first, yesterdayEnd)
             }
-            DateRangePreset.CUSTOM -> Pair(customStartMillis ?: 0L, (customEndMillis ?: now) + dayMs)
+            DateRangePreset.CUSTOM -> {
+                // Convert UTC-midnight from the picker to local-midnight, then
+                // extend the end to the last millisecond of the selected end
+                // day so the chosen end date is inclusive (today is fine).
+                val startLocal = customStartMillis?.let(::pickerMillisToLocalMidnight) ?: 0L
+                val endLocal = customEndMillis?.let { pickerMillisToLocalMidnight(it) + dayMs - 1L }
+                    ?: (now + dayMs)
+                Pair(startLocal, endLocal)
+            }
         }
     }
 
@@ -1280,7 +1308,9 @@ fun EatenGraphScreen(navController: NavController) {
             val displayedRange: String? = when (selectedRange) {
                 DateRangePreset.CUSTOM ->
                     if (customStartMillis != null && customEndMillis != null) {
-                        "${labelFormatter.format(Date(customStartMillis!!))} — ${labelFormatter.format(Date(customEndMillis!!))}"
+                        val s = pickerMillisToLocalMidnight(customStartMillis!!)
+                        val e = pickerMillisToLocalMidnight(customEndMillis!!)
+                        "${labelFormatter.format(Date(s))} — ${labelFormatter.format(Date(e))}"
                     } else null
                 else ->
                     if (startMillis > 0L && endMillis >= startMillis) {
