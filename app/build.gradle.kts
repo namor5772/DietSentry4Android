@@ -60,6 +60,7 @@ dependencies {
     implementation(libs.commonmark.ext.gfm.strikethrough)
     implementation(libs.commonmark.ext.gfm.tables)
     implementation(libs.commonmark.ext.task.list.items)
+    implementation(libs.vico.compose.m3)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -46,11 +46,23 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.axis.HorizontalAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
+import com.patrykandpatrick.vico.compose.cartesian.data.columnSeries
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
+import com.patrykandpatrick.vico.compose.common.data.ExtraStore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -118,6 +130,7 @@ import org.commonmark.node.Text as MdText
 import org.commonmark.parser.Parser
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -298,6 +311,9 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("utilities") {
                         UtilitiesScreen(navController = navController)
+                    }
+                    composable("eatenGraph") {
+                        EatenGraphScreen(navController = navController)
                     }
                 }
             }
@@ -971,6 +987,439 @@ private fun aggregateDailyTotals(eatenFoods: List<EatenFood>): List<DailyTotals>
                 alcohol = items.sumOf { it.alcohol }
             )
         }
+}
+
+private enum class GraphMetric(
+    val displayName: String,
+    val unit: String,
+    val decimals: Int,
+    val extract: ((DailyTotals) -> Double)?
+) {
+    WEIGHT("My weight", "kg", 1, null),
+    AMOUNT("Amount", "g/mL", 1, { it.amountEaten }),
+    ENERGY("Energy", "kJ", 0, { it.energy }),
+    PROTEIN("Protein", "g", 1, { it.protein }),
+    FAT_TOTAL("Fat, total", "g", 1, { it.fatTotal }),
+    SATURATED_FAT("Saturated fat", "g", 1, { it.saturatedFat }),
+    TRANS_FAT("Trans fat", "mg", 1, { it.transFat }),
+    POLYUNSATURATED_FAT("Polyunsaturated fat", "g", 1, { it.polyunsaturatedFat }),
+    MONOUNSATURATED_FAT("Monounsaturated fat", "g", 1, { it.monounsaturatedFat }),
+    CARBOHYDRATE("Carbohydrate", "g", 1, { it.carbohydrate }),
+    SUGARS("Sugars", "g", 1, { it.sugars }),
+    DIETARY_FIBRE("Dietary fibre", "g", 1, { it.dietaryFibre }),
+    SODIUM_NA("Sodium (Na)", "mg", 0, { it.sodiumNa }),
+    CALCIUM_CA("Calcium (Ca)", "mg", 0, { it.calciumCa }),
+    POTASSIUM_K("Potassium (K)", "mg", 0, { it.potassiumK }),
+    THIAMIN_B1("Thiamin (B1)", "mg", 2, { it.thiaminB1 }),
+    RIBOFLAVIN_B2("Riboflavin (B2)", "mg", 2, { it.riboflavinB2 }),
+    NIACIN_B3("Niacin (B3)", "mg", 2, { it.niacinB3 }),
+    FOLATE("Folate", "µg", 0, { it.folate }),
+    IRON_FE("Iron (Fe)", "mg", 1, { it.ironFe }),
+    MAGNESIUM_MG("Magnesium (Mg)", "mg", 0, { it.magnesiumMg }),
+    VITAMIN_C("Vitamin C", "mg", 1, { it.vitaminC }),
+    CAFFEINE("Caffeine", "mg", 0, { it.caffeine }),
+    CHOLESTEROL("Cholesterol", "mg", 0, { it.cholesterol }),
+    ALCOHOL("Alcohol", "g", 1, { it.alcohol })
+}
+
+private enum class DateRangePreset(val displayName: String) {
+    LAST_WEEK("1W"),
+    LAST_MONTH("1M"),
+    LAST_3_MONTHS("3M"),
+    LAST_YEAR("1Y"),
+    ALL_TIME("All"),
+    CUSTOM("Custom")
+}
+
+private val graphHelpText = """
+# **Eaten Graph**
+Visualises a chosen nutrient (or Energy) per day from your Eaten Table over a chosen date range.
+
+## Controls
+- **Metric dropdown** — pick what to plot. Default is Energy (kJ). The dropdown lists, in order:
+  - **My weight (kg)** — daily weight from the Weight table (Utilities → Weight Table). Days without a weight entry are skipped, not zero-filled. A weight of exactly **0.1 kg** is treated as a "not measured" sentinel: it's **excluded from the Average / Min / Max stats** and from the y-axis range computation (so the chart's lower bound sits just below your real Min instead of at 0), and the day count line says "N of M days measured". Sentinel bars may sit below the visible y-range and not render. The **Total** row is omitted for weight (summing body weights across days is meaningless).
+- The **y-axis lower bound** is now a "nice" round value somewhat below the chart's Min (clamped to ≥ 0), so small variations between days are visually distinguishable. The bound auto-recomputes when you change metric or date range.
+  - **Amount (g/mL)** — total mass/volume of food eaten that day. The unit is approximate when a day mixes solids and liquids.
+  - **Energy (kJ)** and the 22 other nutrient fields tracked in the Foods table.
+- **Date range chips** — preset ranges (today is always excluded from presets, since the current day rarely has its full data yet — pick **Custom** if you want to include today):
+  - **1W** — the 7 days ending yesterday
+  - **1M** — the 30 days ending yesterday (default)
+  - **3M** — the 90 days ending yesterday
+  - **1Y** — the 365 days ending yesterday
+  - **All** — every day with logged data, ending yesterday
+  - **Custom** — opens a date-range picker; the picked from/to dates are honoured exactly
+- The **inclusive from–to dates** for the active range are displayed under the chips so you can see what window you're looking at.
+- The chart only shows days that actually have eaten records — gaps in your logging produce gaps in the bars (no zero-fill), since zero would imply you ate nothing on those days.
+- The **Summary** card below the chart shows total, average per day, max in a day, and min in a day over the selected range.
+
+## Notes
+- All data comes from your local Eaten Table — no network call. The graph is recomputed from `aggregateDailyTotals` once when this screen opens, so newly logged foods are picked up next time you visit.
+- The chart is drawn with the **Vico** charting library (column/bar chart). X-axis labels become sparser as the range gets longer (every 5th day for ~30, every 14th for ~90, every 30th for a year).
+""".trimIndent()
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EatenGraphScreen(navController: NavController) {
+    val context = LocalContext.current
+    val dbHelper = remember { DatabaseHelper.getInstance(context) }
+    val allDailyTotals = remember { aggregateDailyTotals(dbHelper.readEatenFoods()) }
+    val allWeights = remember { dbHelper.readWeights() }
+    val dateFormatter = remember { SimpleDateFormat("d-MMM-yy", Locale.getDefault()) }
+    val labelFormatter = remember { SimpleDateFormat("d MMM", Locale.getDefault()) }
+
+    var selectedMetric by remember { mutableStateOf(GraphMetric.ENERGY) }
+    var selectedRange by remember { mutableStateOf(DateRangePreset.LAST_MONTH) }
+    var customStartMillis by remember { mutableStateOf<Long?>(null) }
+    var customEndMillis by remember { mutableStateOf<Long?>(null) }
+    var showRangePicker by remember { mutableStateOf(false) }
+    var showHelpSheet by remember { mutableStateOf(false) }
+    var showMetricMenu by remember { mutableStateOf(false) }
+    val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val parsedTotals = remember(allDailyTotals) {
+        allDailyTotals.mapNotNull { totals ->
+            try {
+                val d = dateFormatter.parse(totals.date) ?: return@mapNotNull null
+                Pair(d.time, totals)
+            } catch (_: Exception) { null }
+        }.sortedBy { it.first }
+    }
+
+    val parsedWeights = remember(allWeights) {
+        allWeights.mapNotNull { entry ->
+            try {
+                val d = dateFormatter.parse(entry.dateWeight) ?: return@mapNotNull null
+                Pair(d.time, entry.weight)
+            } catch (_: Exception) { null }
+        }.sortedBy { it.first }
+    }
+
+    val now = remember { System.currentTimeMillis() }
+    val dayMs = 24L * 3600 * 1000
+    val todayStart = remember(now) {
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = now
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        cal.timeInMillis
+    }
+    // Presets end at the last millisecond of yesterday — today is excluded
+    // because the current day usually has incomplete data (you haven't
+    // finished eating yet). Custom is unaffected.
+    val yesterdayEnd = todayStart - 1L
+
+    val (startMillis, endMillis) = remember(selectedRange, customStartMillis, customEndMillis, todayStart, parsedTotals, parsedWeights) {
+        when (selectedRange) {
+            DateRangePreset.LAST_WEEK -> Pair(todayStart - 7 * dayMs, yesterdayEnd)
+            DateRangePreset.LAST_MONTH -> Pair(todayStart - 30 * dayMs, yesterdayEnd)
+            DateRangePreset.LAST_3_MONTHS -> Pair(todayStart - 90 * dayMs, yesterdayEnd)
+            DateRangePreset.LAST_YEAR -> Pair(todayStart - 365 * dayMs, yesterdayEnd)
+            DateRangePreset.ALL_TIME -> {
+                val first = listOfNotNull(
+                    parsedTotals.firstOrNull()?.first,
+                    parsedWeights.firstOrNull()?.first
+                ).minOrNull() ?: 0L
+                Pair(first, yesterdayEnd)
+            }
+            DateRangePreset.CUSTOM -> Pair(customStartMillis ?: 0L, (customEndMillis ?: now) + dayMs)
+        }
+    }
+
+    val filteredTotals = remember(parsedTotals, startMillis, endMillis) {
+        parsedTotals.filter { it.first in startMillis..endMillis }
+    }
+    val filteredWeights = remember(parsedWeights, startMillis, endMillis) {
+        parsedWeights.filter { it.first in startMillis..endMillis }
+    }
+
+    val seriesEntries = remember(selectedMetric, filteredTotals, filteredWeights) {
+        if (selectedMetric == GraphMetric.WEIGHT) {
+            filteredWeights.map { it.first to it.second.toFloat() }
+        } else {
+            val extract = selectedMetric.extract!!
+            filteredTotals.map { it.first to extract(it.second).toFloat() }
+        }
+    }
+
+    val yValues = remember(seriesEntries) { seriesEntries.map { it.second } }
+    val xLabels = remember(seriesEntries, labelFormatter) {
+        seriesEntries.map { labelFormatter.format(Date(it.first)) }
+    }
+
+    val modelProducer = remember { CartesianChartModelProducer() }
+    LaunchedEffect(yValues) {
+        if (yValues.isNotEmpty()) {
+            modelProducer.runTransaction {
+                columnSeries { series(yValues) }
+            }
+        }
+    }
+
+    // Compute a "nice" lower y-bound that's somewhat below the relevant min
+    // (excluding the 0.1 sentinel for Weight) and snapped to a round value
+    // appropriate for the metric's scale. Clamped to >= 0.
+    val niceMinValue = remember(yValues, selectedMetric) {
+        val measuredValues = if (selectedMetric == GraphMetric.WEIGHT) {
+            yValues.filter { it > 0.15f }
+        } else {
+            yValues
+        }
+        if (measuredValues.isEmpty()) return@remember 0.0
+        val min = measuredValues.min().toDouble()
+        val max = measuredValues.max().toDouble()
+        val range = max - min
+        if (range <= 0.0) return@remember min.coerceAtLeast(0.0)
+        val niceStep = when {
+            range >= 1000 -> 100.0
+            range >= 100 -> 10.0
+            range >= 10 -> 1.0
+            range >= 1 -> 0.1
+            else -> 0.01
+        }
+        val padded = min - 0.1 * range
+        (floor(padded / niceStep) * niceStep).coerceAtLeast(0.0)
+    }
+
+    val niceRangeProvider = remember(niceMinValue) {
+        object : CartesianLayerRangeProvider {
+            override fun getMinY(minY: Double, maxY: Double, extraStore: ExtraStore): Double =
+                niceMinValue
+            override fun getMaxY(minY: Double, maxY: Double, extraStore: ExtraStore): Double =
+                CartesianLayerRangeProvider.auto().getMaxY(minY, maxY, extraStore)
+        }
+    }
+
+    val labelStep = remember(xLabels) {
+        when {
+            xLabels.size <= 8 -> 1
+            xLabels.size <= 30 -> 5
+            xLabels.size <= 90 -> 14
+            else -> 30
+        }
+    }
+    val xAxisFormatter = remember(xLabels) {
+        CartesianValueFormatter { _, x, _ ->
+            xLabels.getOrNull(x.toInt()) ?: xLabels.firstOrNull() ?: "-"
+        }
+    }
+    val bottomItemPlacer = remember(labelStep) {
+        HorizontalAxis.ItemPlacer.aligned(spacing = { labelStep })
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Eaten Graph", fontWeight = FontWeight.Bold) },
+                actions = {
+                    HelpIconButton(onClick = { showHelpSheet = true })
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box {
+                OutlinedButton(
+                    onClick = { showMetricMenu = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "${selectedMetric.displayName} (${selectedMetric.unit})",
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Start
+                    )
+                    Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+                }
+                DropdownMenu(
+                    expanded = showMetricMenu,
+                    onDismissRequest = { showMetricMenu = false }
+                ) {
+                    GraphMetric.values().forEach { metric ->
+                        DropdownMenuItem(
+                            text = { Text("${metric.displayName} (${metric.unit})") },
+                            onClick = {
+                                selectedMetric = metric
+                                showMetricMenu = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+            ) {
+                DateRangePreset.values().forEach { preset ->
+                    FilterChip(
+                        selected = selectedRange == preset,
+                        onClick = {
+                            selectedRange = preset
+                            if (preset == DateRangePreset.CUSTOM) {
+                                showRangePicker = true
+                            }
+                        },
+                        label = { Text(preset.displayName) }
+                    )
+                }
+            }
+
+            val displayedRange: String? = when (selectedRange) {
+                DateRangePreset.CUSTOM ->
+                    if (customStartMillis != null && customEndMillis != null) {
+                        "${labelFormatter.format(Date(customStartMillis!!))} — ${labelFormatter.format(Date(customEndMillis!!))}"
+                    } else null
+                else ->
+                    if (startMillis > 0L && endMillis >= startMillis) {
+                        "${labelFormatter.format(Date(startMillis))} — ${labelFormatter.format(Date(endMillis))}"
+                    } else null
+            }
+            if (displayedRange != null) {
+                Text(
+                    displayedRange,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (seriesEntries.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No data in this range",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                CartesianChartHost(
+                    chart = rememberCartesianChart(
+                        rememberColumnCartesianLayer(rangeProvider = niceRangeProvider),
+                        startAxis = VerticalAxis.rememberStart(),
+                        bottomAxis = HorizontalAxis.rememberBottom(
+                            itemPlacer = bottomItemPlacer,
+                            valueFormatter = xAxisFormatter,
+                        ),
+                    ),
+                    modelProducer = modelProducer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp)
+                )
+            }
+
+            if (seriesEntries.isNotEmpty()) {
+                // For Weight, 0.1 kg is the user's "not measured" sentinel — exclude
+                // it from stats so an unmeasured day doesn't drag the average down or
+                // become the Min. The chart still shows those days as small bars so
+                // gaps in measurement remain visible.
+                val statsValues = if (selectedMetric == GraphMetric.WEIGHT) {
+                    yValues.filter { it > 0.15f }
+                } else {
+                    yValues
+                }
+                if (statsValues.isNotEmpty()) {
+                    val total = statsValues.fold(0.0) { acc, v -> acc + v.toDouble() }
+                    val avg = total / statsValues.size
+                    val maxV = statsValues.max().toDouble()
+                    val minV = statsValues.min().toDouble()
+                    val totalCount = seriesEntries.size
+                    val measuredCount = statsValues.size
+                    val countLabel = if (measuredCount < totalCount) {
+                        "$measuredCount of $totalCount ${if (totalCount == 1) "day" else "days"} measured"
+                    } else {
+                        "$totalCount ${if (totalCount == 1) "day" else "days"}"
+                    }
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "Summary ($countLabel)",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            if (selectedMetric != GraphMetric.WEIGHT) {
+                                GraphStatRow("Total", total, selectedMetric.unit, selectedMetric.decimals)
+                            }
+                            GraphStatRow("Average per day", avg, selectedMetric.unit, selectedMetric.decimals)
+                            GraphStatRow("Max in a day", maxV, selectedMetric.unit, selectedMetric.decimals)
+                            GraphStatRow("Min in a day", minV, selectedMetric.unit, selectedMetric.decimals)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showRangePicker) {
+        val pickerState = rememberDateRangePickerState(
+            initialSelectedStartDateMillis = customStartMillis,
+            initialSelectedEndDateMillis = customEndMillis
+        )
+        DatePickerDialog(
+            onDismissRequest = { showRangePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        customStartMillis = pickerState.selectedStartDateMillis
+                        customEndMillis = pickerState.selectedEndDateMillis
+                        showRangePicker = false
+                    },
+                    enabled = pickerState.selectedStartDateMillis != null && pickerState.selectedEndDateMillis != null
+                ) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRangePicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DateRangePicker(state = pickerState, modifier = Modifier.height(500.dp))
+        }
+    }
+
+    if (showHelpSheet) {
+        HelpBottomSheet(
+            helpText = graphHelpText,
+            sheetState = helpSheetState,
+            onDismiss = { showHelpSheet = false }
+        )
+    }
+}
+
+@Composable
+private fun GraphStatRow(label: String, value: Double, unit: String, decimals: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "${formatNumber(value, decimals = decimals)} $unit",
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
 }
 
 @Composable
@@ -6360,6 +6809,7 @@ This screen contains various miscellaneous utilities .
     - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates.
     - It is in csv format with each date per row. Columns match the scrollable table viewer on the Eaten Table screen and include `My weight (kg)` and `Comments` as the second and third columns.
     - The dialog shows the target path and includes a **Change folder** button to relink when needed.
+- **Eaten Graph**: opens a separate screen that visualises a chosen metric (My weight, Amount, Energy, or any of 22 nutrients) per day from the Eaten Table over a chosen date range. Use the metric dropdown to pick a metric, then the date-range chips (1W / 1M / 3M / 1Y / All / Custom) to scope the view. See the `?` help on that screen for full details.
 - **Weight Table**: a scrollable table viewer which displays records from the weight table.
     - Records are displayed in descending date order.
     - When any record is selected (by tapping it) a selection panel appears at the bottom of the screen. It displays details of the selected record followed by three buttons below it:
@@ -6610,7 +7060,7 @@ The remaining fields are self expanatory.
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.Top,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -6628,6 +7078,15 @@ The remaining fields are self expanatory.
                     Button(onClick = { startExportCsvFlow() }) {
                         Text("Export csv")
                     }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = { navController.navigate("eatenGraph") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.BarChart, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Eaten Graph")
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                 Text(
