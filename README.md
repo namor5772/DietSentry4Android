@@ -20,7 +20,17 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
   - `Export db`: export internal `foods.db`.
   - `Import db`: replace the internal database from external `foods.db`.
   - `Export csv`: export daily totals as `EatenDailyAll.csv`.
+  - `Eaten Graph`: opens a separate screen that visualises any single metric (weight, amount eaten, energy, or any of 22 nutrient fields) per day over a chosen date range — see the *Eaten Graph* section below.
   - `Weight Table`: add/edit/delete dated weight entries with optional comments.
+- Eaten Graph (reached from Utilities → `Eaten Graph`):
+  - Vertical bar chart drawn with the **Vico** charting library.
+  - **Metric dropdown** with 25 entries: `My weight (kg)`, `Amount (g/mL)`, `Energy (kJ)`, plus all 22 nutrient fields. Weight comes from the Weight table; the rest from `aggregateDailyTotals`.
+  - **Date range chips** — `1W` / `1M` / `3M` / `1Y` / `All` (each ending **yesterday**, since the current day usually has incomplete data) and `Custom` (opens a date-range picker; the chosen end date is inclusive — today is fine).
+  - **Y-axis lower bound** is a "nice" round value somewhat below the data Min (clamped to ≥ 0), so small variations between days are visually distinguishable instead of being squashed at the top of a 0-anchored axis.
+  - **Stats summary** shows total, average per day, max, and min over the selected range. Total is omitted for weight (summing body weights is meaningless).
+  - **Weight sentinel handling**: if a Weight entry's value is exactly `0.1 kg` (the "I forgot to weigh today" sentinel), the bar is omitted from the y-axis range and from the stats; the day-count line then reads "N of M days measured".
+  - **Selections persist** across navigation and app restarts via SharedPreferences (metric, range preset, custom from/to dates).
+  - The active range's inclusive from–to dates are shown beneath the chips for all options.
 - Add Food using AI:
   - Tap the `AI` button on the Foods Table to open a chat with Anthropic's Claude.
   - Settings (gear icon) hold your Anthropic API key, model selection (Opus 4.7 / Sonnet 4.6 / Haiku 4.5), and three toggles: **Web search**, **NIP mode**, and **Extended thinking (adaptive)** (the latter has no effect on Haiku 4.5, which doesn't support thinking).
@@ -30,6 +40,8 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
   - Multi-image attach: tap `+`, long-press to multi-select on-pack NIP photos, then `Done`.
   - **Live tool-call indicator**: while a query is processing, the loading row shows "Looking up '<query>' in the Foods table…" when `lookup_food` fires and "Searched the web: '<query>'" after each `web_search` call. Falls back to "Thinking…" between tool calls.
   - **Cost transparency**: a small status row at the top of the AI screen shows the cumulative session cost (e.g. "Session cost: $0.0143 (3 turns)"). Per-call cost is also appended to the JSON `notes` field of every reply, so the cost rides through to the Foods table when you Confirm. The Json screen header shows the single AI call cost on the auto-pumped path.
+  - **Markdown rendering** in chat: assistant replies (especially in general-chat mode where Claude often returns headers, bullets, bold, and code blocks) are rendered through the same commonmark pipeline used for in-app help. The **Copy** button still copies the raw markdown source so it's pasteable elsewhere.
+  - **Davey Diet persona**: in general-chat mode (NIP toggle off), the assistant introduces itself as "Davey Diet" via the bundled `GenericSysprompt.txt`.
   - The chat is in-memory only; settings persist across launches.
 
 ## 2. Recent behavior updates reflected in this README
@@ -65,6 +77,8 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
   - **Web search** (`web_search_20250305`) is wired as an optional Anthropic-hosted tool.
   - **Extended thinking (adaptive)** is wired as an optional toggle for Sonnet 4.6 / Opus 4.7. Haiku 4.5 doesn't support extended thinking — the toggle is automatically disabled when Haiku is selected.
   - **Output token cap** (`max_tokens`) set to 16,384 to leave room for thinking + multi-iteration tool use + a full NIP JSON without truncation.
+  - **Network timeout**: per-iteration `readTimeout` is 240s (4 min), giving Sonnet 4.6 headroom on slow turns under load. Connect timeout stays at 30s.
+  - **Release-build log hygiene**: all Anthropic request/response and AiAutoPump diagnostic logs are routed through a small `aiLog()` helper that no-ops when `BuildConfig.DEBUG` is false, so production builds don't leak request bodies (user messages, image payloads, Claude replies) to logcat.
   - **Daily totals explain flow**: a second AI entry point lives on the **Eaten Table** screen. With `Daily totals` ticked, tapping any day's card opens a bottom sheet with **Explain this day (AI)** and **Edit my profile** actions. Explain sends all 24 nutrient totals + total amount + weight + a free-text user profile to Claude using the bundled `EXPLAINsysprompt.txt` system prompt. Reuses the API key and model from the AI Settings dialog (`KEY_ANTHROPIC_API_KEY`, `KEY_ANTHROPIC_MODEL`); profile persists at `KEY_AI_USER_PROFILE`. Hardcodes web search and extended thinking off for cost predictability — typical cost is ~$0.01/call on Sonnet 4.6, ~$0.003 on Haiku 4.5. The bottom sheet → AlertDialog handoff uses `scope.launch { sheetState.hide() }` so the modal-focus stack unwinds cleanly before the TextField claims keyboard focus.
   - The app gains the `INTERNET` permission for the AI flow only; all other features remain offline.
 

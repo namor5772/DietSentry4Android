@@ -142,6 +142,10 @@ private const val KEY_NUTRITION_SELECTION_FOOD = "nutritionSelectionFood"
 private const val KEY_NUTRITION_SELECTION_EATEN = "nutritionSelectionEaten"
 private const val KEY_DISPLAY_DAILY_TOTALS = "displayDailyTotals"
 private const val KEY_FILTER_EATEN_BY_DATE = "filterEatenByDate"
+private const val KEY_GRAPH_METRIC = "graphMetric"
+private const val KEY_GRAPH_RANGE = "graphRange"
+private const val KEY_GRAPH_CUSTOM_START = "graphCustomStart"
+private const val KEY_GRAPH_CUSTOM_END = "graphCustomEnd"
 private const val KEY_EXPORT_OVERWRITE_URI = "exportOverwriteUri"
 private const val KEY_IMPORT_URI = "importUri"
 private const val KEY_EXCHANGE_FOLDER_URI = "exchangeFolderUri"
@@ -1053,12 +1057,11 @@ private enum class DateRangePreset(val displayName: String) {
 
 private val graphHelpText = """
 # **Eaten Graph**
-Visualises a chosen nutrient (or Energy) per day from your Eaten Table over a chosen date range.
+Visualises a chosen metric per day from your Eaten Table (and the Weight table) over a chosen date range. Reached from **Utilities → Eaten Graph**.
 
 ## Controls
 - **Metric dropdown** — pick what to plot. Default is Energy (kJ). The dropdown lists, in order:
   - **My weight (kg)** — daily weight from the Weight table (Utilities → Weight Table). Days without a weight entry are skipped, not zero-filled. A weight of exactly **0.1 kg** is treated as a "not measured" sentinel: it's **excluded from the Average / Min / Max stats** and from the y-axis range computation (so the chart's lower bound sits just below your real Min instead of at 0), and the day count line says "N of M days measured". Sentinel bars may sit below the visible y-range and not render. The **Total** row is omitted for weight (summing body weights across days is meaningless).
-- The **y-axis lower bound** is now a "nice" round value somewhat below the chart's Min (clamped to ≥ 0), so small variations between days are visually distinguishable. The bound auto-recomputes when you change metric or date range.
   - **Amount (g/mL)** — total mass/volume of food eaten that day. The unit is approximate when a day mixes solids and liquids.
   - **Energy (kJ)** and the 22 other nutrient fields tracked in the Foods table.
 - **Date range chips** — preset ranges (today is always excluded from presets, since the current day rarely has its full data yet — pick **Custom** if you want to include today):
@@ -1067,13 +1070,15 @@ Visualises a chosen nutrient (or Energy) per day from your Eaten Table over a ch
   - **3M** — the 90 days ending yesterday
   - **1Y** — the 365 days ending yesterday
   - **All** — every day with logged data, ending yesterday
-  - **Custom** — opens a date-range picker; the picked from/to dates are honoured exactly
+  - **Custom** — opens a date-range picker; the picked from/to dates are honoured exactly (today is fine as the end date)
 - The **inclusive from–to dates** for the active range are displayed under the chips so you can see what window you're looking at.
 - The chart only shows days that actually have eaten records — gaps in your logging produce gaps in the bars (no zero-fill), since zero would imply you ate nothing on those days.
 - The **Summary** card below the chart shows total, average per day, max in a day, and min in a day over the selected range.
+- The **y-axis lower bound** is a "nice" round value somewhat below the chart's Min (clamped to ≥ 0), so small variations between days are visually distinguishable instead of being squashed at the top of a 0-anchored axis. The bound auto-recomputes when you change metric or date range.
+- **Selections persist** — the chosen metric, the active date-range chip, and any custom from/to dates are saved across navigation away from this screen and across app restarts.
 
 ## Notes
-- All data comes from your local Eaten Table — no network call. The graph is recomputed from `aggregateDailyTotals` once when this screen opens, so newly logged foods are picked up next time you visit.
+- All data comes from your local Eaten Table and Weight table — no network call. The graph is recomputed from `aggregateDailyTotals` (and `dbHelper.readWeights()` for the weight metric) once when this screen opens, so newly logged foods or weights are picked up next time you visit.
 - The chart is drawn with the **Vico** charting library (column/bar chart). X-axis labels become sparser as the range gets longer (every 5th day for ~30, every 14th for ~90, every 30th for a year).
 """.trimIndent()
 
@@ -1082,15 +1087,31 @@ Visualises a chosen nutrient (or Energy) per day from your Eaten Table over a ch
 fun EatenGraphScreen(navController: NavController) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
     val allDailyTotals = remember { aggregateDailyTotals(dbHelper.readEatenFoods()) }
     val allWeights = remember { dbHelper.readWeights() }
     val dateFormatter = remember { SimpleDateFormat("d-MMM-yy", Locale.getDefault()) }
     val labelFormatter = remember { SimpleDateFormat("d MMM", Locale.getDefault()) }
 
-    var selectedMetric by remember { mutableStateOf(GraphMetric.ENERGY) }
-    var selectedRange by remember { mutableStateOf(DateRangePreset.LAST_MONTH) }
-    var customStartMillis by remember { mutableStateOf<Long?>(null) }
-    var customEndMillis by remember { mutableStateOf<Long?>(null) }
+    // State persists across navigation and app restarts via SharedPreferences.
+    // Enum ordinals are coerced into the valid range to be robust against
+    // future enum changes.
+    var selectedMetric by remember {
+        val ordinal = prefs.getInt(KEY_GRAPH_METRIC, GraphMetric.ENERGY.ordinal)
+            .coerceIn(0, GraphMetric.values().size - 1)
+        mutableStateOf(GraphMetric.values()[ordinal])
+    }
+    var selectedRange by remember {
+        val ordinal = prefs.getInt(KEY_GRAPH_RANGE, DateRangePreset.LAST_MONTH.ordinal)
+            .coerceIn(0, DateRangePreset.values().size - 1)
+        mutableStateOf(DateRangePreset.values()[ordinal])
+    }
+    var customStartMillis by remember {
+        mutableStateOf<Long?>(prefs.getLong(KEY_GRAPH_CUSTOM_START, -1L).takeIf { it >= 0L })
+    }
+    var customEndMillis by remember {
+        mutableStateOf<Long?>(prefs.getLong(KEY_GRAPH_CUSTOM_END, -1L).takeIf { it >= 0L })
+    }
     var showRangePicker by remember { mutableStateOf(false) }
     var showHelpSheet by remember { mutableStateOf(false) }
     var showMetricMenu by remember { mutableStateOf(false) }
@@ -1279,6 +1300,7 @@ fun EatenGraphScreen(navController: NavController) {
                             onClick = {
                                 selectedMetric = metric
                                 showMetricMenu = false
+                                prefs.edit { putInt(KEY_GRAPH_METRIC, metric.ordinal) }
                             }
                         )
                     }
@@ -1296,6 +1318,7 @@ fun EatenGraphScreen(navController: NavController) {
                         selected = selectedRange == preset,
                         onClick = {
                             selectedRange = preset
+                            prefs.edit { putInt(KEY_GRAPH_RANGE, preset.ordinal) }
                             if (preset == DateRangePreset.CUSTOM) {
                                 showRangePicker = true
                             }
@@ -1416,6 +1439,10 @@ fun EatenGraphScreen(navController: NavController) {
                     onClick = {
                         customStartMillis = pickerState.selectedStartDateMillis
                         customEndMillis = pickerState.selectedEndDateMillis
+                        prefs.edit {
+                            putLong(KEY_GRAPH_CUSTOM_START, customStartMillis ?: -1L)
+                            putLong(KEY_GRAPH_CUSTOM_END, customEndMillis ?: -1L)
+                        }
                         showRangePicker = false
                     },
                     enabled = pickerState.selectedStartDateMillis != null && pickerState.selectedEndDateMillis != null
@@ -4215,7 +4242,16 @@ private fun ChatBubble(
                     }
                 }
                 if (message.text.isNotBlank()) {
-                    Text(message.text, color = textColor)
+                    if (isUser) {
+                        Text(message.text, color = textColor)
+                    } else {
+                        // Assistant replies are often markdown-formatted in
+                        // general-chat mode (and JSON code blocks in NIP mode).
+                        // Render via the same commonmark pipeline used for help
+                        // text. scrollable = false because we're already inside
+                        // a LazyColumn item — the bubble grows with content.
+                        MarkdownText(message.text, scrollable = false)
+                    }
                 }
             }
         }
@@ -4454,13 +4490,14 @@ fun AddFoodByAiScreen(navController: NavController) {
 - Connects your phone to **Anthropic's Claude** models. Behaviour depends on the **NIP mode** toggle in settings and on whether your message contains the word "recipe":
   - **NIP mode ON, no "recipe":** the bundled NIP system prompt (`NIPsysprompt.txt`) is sent as system context. Claude calls a `lookup_food` tool that queries the live Foods table SQLite database for nutrient values on demand (no big knowledge-base attachment). Every reply is a Diet Sentry compatible JSON object inside a ```json``` code block and is **auto-pumped into the Json screen** so you can hit Confirm to add the food.
   - **NIP mode ON, "recipe" in message:** Claude switches to the recipe prompt (`RECIPEsysprompt.txt`). The same `lookup_food` tool runs in *recipe mode* — pre-filtering out liquids and AI/user-added records (FoodDescriptions ending in `mL`, `mL#`, or `#`) so only solid, non-user-added foods can be picked as ingredients. The reply is a recipe JSON (`type: "recipe"`, `ingredients[]`) and auto-pumps into the Json screen too — Confirm there creates the recipe (a Foods row plus linked Recipe rows), then lands on the Foods Table with the new recipe highlighted.
-  - **NIP mode OFF:** Claude is a general-purpose assistant; the word "recipe" in your message has no special effect (the recipe workflow is gated behind NIP mode). Replies stay in this chat; nothing is auto-pumped.
+  - **NIP mode OFF:** Claude is a general-purpose assistant introduced as **"Davey Diet"** by the bundled `GenericSysprompt.txt`. The word "recipe" in your message has no special effect (the recipe workflow is gated behind NIP mode). Replies stay in this chat; nothing is auto-pumped.
 - **Setup:** Tap the **gear** icon, paste your Anthropic API key (from `console.anthropic.com`), pick a model (Opus 4.7 / Sonnet 4.6 / Haiku 4.5), choose your toggles, and **Save**. The key is stored only on this device. All five settings (key, model, Web search, NIP mode, Extended thinking) persist across launches.
 - **Asking:** Type a food description (e.g. "Mainland Lite cheddar 250 g block") and tap **Send** (➤). In NIP mode Claude follows FSANZ Standard 1.2.8 / Schedules 11–12 rounding and returns per-100 g (solid) or per-100 mL (liquid) values. AI-sourced rows are tagged in the FoodDescription: `(AI) #` (solid), `(AI) mL#` (liquid), or ` (AI) {recipe=Xg}` (recipe). The `(AI)` substring makes AI-sourced rows easy to filter on in the Foods Table. Claude is also instructed to format the descriptive part as `Category1, Category2, Category3, OtherDescription - Brand, Company` (e.g. "Cheese, cheddar, lite, block - Mainland") for consistent sorting and searching — you can hand-edit this in the Json screen before Confirm if you want a different shape.
 - **Attaching images:** Tap **+** at the left of the input to attach photos of food labels or on-pack NIPs. The picker is multi-select — long-press, then **Done**. Large photos are downsized before sending.
 - **Web search** (toggle in settings): Claude looks up the manufacturer or retailer's official product page first and copies on-pack values verbatim. AFCD/NUTTAB and the `lookup_food` tool are used as fallbacks. ~\$0.01 per search, capped at $WEB_SEARCH_MAX_USES per turn.
 - **Extended thinking** (toggle in settings): gives Claude an adaptive thinking budget for harder reasoning tasks. Effective on Opus 4.7 / Sonnet 4.6 — the toggle is automatically disabled when Haiku 4.5 is selected, since it doesn't support thinking.
 - **Live tool-call indicator:** while a query is processing, the loading row stacks lines like "Looking up '<query>' in the Foods table…" (each `lookup_food` call) and "Searched the web: '<query>'" (each web search) so you can see what Claude is doing.
+- **Markdown rendering** in chat: assistant replies are rendered through the same commonmark pipeline as the in-app help — so headers, bullets, bold text, and `code blocks` look the way Claude intended. The **Copy** button still copies the raw markdown source, which is convenient if you want to paste it elsewhere.
 - **Cost transparency:** the small status row at the top of this screen shows the cumulative session cost (e.g. "Session cost: \$0.0143 (3 turns)"). Per-call cost is also appended to each reply's JSON `notes` field, so it rides through to the Foods table when you Confirm.
 - **Cross-feature** — the **Eaten Table** screen reuses your API key + model (set here) for an *Explain this day (AI)* flow on daily totals. That flow is a single-shot single-message call (no tools, no thinking, no web search) driven by the bundled `EXPLAINsysprompt.txt` system prompt; the Web search / Extended thinking / NIP-mode toggles above don't apply to it. See the Eaten Table's `?` help for details.
 - The chat is in-memory only — leaving this screen clears it.
@@ -5718,17 +5755,21 @@ private val markdownParser: Parser = Parser.builder()
 @Composable
 private fun MarkdownText(
     text: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    scrollable: Boolean = true
 ) {
     val document = remember(text) { markdownParser.parse(text) }
     val codeBackground = MaterialTheme.colorScheme.surfaceVariant
     val codeTextColor = MaterialTheme.colorScheme.onSurface
 
-    Column(
-        modifier = modifier
+    val outerModifier = if (scrollable) {
+        modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-    ) {
+    } else {
+        modifier.fillMaxWidth()
+    }
+    Column(modifier = outerModifier) {
         RenderMarkdownChildren(
             parent = document,
             codeBackground = codeBackground,
