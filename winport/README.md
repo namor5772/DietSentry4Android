@@ -74,6 +74,11 @@ formulas all match the Kotlin source.
   help texts and Claude's replies use.
 - The keyboard **Esc** key acts as the Android system Back button (clears the
   selection first, then leaves the screen).
+- **App icon**: `assets/DietSentry.ico` (a dinner plate with a nutrition bar
+  chart on Material purple) is embedded into the exe via `app.rc`, so Explorer,
+  the taskbar and desktop shortcuts pick it up automatically. To make a desktop
+  shortcut, right-click `build\DietSentry.exe` → *Send to* → *Desktop*, or run:
+  `powershell -c "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\DietSentry.lnk');$s.TargetPath='<full path>\DietSentry.exe';$s.Save()"`
 - `DIETSENTRY_AUTONAV=<route>` environment variable opens a screen directly at
   launch (used for testing; e.g. `eatenLog`, `utilities`, `eatenGraph`).
 

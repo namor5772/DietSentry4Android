@@ -21,11 +21,16 @@ if not exist build\imgui.obj (
     if errorlevel 1 exit /b 1
 )
 
+rem --- App icon resource ---
+rc /nologo /fo build\app.res app.rc
+if errorlevel 1 exit /b 1
+
 echo Compiling DietSentry ...
 cl /nologo /std:c++17 /utf-8 /EHsc /O2 /MT /W3 /DUNICODE /D_UNICODE /Ivendor /Isrc ^
    src\*.cpp ^
    build\sqlite3.obj build\imgui.obj build\imgui_draw.obj build\imgui_tables.obj build\imgui_widgets.obj ^
    build\imgui_impl_win32.obj build\imgui_impl_dx11.obj ^
+   build\app.res ^
    /Febuild\DietSentry.exe /Fobuild\ ^
    /link user32.lib gdi32.lib shell32.lib ole32.lib oleaut32.lib shlwapi.lib comdlg32.lib ^
          d3d11.lib dxgi.lib d3dcompiler.lib dwmapi.lib winhttp.lib windowscodecs.lib ^
