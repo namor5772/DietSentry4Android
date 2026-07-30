@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 DietSentry4Android is a primarily-offline Android app for food/nutrition lookup, eaten-food logging, recipe-based foods, and daily weight tracking. Written in Kotlin with Jetpack Compose. Uses a bundled SQLite database (`app/src/main/assets/foods.db`) bootstrapped on first run.
 
+A native **Windows C++ port** lives in `winport/` (Dear ImGui + D3D11 + SQLite + WinHTTP; build with `winport\build.bat`, see `winport/README.md`). It deliberately mirrors the Kotlin code structure — when changing app behaviour here, make the matching change in the corresponding `winport/src/screens_*.cpp` / `db.cpp` file, and vice versa. The two apps share the same `foods.db` schema and description-marker conventions; keep them compatible.
+
 The only network usage is the optional **Add Food using AI** screen, which calls Anthropic's Messages API directly (`api.anthropic.com`) when the user supplies their own API key. Manifest carries `INTERNET` for that path; nothing else hits the network.
 
 ## Build commands

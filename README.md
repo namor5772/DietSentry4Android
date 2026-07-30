@@ -1,5 +1,10 @@
 # DietSentry4Android
 
+> **Windows port:** a native C++ port of this app (single `DietSentry.exe`, no runtime
+> dependencies) lives in [`winport/`](winport/README.md). It mirrors every screen and
+> flow described below and uses database files interchangeable with the Android app.
+> Build it with `winport\build.bat` (needs Visual Studio's C++ workload).
+
 DietSentry is a primarily-offline Android app for food/nutrition lookup, eaten-food logging, recipe-based foods, and daily weight tracking. It now also has an optional **Add Food using AI** screen that uses Anthropic's Claude models (with your own API key) to generate Nutrition Information Panel JSON from a description and/or label photos.
 
 This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled SQLite `foods.db` on first run, then reads/writes the internal app database.
