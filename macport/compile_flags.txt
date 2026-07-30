@@ -1,0 +1,7 @@
+-std=c++17
+-I../winport/vendor
+-Ivendor
+-Isrc
+-x
+objective-c++
+-fobjc-arc

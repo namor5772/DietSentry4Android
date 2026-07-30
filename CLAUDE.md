@@ -8,6 +8,8 @@ DietSentry4Android is a primarily-offline Android app for food/nutrition lookup,
 
 A native **Windows C++ port** lives in `winport/` (Dear ImGui + D3D11 + SQLite + WinHTTP; build with `winport\build.bat`, see `winport/README.md`). It deliberately mirrors the Kotlin code structure — when changing app behaviour here, make the matching change in the corresponding `winport/src/screens_*.cpp` / `db.cpp` file, and vice versa. The two apps share the same `foods.db` schema and description-marker conventions; keep them compatible.
 
+A native **macOS C++ port** lives in `macport/` (Dear ImGui + Metal/AppKit + SQLite + libcurl; build with `macport/build.sh`, see `macport/README.md`). It mirrors `winport/` file-for-file: most `src/` files are byte-identical copies, with platform-specific counterparts only for `main.mm`, `imageutil.mm`, `util.cpp`, `db.cpp`, `anthropic.cpp` (transport), and `screens_utilities.cpp` (folder picker). ImGui/SQLite/json vendor code is compiled from `winport/vendor` (single pinned copy), and app assets come from `winport/assets` at build time. Behaviour changes must be applied to all three: Android, `winport/`, `macport/`.
+
 The only network usage is the optional **Add Food using AI** screen, which calls Anthropic's Messages API directly (`api.anthropic.com`) when the user supplies their own API key. Manifest carries `INTERNET` for that path; nothing else hits the network.
 
 ## Build commands

@@ -4,6 +4,11 @@
 > dependencies) lives in [`winport/`](winport/README.md). It mirrors every screen and
 > flow described below and uses database files interchangeable with the Android app.
 > Build it with `winport\build.bat` (needs Visual Studio's C++ workload).
+>
+> **macOS port:** the same C++ app as a native `DietSentry.app` lives in
+> [`macport/`](macport/README.md), mirroring `winport/` file-for-file (Metal +
+> AppKit instead of D3D11 + Win32). Build it with `macport/build.sh` (needs the
+> Xcode Command Line Tools).
 
 DietSentry is a primarily-offline Android app for food/nutrition lookup, eaten-food logging, recipe-based foods, and daily weight tracking. It now also has an optional **Add Food using AI** screen that uses Anthropic's Claude models (with your own API key) to generate Nutrition Information Panel JSON from a description and/or label photos.
 
@@ -144,3 +149,53 @@ This repository is developed in Kotlin + Jetpack Compose. The app uses a bundled
   - `RECIPEsysprompt.txt` — system prompt for AI recipe-mode replies (triggered when the user message contains "recipe"). Tells Claude to use `lookup_food` for ingredient lookup, the AFCD `Category, descriptor` query strategy, and the recipe JSON output schema (`type: "recipe"`, `ingredients[]`).
   - `EXPLAINsysprompt.txt` — system prompt for the **Eaten Table → Daily totals → Explain this day (AI)** flow. Instructs Claude to assess the day's intake against Australian NHMRC NRVs in 2–3 plain-language paragraphs, in Australian English, flagging nutrients that are notably under- or over-consumed.
   - `GenericSysprompt.txt` + `GenericSysprompt_websearch.txt` — base + optional web-search clause for AI general-chat mode (NIP toggle off).
+
+## 6. Native desktop ports (Windows & macOS)
+
+The repo also contains two native desktop ports of the full app, written in C++17
+around [Dear ImGui](https://github.com/ocornut/imgui) and SQLite. Both mirror the
+Android app screen-for-screen — Foods Table, LOG dialog, Eaten Table with daily
+totals and the Explain-this-day (AI) flow, Add/Edit/Copy Food, recipes, the Json
+pipeline with auto-pump, Eaten Graph (25 metrics), Weight Table, Utilities
+import/export, in-app `?` help, and the complete **Add Food using AI** chat
+(lookup_food tool loop, web search, extended thinking, cost tracking) — and their
+`foods.db` files are fully interchangeable with the phone app.
+
+### Windows (`winport/`)
+
+- Single self-contained `DietSentry.exe` (~4 MB): Dear ImGui + Direct3D 11 +
+  WinHTTP + WIC. Build with `winport\build.bat` (Visual Studio C++ workload).
+- Data lives in `%APPDATA%\DietSentry4Windows\` (`foods.db`, `prefs.json`).
+- Details: [`winport/README.md`](winport/README.md).
+
+### macOS (`macport/`)
+
+- Self-contained `DietSentry.app`: Dear ImGui rendered via **Metal** in an
+  AppKit `MTKView`, networking through the system **libcurl**, image attachments
+  decoded/downscaled/JPEG-encoded via **ImageIO**, native `NSOpenPanel` file and
+  folder pickers, and a Big Sur-style app icon generated natively by
+  `macport/assets/draw_icon.m`.
+- **Build**: `macport/build.sh` — needs only the Xcode Command Line Tools
+  (`xcode-select --install`). Produces `macport/build/DietSentry.app`; run it
+  with `open macport/build/DietSentry.app`. For a Desktop shortcut:
+  `ln -sfn "$(pwd)/macport/build/DietSentry.app" ~/Desktop/DietSentry.app`.
+- **Data** lives in `~/Library/Application Support/DietSentry4Mac/` (`foods.db`
+  bootstrapped from assets on first run, plus `prefs.json` with the AI key,
+  model and toggles). Delete that folder for a factory reset; use Utilities →
+  Import/Export db to swap databases with the phone or the Windows app.
+- **Source sharing**: `macport/` mirrors `winport/` file-for-file — most
+  `src/` files are byte-identical, with macOS-specific counterparts only for
+  the platform layer (`main.mm`, `imageutil.mm`, `util.cpp`, `db.cpp`, the
+  libcurl transport in `anthropic.cpp`, and the folder picker in
+  `screens_utilities.cpp`). Dear ImGui, SQLite and nlohmann/json compile
+  straight from `winport/vendor` (one pinned copy for both ports) and the
+  runtime assets come from `winport/assets`; only the Apple ImGui backends and
+  the `.icns` live under `macport/`.
+- **Keyboard & remote desktop**: Esc acts as the Android Back button, Cmd+Q
+  quits. Text fields accept **Ctrl+V** as well as Cmd+V, and the menu bar has
+  **Edit → Paste** for mouse-only pasting — both aimed at driving the Mac over
+  VNC/remote desktop from a Windows keyboard, where modifier chords often
+  don't survive the trip.
+- `DIETSENTRY_AUTONAV=<route>` opens a screen directly at launch (testing hook,
+  same routes as the Windows port).
+- Details: [`macport/README.md`](macport/README.md).
