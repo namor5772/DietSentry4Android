@@ -22,9 +22,19 @@ const char* NUTRIENT_EDIT_LABELS[NUTRIENT_COUNT] = {
     "Vitamin C (mg)", "Caffeine (mg)", "Cholesterol (mg)", "Alcohol (g)"
 };
 
+// Month names as Android's SimpleDateFormat("d-MMM-yy") emits them in the
+// en_AU locale the phone app runs under: three letters, except June / July /
+// Sept which are spelled out. Matching this exactly keeps rows written on
+// Windows byte-identical with rows written on the phone, so daily totals
+// group correctly and foods.db round-trips between the two apps.
 static const char* MONTHS_ABBREV[12] = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    "Jan", "Feb", "Mar", "Apr", "May", "June",
+    "July", "Aug", "Sept", "Oct", "Nov", "Dec"
+};
+
+static const char* MONTHS_FULL[12] = {
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
 };
 
 // ---------------------------------------------------------------------------
@@ -160,15 +170,30 @@ std::string formatDMMM(long long millis) {
 }
 
 std::optional<long long> parseDMMMYY(const std::string& s) {
-    // "d-MMM-yy", e.g. "3-Jul-26" or "30-Jul-26"
-    int day = 0, year2 = 0;
-    char mon[8] = {0};
-    if (sscanf_s(s.c_str(), "%d-%3s-%d", &day, mon, (unsigned)sizeof(mon), &year2) != 3) return std::nullopt;
+    // "d-MMM-yy" as written by any SimpleDateFormat month dialect:
+    // "30-Jul-26", "30-July-26", "5-Sept-25", "5-Sep.-25", "1-Dec-25", ...
+    // The month token is matched as a case-insensitive prefix (>= 3 letters)
+    // of the full English month name, ignoring any trailing period.
+    auto parts = splitString(trim(s), '-');
+    if (parts.size() != 3) return std::nullopt;
+    auto dayOpt = parseDouble(trim(parts[0]));
+    if (!dayOpt) return std::nullopt;
+    int day = (int)*dayOpt;
+    std::string mon;
+    for (char c : trim(parts[1]))
+        if (isalpha((unsigned char)c)) mon += c;
+    if (mon.size() < 3) return std::nullopt;
     int monIdx = -1;
     for (int i = 0; i < 12; i++) {
-        if (_stricmp(mon, MONTHS_ABBREV[i]) == 0) { monIdx = i; break; }
+        if (mon.size() <= strlen(MONTHS_FULL[i]) &&
+            _strnicmp(mon.c_str(), MONTHS_FULL[i], mon.size()) == 0) {
+            monIdx = i;
+            break;
+        }
     }
-    if (monIdx < 0 || day < 1 || day > 31) return std::nullopt;
+    auto yearOpt = parseDouble(trim(parts[2]));
+    if (!yearOpt || monIdx < 0 || day < 1 || day > 31) return std::nullopt;
+    int year2 = (int)*yearOpt;
     int year = (year2 < 100) ? 2000 + year2 : year2;   // SimpleDateFormat "yy" pivot ~2000
     return ymdToMillis(year, monIdx + 1, day);
 }

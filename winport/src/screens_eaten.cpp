@@ -109,9 +109,16 @@ struct EatenLogScreen : Screen {
         if (!filterByDate) {
             filteredEatenFoods = eatenFoods;
         } else {
+            // Compare parsed day identity, not raw strings — DateEaten written
+            // by the phone can use a different month dialect ("30-July-26")
+            // than a byte-for-byte format would expect.
+            long long filterDay = localMidnight(selectedFilterDateMillis);
             std::string matchDate = formatDMMMYY(selectedFilterDateMillis);
-            for (const auto& ef : eatenFoods)
-                if (ef.dateEaten == matchDate) filteredEatenFoods.push_back(ef);
+            for (const auto& ef : eatenFoods) {
+                auto day = parseDMMMYY(ef.dateEaten);
+                bool match = day ? (*day == filterDay) : (ef.dateEaten == matchDate);
+                if (match) filteredEatenFoods.push_back(ef);
+            }
         }
         dailyTotals = aggregateDailyTotals(filteredEatenFoods);
         listRevision++;
