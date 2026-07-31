@@ -72,6 +72,12 @@ formulas all match the Kotlin source.
   WIC, matching `loadImageForAi`.
 - **Markdown**: a small renderer (`src/markdown.cpp`) covering the constructs the
   help texts and Claude's replies use.
+- **Dates**: `DateEaten`/`DateWeight` strings are written in the exact dialect
+  Android's `SimpleDateFormat("d-MMM-yy")` produces under en_AU — three-letter
+  months except *June*, *July* and *Sept* spelled out (`30-July-26`) — so rows
+  written on either device are byte-identical. Parsing is tolerant: any ≥3-letter
+  month prefix with optional trailing period (`Jul`, `July`, `Sept`, `Dec.`, …),
+  so databases from phones in other locales still filter/sort/graph correctly.
 - The keyboard **Esc** key acts as the Android system Back button (clears the
   selection first, then leaves the screen).
 - **App icon**: `assets/DietSentry.ico` (a dinner plate with a nutrition bar
