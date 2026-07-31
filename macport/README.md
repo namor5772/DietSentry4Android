@@ -85,6 +85,14 @@ When changing app behaviour in one port, make the matching change in the other
   client-side `lookup_food` tool loop (max 12 iterations) on a worker thread.
 - **Images**: attachments are decoded/EXIF-rotated/downscaled (≤1568 px) and
   JPEG-encoded via ImageIO, matching `loadImageForAi`.
+- **Dates**: `DateEaten`/`DateWeight` strings are written in the exact dialect
+  Android's `SimpleDateFormat("d-MMM-yy")` produces under en_AU — three-letter
+  months except *June*, *July* and *Sept* spelled out (`30-July-26`) — so rows
+  written on any of the three apps are byte-identical and daily totals group
+  correctly. Parsing is tolerant: any ≥3-letter month prefix with optional
+  trailing period (`Jul`, `July`, `Sept`, `Dec.`, …), so databases from phones in
+  other locales still filter/sort/graph correctly. The month tables and
+  `parseDMMMYY` in `src/util.cpp` are identical to the Windows port's.
 - The keyboard **Esc** key acts as the Android system Back button (clears the
   selection first, then leaves the screen). **Cmd+Q** quits.
 - Text fields accept **Ctrl+V** as paste in addition to the native **Cmd+V** —
@@ -97,7 +105,11 @@ When changing app behaviour in one port, make the matching change in the other
 - While an `NSOpenPanel` is up, the MTKView render loop is paused
   (`macSetRenderPaused`) so the modal run loop can't re-enter an ImGui frame.
 - `DIETSENTRY_AUTONAV=<route>` environment variable opens a screen directly at
-  launch (used for testing; e.g. `eatenLog`, `utilities`, `eatenGraph`):
+  launch (used for testing). Recognised routes — the same eight the Windows port
+  accepts: `eatenLog`, `utilities`, `eatenGraph`, `addFoodByJson`, `addFoodByAi`,
+  `addRecipe`, `insertFood`, and `editFirst` (opens Edit Food on the
+  lowest-numbered food). Unknown values are ignored and the app starts on the
+  Foods Table as usual. Run the binary inside the bundle to pass it:
   `DIETSENTRY_AUTONAV=eatenGraph build/DietSentry.app/Contents/MacOS/DietSentry`
 
 ## Source layout

@@ -4,6 +4,15 @@ A native Windows 11 port of **DietSentry4Android**, written in C++17 and compile
 single self-contained `DietSentry.exe` (~4 MB, no runtime dependencies, no installer).
 The GUI structure and functionality mirror the Android app screen-for-screen.
 
+> **This directory is upstream of the macOS port.** The sibling
+> [`macport/`](../macport/README.md) build compiles Dear ImGui, SQLite and
+> nlohmann/json straight out of `winport/vendor/`, and copies `winport/assets/`
+> (seed `foods.db` + the AI system prompts) into its app bundle at build time —
+> there is deliberately only one copy of each. Editing anything under `vendor/`
+> or `assets/` therefore changes the **Mac** build too, so rebuild and sanity-check
+> both ports after such a change. Files under `src/` are mirrored rather than
+> shared: see *Relationship to the Windows port* in `macport/README.md`.
+
 ## Running
 
 ```
@@ -30,8 +39,9 @@ winport\build.bat
 ```
 
 The script locates `VsDevCmd.bat` itself, compiles SQLite and Dear ImGui once into
-`build\*.obj`, then compiles the app sources and links `build\DietSentry.exe`
-statically (`/MT`, no VC redist needed). Subsequent builds only recompile `src\`.
+`build\*.obj`, compiles the icon resource (`app.rc` → `build\app.res`), then compiles
+the app sources and links `build\DietSentry.exe` statically (`/MT`, no VC redist
+needed). Subsequent builds only recompile `src\`.
 
 ## What is ported (everything)
 
@@ -86,15 +96,22 @@ formulas all match the Kotlin source.
   shortcut, right-click `build\DietSentry.exe` → *Send to* → *Desktop*, or run:
   `powershell -c "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\DietSentry.lnk');$s.TargetPath='<full path>\DietSentry.exe';$s.Save()"`
 - `DIETSENTRY_AUTONAV=<route>` environment variable opens a screen directly at
-  launch (used for testing; e.g. `eatenLog`, `utilities`, `eatenGraph`).
+  launch (used for testing). Recognised routes: `eatenLog`, `utilities`,
+  `eatenGraph`, `addFoodByJson`, `addFoodByAi`, `addRecipe`, `insertFood`, and
+  `editFirst` (opens Edit Food on the lowest-numbered food). Unknown values are
+  ignored and the app starts on the Foods Table as usual.
 
 ## Source layout
 
 ```
 winport/
-├── build.bat               one-step build script
-├── assets/                 foods.db + AI system prompts (copied beside the exe)
+├── build.bat               one-step build script (also compiles the app.rc icon)
+├── app.rc                  embeds assets/DietSentry.ico into the exe
+├── assets/                 foods.db + AI system prompts + DietSentry.ico
+│                           (copied beside the exe; db + prompts also consumed
+│                            by macport at build time — shared, not a copy)
 ├── vendor/                 Dear ImGui, SQLite amalgamation, nlohmann/json
+│                           (single pinned copy; macport compiles from here too)
 └── src/
     ├── main.cpp            WinMain, D3D11/ImGui bootstrap, navigation host
     ├── app.h               models, constants, App/Screen declarations
