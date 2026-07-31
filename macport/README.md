@@ -95,6 +95,17 @@ When changing app behaviour in one port, make the matching change in the other
   `parseDMMMYY` in `src/util.cpp` are identical to the Windows port's.
 - The keyboard **Esc** key acts as the Android system Back button (clears the
   selection first, then leaves the screen). **Cmd+Q** quits.
+- **Window size and position persist** across restarts, stored as the content
+  rect in `prefs.json` (`windowX`/`windowY`/`windowW`/`windowH`, AppKit points,
+  origin bottom-left). Written once in `applicationWillTerminate:` rather than on
+  every resize, because each `Prefs::put*` rewrites the whole file. On launch the
+  remembered rect is fitted to the displays that exist *at that moment*: a window
+  that would land entirely off-screen (monitor unplugged) falls back to the
+  default 540×1000 top-right placement, a size remembered from a larger display
+  is clamped to the current one, and anything degenerate is floored at 360×420.
+  Full-screen is not persisted — quitting from full-screen keeps the last normal
+  size, so the next launch is a normal window. macOS-only so far; the Windows
+  port still opens at its default footprint every time.
 - Text fields accept **Ctrl+V** as paste in addition to the native **Cmd+V** —
   a convenience for driving the Mac over VNC/remote desktop from a Windows
   keyboard, where Ctrl+V arrives as literal Control+V. Supporting this,

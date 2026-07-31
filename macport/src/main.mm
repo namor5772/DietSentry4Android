@@ -222,6 +222,64 @@ static void autoNavigate(App& app) {
 @end
 
 // ---------------------------------------------------------------------------
+// Window geometry persistence
+//
+// The window's content rect is remembered in prefs.json alongside every other
+// setting, in AppKit screen points (origin bottom-left of the main display,
+// y up). macOS-only for now: the Windows port still opens at its default
+// footprint every time.
+// ---------------------------------------------------------------------------
+#define PREF_KEY_WINDOW_X "windowX"
+#define PREF_KEY_WINDOW_Y "windowY"
+#define PREF_KEY_WINDOW_W "windowW"
+#define PREF_KEY_WINDOW_H "windowH"
+
+static const int kGeomUnset = -1000000;   // sentinel: no geometry saved yet
+static const CGFloat kMinContentW = 360;  // below this the two-column rows collapse
+static const CGFloat kMinContentH = 420;
+
+// Fits a remembered content rect to the displays that exist right now, since
+// monitors get unplugged and resolutions change between runs. Returns NO when
+// nothing sensible can be salvaged and the caller should use the default
+// placement instead.
+static BOOL fitSavedFrameToScreens(NSRect* io, NSWindowStyleMask mask) {
+    NSRect content = *io;
+    content.size.width  = std::max(content.size.width,  kMinContentW);
+    content.size.height = std::max(content.size.height, kMinContentH);
+
+    // Measure the real frame — title bar included — because that is the part
+    // the user has to be able to see and grab.
+    NSRect frameRect = [NSWindow frameRectForContentRect:content styleMask:mask];
+
+    NSScreen* best = nil;
+    CGFloat bestArea = 0;
+    for (NSScreen* s in NSScreen.screens) {
+        NSRect hit = NSIntersectionRect(frameRect, s.visibleFrame);
+        CGFloat area = hit.size.width * hit.size.height;
+        if (area > bestArea) { bestArea = area; best = s; }
+    }
+    if (!best) return NO;                       // lands on no current display
+
+    NSRect vis = best.visibleFrame;
+    NSRect hit = NSIntersectionRect(frameRect, vis);
+    if (hit.size.width < 120 || hit.size.height < 40) return NO;   // untitled sliver
+
+    // A size remembered from a larger display must not exceed today's.
+    NSRect maxContent = [NSWindow contentRectForFrameRect:vis styleMask:mask];
+    content.size.width  = std::min(content.size.width,  maxContent.size.width);
+    content.size.height = std::min(content.size.height, maxContent.size.height);
+
+    // Re-derive after any shrink and pull the window down if it now overhangs
+    // the top — the one edge macOS will not let you drag back from.
+    frameRect = [NSWindow frameRectForContentRect:content styleMask:mask];
+    CGFloat overhang = NSMaxY(frameRect) - NSMaxY(vis);
+    if (overhang > 0) content.origin.y -= overhang;
+
+    *io = content;
+    return YES;
+}
+
+// ---------------------------------------------------------------------------
 // App delegate — window + view + ImGui/App init
 // ---------------------------------------------------------------------------
 @interface DSAppDelegate : NSObject <NSApplicationDelegate>
@@ -268,8 +326,13 @@ static void autoNavigate(App& app) {
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
     [self setupMainMenu];
 
-    // Same footprint as the Windows port: 540x1000 near the top-right corner,
-    // clamped to 96% of the visible screen height.
+    // Loaded before the window is built so it can open at the remembered size
+    // straight away, rather than being created and then resized.
+    g_app.prefs.load();
+
+    // Default footprint, same as the Windows port: 540x1000 near the top-right
+    // corner, clamped to 96% of the visible screen height. Used on first run and
+    // whenever the remembered geometry no longer fits the current displays.
     NSScreen* screen = NSScreen.mainScreen;
     NSRect visible = screen ? screen.visibleFrame : NSMakeRect(0, 0, 1440, 900);
     CGFloat winW = 540;
@@ -277,10 +340,22 @@ static void autoNavigate(App& app) {
     NSRect frame = NSMakeRect(NSMaxX(visible) - winW - 40,
                               NSMaxY(visible) - winH - 12,
                               winW, winH);
+
+    NSWindowStyleMask styleMask = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+                                   NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable);
+
+    int sx = g_app.prefs.getInt(PREF_KEY_WINDOW_X, kGeomUnset);
+    int sy = g_app.prefs.getInt(PREF_KEY_WINDOW_Y, kGeomUnset);
+    int sw = g_app.prefs.getInt(PREF_KEY_WINDOW_W, kGeomUnset);
+    int sh = g_app.prefs.getInt(PREF_KEY_WINDOW_H, kGeomUnset);
+    if (sx != kGeomUnset && sy != kGeomUnset && sw > 0 && sh > 0) {
+        NSRect saved = NSMakeRect(sx, sy, sw, sh);
+        if (fitSavedFrameToScreens(&saved, styleMask)) frame = saved;
+    }
+
     self.window = [[NSWindow alloc]
         initWithContentRect:frame
-                  styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-                             NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable)
+                  styleMask:styleMask
                     backing:NSBackingStoreBuffered
                       defer:NO];
     self.window.title = @"DietSentry";
@@ -325,7 +400,6 @@ static void autoNavigate(App& app) {
     io.FontDefault = g_app.fontRegular;
 
     ui::applyTheme(g_app);
-    g_app.prefs.load();
     if (!g_app.db.open()) {
         NSAlert* alert = [[NSAlert alloc] init];
         alert.messageText = @"DietSentry";
@@ -354,8 +428,25 @@ static void autoNavigate(App& app) {
     return YES;
 }
 
+// Saved once, at quit, rather than from windowDidResize:/windowDidMove: —
+// every Prefs::put* rewrites prefs.json, so tracking a live drag would mean
+// hundreds of file writes. Fires for both Cmd+Q and closing the last window.
+- (void)saveWindowGeometry {
+    if (!self.window) return;
+    // While full-screen the frame is the whole display; keep the size the user
+    // actually chose so leaving full-screen next launch restores that instead.
+    if (self.window.styleMask & NSWindowStyleMaskFullScreen) return;
+
+    NSRect c = [self.window contentRectForFrameRect:self.window.frame];
+    g_app.prefs.putInt(PREF_KEY_WINDOW_X, (int)lround(c.origin.x));
+    g_app.prefs.putInt(PREF_KEY_WINDOW_Y, (int)lround(c.origin.y));
+    g_app.prefs.putInt(PREF_KEY_WINDOW_W, (int)lround(c.size.width));
+    g_app.prefs.putInt(PREF_KEY_WINDOW_H, (int)lround(c.size.height));
+}
+
 - (void)applicationWillTerminate:(NSNotification*)notification {
     (void)notification;
+    [self saveWindowGeometry];
     g_app.db.close();
     ImGui_ImplMetal_Shutdown();
     ImGui_ImplOSX_Shutdown();
