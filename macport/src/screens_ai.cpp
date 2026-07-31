@@ -296,12 +296,10 @@ struct AddFoodByAiScreen : Screen {
         // measure content
         float contentW = maxBubbleW - pad * 2;
         float imgSide = ui::dp(160);
-        float textH = 0;
-        if (!msg.text.empty() && isUser) {
-            ImGui::PushFont(app.fontRegular, ui::fsBody());
-            textH = ImGui::CalcTextSize(msg.text.c_str(), nullptr, false, contentW).y;
-            ImGui::PopFont();
-        }
+        // Bubble height comes from the BeginGroup/EndGroup measurement below
+        // (drawn into channel 1, with the background filled in behind it), so
+        // no text height is measured here.
+
         // user bubble width shrinks to text
         float bubbleW = maxBubbleW;
         if (isUser) {
