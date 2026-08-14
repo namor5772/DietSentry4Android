@@ -13,13 +13,24 @@ using json = nlohmann::ordered_json;
 struct AiPricing { double inputPerMillion; double outputPerMillion; };
 
 static const std::pair<const char*, AiPricing> ANTHROPIC_PRICING[] = {
-    {"claude-opus-4-7", {15.0, 75.0}},
-    {"claude-sonnet-4-6", {3.0, 15.0}},
+    {"claude-opus-5", {5.0, 25.0}},
+    {"claude-sonnet-5", {3.0, 15.0}},
     {"claude-haiku-4-5-20251001", {1.0, 5.0}},
+    // Previous generation — kept so previously-saved selections still get cost estimates.
+    {"claude-opus-4-7", {5.0, 25.0}},
+    {"claude-sonnet-4-6", {3.0, 15.0}},
 };
 
 bool modelSupportsThinking(const std::string& model) {
-    return model == "claude-opus-4-7" || model == "claude-sonnet-4-6";
+    return model == "claude-opus-5" || model == "claude-sonnet-5" ||
+           model == "claude-opus-4-7" || model == "claude-sonnet-4-6";
+}
+
+// Models that run adaptive thinking when the `thinking` field is OMITTED — a change
+// from the 4.x generation, where omitting meant off. For these the request builder
+// sends an explicit {type: "disabled"} while the Extended-thinking toggle is off.
+static bool modelThinksByDefault(const std::string& model) {
+    return model == "claude-opus-5" || model == "claude-sonnet-5";
 }
 
 double computeAiCostUsd(const AiUsage& usage, const std::string& model) {
@@ -240,6 +251,10 @@ static std::string buildAnthropicRequestJson(const AiRequest& req, const json& m
         thinking["type"] = "adaptive";
         thinking["display"] = "summarized";
         root["thinking"] = thinking;
+    } else if (modelThinksByDefault(req.model)) {
+        // Omitting `thinking` means adaptive-ON for these models, so the toggle's
+        // off position needs an explicit disable.
+        root["thinking"] = {{"type", "disabled"}};
     }
     root["system"] = req.nipMode ? req.primaryPrompt : req.generalSystemPrompt;
     json tools = json::array();

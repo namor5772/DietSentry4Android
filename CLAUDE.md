@@ -57,7 +57,7 @@ These conventions are load-bearing throughout the codebase (search, display, rec
 ## AI integration (Add Food using AI screen)
 
 - **API client**: a single `suspend fun callAnthropicApi` in `MainActivity.kt` POSTs to `https://api.anthropic.com/v1/messages` via `HttpURLConnection`. JSON via `org.json`. No new third-party libraries.
-- **Persistence**: API key, selected model, web-search toggle, and NIP-mode toggle live in `SharedPreferences` (`PREFS_NAME`) under keys `KEY_ANTHROPIC_API_KEY`, `KEY_ANTHROPIC_MODEL`, `KEY_AI_WEB_SEARCH`, `KEY_AI_USE_NIP_PROMPT`. Default model is `claude-sonnet-4-6`.
+- **Persistence**: API key, selected model, web-search toggle, and NIP-mode toggle live in `SharedPreferences` (`PREFS_NAME`) under keys `KEY_ANTHROPIC_API_KEY`, `KEY_ANTHROPIC_MODEL`, `KEY_AI_WEB_SEARCH`, `KEY_AI_USE_NIP_PROMPT`. Default model is `claude-sonnet-5`; the pickable models are `claude-opus-5`, `claude-sonnet-5`, and `claude-haiku-4-5-20251001`. On Opus 5 / Sonnet 5 the API runs adaptive thinking when the `thinking` field is omitted, so the request builder sends `thinking: {type: "disabled"}` when the extended-thinking toggle is off.
 - **System prompts** are picked at request-build time:
   - **NIP mode ON** (default): single `system` string from `NIPsysprompt.txt`. Claude calls the `lookup_food` tool when it needs a specific food's nutrients; no CSV attachment.
   - **NIP mode OFF**: a single short general-assistant string built by `buildGeneralSystemPrompt(enableWebSearch)`. No knowledge base, no caching.

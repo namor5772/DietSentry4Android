@@ -157,14 +157,14 @@ private const val DAILY_CSV_FILE_NAME = "EatenDailyAll.csv"
 // ever sent to api.anthropic.com over HTTPS.
 private const val KEY_ANTHROPIC_API_KEY = "anthropicApiKey"
 private const val KEY_ANTHROPIC_MODEL = "anthropicModel"
-private const val DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
+private const val DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5"
 private const val ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 private const val ANTHROPIC_VERSION = "2023-06-01"
 // Output-token cap for /v1/messages. Includes both extended-thinking tokens
 // and the visible reply, so it has to be generous enough that long thinking
-// + multi-iteration tool loops + a full NIP JSON all fit. Sonnet 4.6 / Opus
-// 4.7 accept up to 64000; Haiku 4.5 up to 8192. 16384 is the sweet spot for
-// our current workload — Claude only bills for tokens actually used.
+// + multi-iteration tool loops + a full NIP JSON all fit. Opus 5 / Sonnet 5
+// allow up to 128K (streaming only); Haiku 4.5 caps at 64K. 16384 is the
+// sweet spot for our non-streaming workload — Claude only bills tokens used.
 private const val ANTHROPIC_MAX_TOKENS = 16384
 private const val AI_IMAGE_MAX_DIM = 1568
 private const val KEY_AI_WEB_SEARCH = "aiWebSearch"
@@ -179,9 +179,21 @@ private const val KEY_AI_USER_PROFILE = "aiUserProfile"
 
 // Models for which Anthropic accepts `thinking: {type: "adaptive", ...}` on /v1/messages.
 // Haiku 4.5 is NOT on this list — sending the thinking field with that model yields HTTP 400.
+// The 4.x entries remain so a previously-saved model selection keeps working.
 private val EXTENDED_THINKING_MODELS = setOf(
+    "claude-opus-5",
+    "claude-sonnet-5",
     "claude-opus-4-7",
     "claude-sonnet-4-6"
+)
+
+// Models that run adaptive thinking when the `thinking` field is OMITTED — a change from
+// the 4.x generation, where omitting meant off. For these we send an explicit
+// {type: "disabled"} while the Extended-thinking toggle is off, so the toggle's off
+// position keeps meaning off and cost/latency stay as before.
+private val THINKING_ON_BY_DEFAULT_MODELS = setOf(
+    "claude-opus-5",
+    "claude-sonnet-5"
 )
 private const val WEB_SEARCH_COST_PER_REQUEST = 0.01
 private const val CACHE_WRITE_MULTIPLIER = 1.25
@@ -193,9 +205,12 @@ private const val MAX_TOOL_ITERATIONS = 12
 private data class AiPricing(val inputPerMillion: Double, val outputPerMillion: Double)
 
 private val ANTHROPIC_PRICING = mapOf(
-    "claude-opus-4-7" to AiPricing(15.0, 75.0),
-    "claude-sonnet-4-6" to AiPricing(3.0, 15.0),
-    "claude-haiku-4-5-20251001" to AiPricing(1.0, 5.0)
+    "claude-opus-5" to AiPricing(5.0, 25.0),
+    "claude-sonnet-5" to AiPricing(3.0, 15.0),
+    "claude-haiku-4-5-20251001" to AiPricing(1.0, 5.0),
+    // Previous generation — kept so previously-saved selections still get cost estimates.
+    "claude-opus-4-7" to AiPricing(5.0, 25.0),
+    "claude-sonnet-4-6" to AiPricing(3.0, 15.0)
 )
 
 // Session-scoped in-memory state (persists while app stays alive)
@@ -4006,6 +4021,10 @@ private fun buildAnthropicRequestJson(
                 .put("type", "adaptive")
                 .put("display", "summarized")
         )
+    } else if (model in THINKING_ON_BY_DEFAULT_MODELS) {
+        // Omitting `thinking` means adaptive-ON for these models, so the toggle's
+        // off position needs an explicit disable.
+        root.put("thinking", org.json.JSONObject().put("type", "disabled"))
     }
     if (nipMode) {
         root.put("system", primaryPrompt)
@@ -4287,8 +4306,8 @@ private fun AiSettingsDialog(
     var extendedThinking by rememberSaveable { mutableStateOf(initialExtendedThinking) }
     var keyVisible by rememberSaveable { mutableStateOf(false) }
     val knownModels = listOf(
-        "claude-opus-4-7" to "Opus 4.7 — highest quality",
-        "claude-sonnet-4-6" to "Sonnet 4.6 — balanced (default)",
+        "claude-opus-5" to "Opus 5 — highest quality",
+        "claude-sonnet-5" to "Sonnet 5 — balanced (default)",
         "claude-haiku-4-5-20251001" to "Haiku 4.5 — fastest / cheapest"
     )
 

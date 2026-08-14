@@ -129,7 +129,7 @@ struct DailyTotals {
 #define DAILY_CSV_FILE_NAME "EatenDailyAll.csv"
 
 static const long long REFERENCE_TIMESTAMP_SECONDS = 1672491600LL; // as Android
-static const char* const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
+static const char* const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 static const char* const ANTHROPIC_VERSION = "2023-06-01";
 static const int ANTHROPIC_MAX_TOKENS = 16384;
 static const int AI_IMAGE_MAX_DIM = 1568;

@@ -491,8 +491,8 @@ struct AddFoodByAiScreen : Screen {
             ImGui::PopFont();
             struct ModelOpt { const char* id; const char* label; };
             static const ModelOpt knownModels[] = {
-                {"claude-opus-4-7", u8"Opus 4.7 — highest quality"},
-                {"claude-sonnet-4-6", u8"Sonnet 4.6 — balanced (default)"},
+                {"claude-opus-5", u8"Opus 5 — highest quality"},
+                {"claude-sonnet-5", u8"Sonnet 5 — balanced (default)"},
                 {"claude-haiku-4-5-20251001", u8"Haiku 4.5 — fastest / cheapest"},
             };
             for (const auto& m : knownModels) {
