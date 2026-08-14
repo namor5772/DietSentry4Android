@@ -7011,16 +7011,24 @@ The remaining fields are self expanatory.
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(onClick = { shareDatabase() }) {
-                        Text("Share db…")
+                    Button(
+                        onClick = { shareDatabase() },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Text("Share db…", maxLines = 1, softWrap = false)
                     }
-                    Button(onClick = { shareCsv() }) {
-                        Text("Share csv…")
+                    Button(
+                        onClick = { shareCsv() },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Text("Share csv…", maxLines = 1, softWrap = false)
                     }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(onClick = { importDbFileLauncher.launch(arrayOf("*/*")) }) {
-                    Text("Import db from…")
+                    Button(
+                        onClick = { importDbFileLauncher.launch(arrayOf("*/*")) },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Text("Import db from…", maxLines = 1, softWrap = false)
+                    }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
