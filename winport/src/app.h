@@ -118,6 +118,8 @@ struct DailyTotals {
 #define PREF_KEY_GRAPH_CUSTOM_START        "graphCustomStart"
 #define PREF_KEY_GRAPH_CUSTOM_END          "graphCustomEnd"
 #define PREF_KEY_EXCHANGE_FOLDER           "exchangeFolderPath"
+#define PREF_KEY_DB_EXPORTED_AT            "dbExportedAt"
+#define PREF_KEY_DB_IMPORTED_AT            "dbImportedAt"
 #define PREF_KEY_ANTHROPIC_API_KEY         "anthropicApiKey"
 #define PREF_KEY_ANTHROPIC_MODEL           "anthropicModel"
 #define PREF_KEY_AI_WEB_SEARCH             "aiWebSearch"

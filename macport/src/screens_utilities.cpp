@@ -195,6 +195,26 @@ struct UtilitiesScreen : Screen {
         if (ui::primaryButton("Export csv", ImVec2(bw, 0))) {
             if (ensureExchangeFolder(app)) showExportCsvDialog = true;
         }
+        ImGui::Dummy(ImVec2(0, ui::dp(4)));
+
+        // Baton-pass staleness hint: when THIS machine last wrote foods.db out
+        // and last replaced it from the exchange folder.
+        {
+            long long exportedAt = app.prefs.getLong(PREF_KEY_DB_EXPORTED_AT, 0);
+            long long importedAt = app.prefs.getLong(PREF_KEY_DB_IMPORTED_AT, 0);
+            std::string exportedText = exportedAt > 0
+                ? formatDMMMYY(exportedAt) + " " + formatHHMM(exportedAt) : "never";
+            std::string importedText = importedAt > 0
+                ? formatDMMMYY(importedAt) + " " + formatHHMM(importedAt) : "never";
+            ImGui::PushFont(app.fontRegular, ui::fsBodySmall());
+            ImGui::PushStyleColor(ImGuiCol_Text, ui::COL_ON_SURFACE_VARIANT);
+            ImGui::SetCursorPosX(ui::dp(16));
+            ImGui::Text("Db last exported: %s", exportedText.c_str());
+            ImGui::SetCursorPosX(ui::dp(16));
+            ImGui::Text("Db last imported: %s", importedText.c_str());
+            ImGui::PopStyleColor();
+            ImGui::PopFont();
+        }
         ImGui::Dummy(ImVec2(0, ui::dp(8)));
 
         // Eaten Graph button (full width, with a small drawn bar-chart icon)
@@ -362,6 +382,7 @@ struct UtilitiesScreen : Screen {
                     showExportWarning = false;
                     std::wstring dest = exchangeFolder + L"/" + utf8ToWide(DATABASE_FILE_NAME);
                     bool success = app.db.exportDatabaseTo(dest);
+                    if (success) app.prefs.putLong(PREF_KEY_DB_EXPORTED_AT, nowMillis());
                     app.toast(success ? "Database exported" : "Failed to export database");
                 }
                 ui::endDialog();
@@ -397,6 +418,7 @@ struct UtilitiesScreen : Screen {
                     if (success) {
                         refreshWeights(app);
                         app.foodsResult.foodInserted = true; // refresh Foods list on return
+                        app.prefs.putLong(PREF_KEY_DB_IMPORTED_AT, nowMillis());
                         app.toast("Database imported");
                     } else {
                         app.toast("Failed to import database");

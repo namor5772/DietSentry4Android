@@ -437,6 +437,7 @@ This screen contains various miscellaneous utilities .
     - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates.
     - It is in csv format with each date per row. Columns match the scrollable table viewer on the Eaten Table screen and include `My weight (kg)` and `Comments` as the second and third columns.
     - The dialog shows the target path and includes a **Change folder** button to relink when needed.
+- **Db last exported / imported**: the two small lines under the buttons record when *this machine* last wrote `foods.db` to the exchange folder and last replaced its database from there — a staleness hint for the pass-the-baton workflow (log on one device at a time: export before switching away, import before logging on the next device). The Android app shows matching `Db last shared` / `Db last imported` lines.
 - **Eaten Graph**: opens a separate screen that visualises a chosen metric (My weight, Amount, Energy, or any of 22 nutrients) per day from the Eaten Table over a chosen date range. Use the metric dropdown to pick a metric, then the date-range chips (1W / 1M / 3M / 1Y / All / Custom) to scope the view. See the `?` help on that screen for full details.
 - **Weight Table**: a scrollable table viewer which displays records from the weight table.
     - Records are displayed in descending date order.

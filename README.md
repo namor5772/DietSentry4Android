@@ -29,6 +29,7 @@ The Android app uses a bundled SQLite `foods.db` on first run, then reads/writes
 - Utilities:
   - **Windows/macOS**: `Export db` / `Import db` / `Export csv` move `foods.db` / `EatenDailyAll.csv` through a remembered exchange folder — point it at a locally synced OneDrive folder (e.g. `OneDrive\MyImportant\DS`) to close the loop with the phone.
   - **Android** (since 2026-08-14): `Share db…` / `Share csv…` hand a copy of `foods.db` / `EatenDailyAll.csv` to the share sheet — the route into OneDrive, whose provider refuses saves from the system picker; `Import db from…` opens a database straight from OneDrive/Drive/local storage, with a SQLite-header check before anything is replaced. The folder-based exchange flow was removed on Android: cloud providers don't support its folder picker, so it could never reach OneDrive.
+  - All three Utilities screens show `Db last exported/shared` and `Db last imported` timestamps (stored per device in each app's prefs, stamped on success) as a staleness hint for the pass-the-baton workflow — log on one device at a time, export/share before switching away, import before logging on the next.
   - `Eaten Graph`: opens a separate screen that visualises any single metric (weight, amount eaten, energy, or any of 22 nutrient fields) per day over a chosen date range — see the *Eaten Graph* section below.
   - `Weight Table`: add/edit/delete dated weight entries with optional comments.
 - Eaten Graph (reached from Utilities → `Eaten Graph`):

@@ -147,6 +147,8 @@ private const val KEY_GRAPH_METRIC = "graphMetric"
 private const val KEY_GRAPH_RANGE = "graphRange"
 private const val KEY_GRAPH_CUSTOM_START = "graphCustomStart"
 private const val KEY_GRAPH_CUSTOM_END = "graphCustomEnd"
+private const val KEY_DB_SHARED_AT = "dbSharedAt"
+private const val KEY_DB_IMPORTED_AT = "dbImportedAt"
 private const val DATABASE_FILE_NAME = "foods.db"
 private const val DAILY_CSV_FILE_NAME = "EatenDailyAll.csv"
 
@@ -6753,6 +6755,18 @@ fun UtilitiesScreen(navController: NavController) {
     var showImportFileWarning by remember { mutableStateOf(false) }
     var importFileUri by remember { mutableStateOf<Uri?>(null) }
     var importFileName by remember { mutableStateOf<String?>(null) }
+    var dbSharedAtMillis by remember {
+        mutableLongStateOf(
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getLong(KEY_DB_SHARED_AT, 0L)
+        )
+    }
+    var dbImportedAtMillis by remember {
+        mutableLongStateOf(
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getLong(KEY_DB_IMPORTED_AT, 0L)
+        )
+    }
     var showAddWeightDialog by remember { mutableStateOf(false) }
     var weightInput by rememberSaveable { mutableStateOf("") }
     var weightCommentsInput by rememberSaveable { mutableStateOf("") }
@@ -6766,6 +6780,9 @@ fun UtilitiesScreen(navController: NavController) {
     var editWeightCommentsInput by rememberSaveable { mutableStateOf("") }
     var editWeightDateMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
     val weightDateFormat = remember { SimpleDateFormat("d-MMM-yy", Locale.getDefault()) }
+    val dbStampFormat = remember { SimpleDateFormat("d-MMM-yy HH:mm", Locale.getDefault()) }
+    fun formatDbStamp(millis: Long): String =
+        if (millis <= 0L) "never" else dbStampFormat.format(Date(millis))
     val weightDatePickerState = rememberDatePickerState(initialSelectedDateMillis = weightDateMillis)
     val helpSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val utilitiesHelpText = """
@@ -6780,6 +6797,7 @@ This screen contains various miscellaneous utilities .
 - **Import db from…**: Replaces the app database with a database file picked in the system file picker — cloud locations **including OneDrive** work here. A confirmation dialog shows the picked file's name before anything is replaced.
     - The picked file is first checked to really be a SQLite database, so picking a wrong file leaves the current database untouched.
     - Why the asymmetry? Cloud providers refuse *saves* from Android's pickers (and don't appear in its folder picker at all), but allow *opens* — so exporting goes through the share sheet while importing can use the file picker directly.
+- **Db last shared / imported**: the two small lines under the buttons record when *this device* last shared out and last imported `foods.db` — a staleness hint for the pass-the-baton workflow (log on one device at a time: share before switching away, import before logging on the next device). The Windows/macOS apps show the matching `Db last exported` / `Db last imported` lines on their Utilities screens.
 - **Eaten Graph**: opens a separate screen that visualises a chosen metric (My weight, Amount, Energy, or any of 22 nutrients) per day from the Eaten Table over a chosen date range. Use the metric dropdown to pick a metric, then the date-range chips (1W / 1M / 3M / 1Y / All / Custom) to scope the view. See the `?` help on that screen for full details.
 - **Weight Table**: a scrollable table viewer which displays records from the weight table.
     - Records are displayed in descending date order.
@@ -6895,6 +6913,9 @@ The remaining fields are self expanatory.
                 showPlainToast(context, "Failed to share database")
                 return@launch
             }
+            dbSharedAtMillis = System.currentTimeMillis()
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit { putLong(KEY_DB_SHARED_AT, dbSharedAtMillis) }
             shareViaSheet(shared, "application/octet-stream")
         }
     }
@@ -7001,7 +7022,15 @@ The remaining fields are self expanatory.
                 Button(onClick = { importDbFileLauncher.launch(arrayOf("*/*")) }) {
                     Text("Import db from…")
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Db last shared: ${formatDbStamp(dbSharedAtMillis)}\n" +
+                        "Db last imported: ${formatDbStamp(dbImportedAtMillis)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = { navController.navigate("eatenGraph") },
                     modifier = Modifier.fillMaxWidth()
@@ -7117,6 +7146,9 @@ The remaining fields are self expanatory.
                             val success = copyDatabaseFromUri(uri)
                             if (success) {
                                 refreshWeights()
+                                dbImportedAtMillis = System.currentTimeMillis()
+                                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                                    .edit { putLong(KEY_DB_IMPORTED_AT, dbImportedAtMillis) }
                                 showPlainToast(context, "Database imported")
                             } else {
                                 showPlainToast(context, "Failed to import database")
