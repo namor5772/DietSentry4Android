@@ -100,6 +100,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
+import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.navigation.NavController
@@ -129,6 +130,7 @@ import org.commonmark.node.StrongEmphasis
 import org.commonmark.node.ThematicBreak
 import org.commonmark.node.Text as MdText
 import org.commonmark.parser.Parser
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.floor
@@ -6942,10 +6944,13 @@ This screen contains various miscellaneous utilities .
     - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates.
     - It is in csv format with each date per row. Columns match the scrollable table viewer on the Eaten Table screen and include `My weight (kg)` and `Comments` as the second and third columns.
     - The dialog shows the target path and includes a **Change folder** button to relink when needed.
-- **Export db as…**: Saves a copy of `foods.db` through the system file picker, to any location it can reach — including cloud storage such as **OneDrive** or Google Drive. (Cloud drives cannot be chosen as the exchange folder above, because cloud providers don't support Android's folder picker.) You pick the destination and file name each time; nothing is remembered.
+- **Export db as…**: Saves a copy of `foods.db` through the system file picker, to any location the picker offers as a save target — local folders, an SD card, Google Drive, etc. (Cloud drives cannot be chosen as the exchange folder above, because cloud providers don't support Android's folder picker.) You pick the destination and file name each time; nothing is remembered.
     - If a `foods.db` already exists at the chosen location, the picker asks before overwriting. Some cloud providers instead save an auto-numbered copy such as `foods (1).db` — check the result in your cloud app.
-- **Import db from…**: Replaces the app database with a database file picked in the system file picker — again including cloud locations such as OneDrive. A confirmation dialog shows the picked file's name before anything is replaced.
+    - **OneDrive does not appear here**: its provider accepts *opens* but not *saves* from the system picker. To put the database into OneDrive, use **Share db…** below.
+- **Import db from…**: Replaces the app database with a database file picked in the system file picker — here cloud locations **including OneDrive** do work. A confirmation dialog shows the picked file's name before anything is replaced.
     - The picked file is first checked to really be a SQLite database, so picking a wrong file leaves the current database untouched.
+- **Share db…**: Hands a copy of `foods.db` to the Android share sheet, reaching any app that accepts files — **OneDrive** (Upload to OneDrive), Google Drive, email, messaging, and so on. In OneDrive's upload UI you choose the destination folder.
+    - If `foods.db` already exists in that OneDrive folder, OneDrive keeps both by numbering the new upload (e.g. `foods 1.db`) — delete or rename in the OneDrive app if you want a fixed name.
 - **Eaten Graph**: opens a separate screen that visualises a chosen metric (My weight, Amount, Energy, or any of 22 nutrients) per day from the Eaten Table over a chosen date range. Use the metric dropdown to pick a metric, then the date-range chips (1W / 1M / 3M / 1Y / All / Custom) to scope the view. See the `?` help on that screen for full details.
 - **Weight Table**: a scrollable table viewer which displays records from the weight table.
     - Records are displayed in descending date order.
@@ -7153,6 +7158,41 @@ The remaining fields are self expanatory.
         }
     }
 
+    // Share a snapshot of the database via ACTION_SEND. This is the only route
+    // into OneDrive: its DocumentsProvider accepts opens but not saves, so it
+    // never appears in the CreateDocument picker — only as a share target.
+    fun shareDatabase() {
+        coroutineScope.launch {
+            val shared = withContext(Dispatchers.IO) {
+                try {
+                    val dbFile = context.getDatabasePath(DATABASE_FILE_NAME)
+                    if (!dbFile.exists()) return@withContext null
+                    val dir = File(context.cacheDir, "shared").apply { mkdirs() }
+                    val outFile = File(dir, DATABASE_FILE_NAME)
+                    dbFile.copyTo(outFile, overwrite = true)
+                    outFile
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            if (shared == null) {
+                showPlainToast(context, "Failed to share database")
+                return@launch
+            }
+            val uri = FileProvider.getUriForFile(
+                context,
+                context.packageName + ".fileprovider",
+                shared
+            )
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "application/octet-stream"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(send, "Share $DATABASE_FILE_NAME"))
+        }
+    }
+
     // Single-file export/import via the system file picker. Unlike the
     // exchange-folder flow above, these reach providers with no folder-tree
     // support — OneDrive, Google Drive, etc. One-shot URIs; nothing remembered.
@@ -7259,6 +7299,10 @@ The remaining fields are self expanatory.
                     Button(onClick = { importDbFileLauncher.launch(arrayOf("*/*")) }) {
                         Text("Import db from…")
                     }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(onClick = { shareDatabase() }) {
+                    Text("Share db…")
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
