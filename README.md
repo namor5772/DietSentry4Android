@@ -27,10 +27,8 @@ The Android app uses a bundled SQLite `foods.db` on first run, then reads/writes
   - Edit/delete individual log entries when daily totals are off.
   - With `Daily totals` ticked, tap any day's totals card to slide up a bottom sheet with **Explain this day (AI)** and **Edit my profile** actions — the AI assesses the day's intake against Australian NHMRC NRVs in 2–3 short paragraphs, personalised by a free-text user profile (e.g. "age 67 male, weight 89kg, dietary goals: low sodium") that persists across launches.
 - Utilities:
-  - `Export db`: export internal `foods.db`.
-  - `Import db`: replace the internal database from external `foods.db`.
-  - `Export csv`: export daily totals as `EatenDailyAll.csv`.
-  - `Export db as…` / `Import db from…` / `Share db…` (**Android only**): single-file flows that reach cloud storage the remembered exchange folder cannot — cloud providers don't support Android's folder picker. `Import db from…` opens straight from OneDrive or Google Drive (with a SQLite-header check before anything is replaced); `Export db as…` saves anywhere the system picker allows (Google Drive yes, but OneDrive's provider refuses saves); `Share db…` hands `foods.db` to the share sheet, which is the route *into* OneDrive (Upload to OneDrive). The desktop ports don't need these buttons: their exchange folder is a plain filesystem path that can point directly at a locally synced cloud folder.
+  - **Windows/macOS**: `Export db` / `Import db` / `Export csv` move `foods.db` / `EatenDailyAll.csv` through a remembered exchange folder — point it at a locally synced OneDrive folder (e.g. `OneDrive\MyImportant\DS`) to close the loop with the phone.
+  - **Android** (since 2026-08-14): `Share db…` / `Share csv…` hand a copy of `foods.db` / `EatenDailyAll.csv` to the share sheet — the route into OneDrive, whose provider refuses saves from the system picker; `Import db from…` opens a database straight from OneDrive/Drive/local storage, with a SQLite-header check before anything is replaced. The folder-based exchange flow was removed on Android: cloud providers don't support its folder picker, so it could never reach OneDrive.
   - `Eaten Graph`: opens a separate screen that visualises any single metric (weight, amount eaten, energy, or any of 22 nutrient fields) per day over a chosen date range — see the *Eaten Graph* section below.
   - `Weight Table`: add/edit/delete dated weight entries with optional comments.
 - Eaten Graph (reached from Utilities → `Eaten Graph`):
@@ -194,11 +192,13 @@ The script locates `VsDevCmd.bat` itself, compiles SQLite and Dear ImGui once in
 
 The two apps read and write byte-compatible databases:
 
-1. **Phone → PC**: on Android use Utilities → `Export db` to write `foods.db` to a folder (e.g. Downloads), transfer the file to the PC, then on Windows use Utilities → `Import db` and pick the folder containing it.
-2. **PC → phone**: on Windows use Utilities → `Export db`, transfer, then on Android use Utilities → `Import db`.
-3. **Via OneDrive (or another cloud drive), no cable transfer**: on the PC point the exchange folder at a folder inside the locally synced OneDrive tree (e.g. `OneDrive\MyImportant\DS`). Phone → PC: use Utilities → `Share db…`, pick **Upload to OneDrive**, and choose that same folder (on a name clash OneDrive numbers the upload, e.g. `foods 1.db`, rather than overwriting — tidy up in the OneDrive app if needed). PC → phone: export on the PC into the synced folder, then on Android use `Import db from…` and open the file straight from OneDrive. (The Android exchange folder can't be a cloud folder — cloud providers don't appear in Android's folder picker — and OneDrive additionally refuses *saves* from the file picker, which is why the share route exists.)
+The intended loop runs through OneDrive; on the PC point the exchange folder at a folder inside the locally synced OneDrive tree (e.g. `OneDrive\MyImportant\DS`):
 
-`Export csv` on both platforms writes the same `EatenDailyAll.csv` (same columns, including `My weight (kg)` and `Comments`).
+1. **Phone → PC**: on Android use Utilities → `Share db…`, pick **Upload to OneDrive**, and choose that folder. Delete the folder's previous `foods.db` first — on a name clash OneDrive numbers the upload (`foods 1.db`) instead of overwriting, and the desktop import looks for the exact name `foods.db`. Once OneDrive syncs, use Utilities → `Import db` on the PC.
+2. **PC → phone**: on Windows/macOS use Utilities → `Export db` into that synced folder, then on Android use Utilities → `Import db from…` and open `foods.db` straight from OneDrive.
+3. **Without OneDrive**: any transfer works — `Share db…` reaches email/Drive/messaging, and `Import db from…` opens from local storage (e.g. Downloads) as well as cloud locations.
+
+`Export csv` (desktop) and `Share csv…` (Android) produce the same `EatenDailyAll.csv` (same columns, including `My weight (kg)` and `Comments`).
 
 **Date compatibility note**: Android's `SimpleDateFormat("d-MMM-yy")` in the en_AU locale spells out *June*, *July* and *Sept* (e.g. `30-July-26`) while abbreviating other months. The Windows port writes exactly this dialect so rows created on either device are byte-identical, and its parser additionally accepts any month spelling (`Jul`, `July`, `Sept`, `Dec.`, …) so databases from phones in other locales still filter, sort and graph correctly.
 

@@ -13,8 +13,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.provider.DocumentsContract
-import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.app.Activity
 import androidx.activity.ComponentActivity
@@ -149,9 +147,6 @@ private const val KEY_GRAPH_METRIC = "graphMetric"
 private const val KEY_GRAPH_RANGE = "graphRange"
 private const val KEY_GRAPH_CUSTOM_START = "graphCustomStart"
 private const val KEY_GRAPH_CUSTOM_END = "graphCustomEnd"
-private const val KEY_EXPORT_OVERWRITE_URI = "exportOverwriteUri"
-private const val KEY_IMPORT_URI = "importUri"
-private const val KEY_EXCHANGE_FOLDER_URI = "exchangeFolderUri"
 private const val DATABASE_FILE_NAME = "foods.db"
 private const val DAILY_CSV_FILE_NAME = "EatenDailyAll.csv"
 
@@ -6623,128 +6618,6 @@ fun UtilitiesScreen(navController: NavController) {
     val dbHelper = remember { DatabaseHelper.getInstance(context) }
     val coroutineScope = rememberCoroutineScope()
 
-    fun loadExchangeFolderUri(): Uri? {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val uriString = prefs.getString(KEY_EXCHANGE_FOLDER_URI, null) ?: return null
-        return runCatching { uriString.toUri() }.getOrNull()
-    }
-
-    fun storeExchangeFolderUri(uri: Uri) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit { putString(KEY_EXCHANGE_FOLDER_URI, uri.toString()) }
-    }
-
-    fun clearExchangeFolderUri() {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit { remove(KEY_EXCHANGE_FOLDER_URI) }
-    }
-
-    fun canReadAndroidTree(folderUri: Uri): Boolean {
-        return try {
-            val treeId = DocumentsContract.getTreeDocumentId(folderUri)
-            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(folderUri, treeId)
-            context.contentResolver.query(
-                childrenUri,
-                arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID),
-                null,
-                null,
-                null
-            )?.use { true } ?: false
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    fun buildAndroidDirectoryDisplay(uri: Uri): String {
-        val fallback = "Selected folder"
-        return try {
-            val docId = DocumentsContract.getTreeDocumentId(uri)
-            if (docId.isNullOrBlank()) return fallback
-            val parts = docId.split(":", limit = 2).filter { it.isNotBlank() }
-            if (parts.isEmpty()) return docId
-            if (parts.size == 1) {
-                return if (parts[0].equals("primary", ignoreCase = true)) {
-                    "Internal storage"
-                } else {
-                    parts[0]
-                }
-            }
-            val volume = parts[0]
-            val path = parts[1].trim('/')
-            if (volume.equals("primary", ignoreCase = true)) {
-                if (path.isBlank()) "Internal storage" else "Internal storage/$path"
-            } else {
-                if (path.isBlank()) volume else "$volume/$path"
-            }
-        } catch (_: Exception) {
-            fallback
-        }
-    }
-
-    fun buildAndroidFileDisplay(uri: Uri, fileName: String): String {
-        val directory = buildAndroidDirectoryDisplay(uri)
-        return if (directory.isBlank()) fileName else "$directory/$fileName"
-    }
-
-    suspend fun findDocumentInFolder(folderUri: Uri, fileName: String): Uri? = withContext(Dispatchers.IO) {
-        try {
-            val treeId = DocumentsContract.getTreeDocumentId(folderUri)
-            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(folderUri, treeId)
-            context.contentResolver.query(
-                childrenUri,
-                arrayOf(
-                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                    DocumentsContract.Document.COLUMN_DISPLAY_NAME
-                ),
-                null,
-                null,
-                null
-            )?.use { cursor ->
-                val idIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-                val nameIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-                while (cursor.moveToNext()) {
-                    val name = cursor.getString(nameIndex)
-                    if (!name.equals(fileName, ignoreCase = true)) continue
-                    val documentId = cursor.getString(idIndex)
-                    return@withContext DocumentsContract.buildDocumentUriUsingTree(folderUri, documentId)
-                }
-            }
-            null
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    suspend fun ensureDocumentInFolder(folderUri: Uri, fileName: String, mimeType: String): Uri? =
-        withContext(Dispatchers.IO) {
-            findDocumentInFolder(folderUri, fileName)
-                ?: runCatching {
-                    val treeId = DocumentsContract.getTreeDocumentId(folderUri)
-                    val parentUri = DocumentsContract.buildDocumentUriUsingTree(folderUri, treeId)
-                    DocumentsContract.createDocument(
-                        context.contentResolver,
-                        parentUri,
-                        mimeType,
-                        fileName
-                    )
-                }.getOrNull()
-        }
-
-    suspend fun copyDatabaseToUri(uri: Uri): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val dbFile = context.getDatabasePath(DATABASE_FILE_NAME)
-            if (!dbFile.exists()) return@withContext false
-            context.contentResolver.openOutputStream(uri, "w")?.use { output ->
-                dbFile.inputStream().use { input ->
-                    input.copyTo(output)
-                }
-            } ?: return@withContext false
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
-
     suspend fun copyDatabaseFromUri(uri: Uri): Boolean = withContext(Dispatchers.IO) {
         try {
             context.contentResolver.openInputStream(uri)?.use { input ->
@@ -6876,47 +6749,10 @@ fun UtilitiesScreen(navController: NavController) {
         return lines.joinToString("\n")
     }
 
-    suspend fun exportDatabaseToFolder(folderUri: Uri): Boolean {
-        val fileUri = ensureDocumentInFolder(folderUri, DATABASE_FILE_NAME, "application/octet-stream")
-            ?: return false
-        return copyDatabaseToUri(fileUri)
-    }
-
-    suspend fun importDatabaseFromFolder(folderUri: Uri): Boolean {
-        val sourceUri = findDocumentInFolder(folderUri, DATABASE_FILE_NAME) ?: return false
-        return copyDatabaseFromUri(sourceUri)
-    }
-
-    suspend fun exportCsvToFolder(folderUri: Uri): Boolean {
-        val fileUri = ensureDocumentInFolder(folderUri, DAILY_CSV_FILE_NAME, "text/csv") ?: return false
-        return withContext(Dispatchers.IO) {
-            val dailyTotals = aggregateDailyTotals(dbHelper.readEatenFoods())
-            val weightByDate = dbHelper.readWeights().associateBy { it.dateWeight }
-            val csv = buildEatenDailyAllCsv(dailyTotals, weightByDate)
-            try {
-                context.contentResolver.openOutputStream(fileUri, "w")?.bufferedWriter()?.use { writer ->
-                    writer.write(csv)
-                } ?: return@withContext false
-                true
-            } catch (_: Exception) {
-                false
-            }
-        }
-    }
-
     var showHelpSheet by remember { mutableStateOf(false) }
-    var showExportWarning by remember { mutableStateOf(false) }
-    var showImportWarning by remember { mutableStateOf(false) }
-    var showExportCsvDialog by remember { mutableStateOf(false) }
-    var exchangeFolderUri by remember { mutableStateOf<Uri?>(loadExchangeFolderUri()) }
-    var exportTargetPath by remember { mutableStateOf<String?>(null) }
-    var importSourcePath by remember { mutableStateOf<String?>(null) }
-    var exportCsvTargetPath by remember { mutableStateOf<String?>(null) }
-    var importSourceUri by remember { mutableStateOf<Uri?>(null) }
     var showImportFileWarning by remember { mutableStateOf(false) }
     var importFileUri by remember { mutableStateOf<Uri?>(null) }
     var importFileName by remember { mutableStateOf<String?>(null) }
-    var pendingFolderAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showAddWeightDialog by remember { mutableStateOf(false) }
     var weightInput by rememberSaveable { mutableStateOf("") }
     var weightCommentsInput by rememberSaveable { mutableStateOf("") }
@@ -6936,21 +6772,14 @@ fun UtilitiesScreen(navController: NavController) {
 # **Utilities**
 This screen contains various miscellaneous utilities .
 
-- **Export db**: Writes/overwrites the `foods.db` file in the folder you choose. On first use you'll be asked to pick a folder (starts at Downloads); that choice is remembered.
-    - The dialog shows the target path and includes a **Change folder** button to relink if permissions are lost or you want a new location.
-- **Import db**: Replaces the app database with `foods.db` from the currently selected folder.
-    - The dialog shows the source path and a **Change folder** button to pick a new location. If `foods.db` is missing there, you'll be prompted to place it first.
-- **Export csv**: Writes/overwrites `EatenDailyAll.csv` in the selected folder (same remembered folder as above).
-    - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates.
-    - It is in csv format with each date per row. Columns match the scrollable table viewer on the Eaten Table screen and include `My weight (kg)` and `Comments` as the second and third columns.
-    - The dialog shows the target path and includes a **Change folder** button to relink when needed.
-- **Export db as…**: Saves a copy of `foods.db` through the system file picker, to any location the picker offers as a save target — local folders, an SD card, Google Drive, etc. (Cloud drives cannot be chosen as the exchange folder above, because cloud providers don't support Android's folder picker.) You pick the destination and file name each time; nothing is remembered.
-    - If a `foods.db` already exists at the chosen location, the picker asks before overwriting. Some cloud providers instead save an auto-numbered copy such as `foods (1).db` — check the result in your cloud app.
-    - **OneDrive does not appear here**: its provider accepts *opens* but not *saves* from the system picker. To put the database into OneDrive, use **Share db…** below.
-- **Import db from…**: Replaces the app database with a database file picked in the system file picker — here cloud locations **including OneDrive** do work. A confirmation dialog shows the picked file's name before anything is replaced.
+- **Share db…**: Hands a copy of the internal `foods.db` to the Android share sheet, reaching any app that accepts files — **OneDrive** (Upload to OneDrive), Google Drive, email, messaging, and so on. In OneDrive's upload UI you choose the destination folder.
+    - If a `foods.db` already exists in that OneDrive folder, OneDrive keeps both by numbering the new upload (e.g. `foods 1.db`). Delete the old copy first (or rename afterwards) if you want the fixed name `foods.db`, which the Windows/macOS apps expect in their exchange folder.
+- **Share csv…**: Builds `EatenDailyAll.csv` and hands it to the share sheet in the same way — upload it to OneDrive, attach it to an email, etc.
+    - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates, one row per date. Columns match that viewer and include `My weight (kg)` and `Comments` as the second and third columns.
+    - The same name-clash rule as above applies: OneDrive numbers rather than overwrites.
+- **Import db from…**: Replaces the app database with a database file picked in the system file picker — cloud locations **including OneDrive** work here. A confirmation dialog shows the picked file's name before anything is replaced.
     - The picked file is first checked to really be a SQLite database, so picking a wrong file leaves the current database untouched.
-- **Share db…**: Hands a copy of `foods.db` to the Android share sheet, reaching any app that accepts files — **OneDrive** (Upload to OneDrive), Google Drive, email, messaging, and so on. In OneDrive's upload UI you choose the destination folder.
-    - If `foods.db` already exists in that OneDrive folder, OneDrive keeps both by numbering the new upload (e.g. `foods 1.db`) — delete or rename in the OneDrive app if you want a fixed name.
+    - Why the asymmetry? Cloud providers refuse *saves* from Android's pickers (and don't appear in its folder picker at all), but allow *opens* — so exporting goes through the share sheet while importing can use the file picker directly.
 - **Eaten Graph**: opens a separate screen that visualises a chosen metric (My weight, Amount, Energy, or any of 22 nutrients) per day from the Eaten Table over a chosen date range. Use the metric dropdown to pick a metric, then the date-range chips (1W / 1M / 3M / 1Y / All / Custom) to scope the view. See the `?` help on that screen for full details.
 - **Weight Table**: a scrollable table viewer which displays records from the weight table.
     - Records are displayed in descending date order.
@@ -7010,17 +6839,6 @@ The remaining fields are self expanatory.
         refreshWeights()
     }
 
-    LaunchedEffect(Unit) {
-        val storedFolder = exchangeFolderUri
-        if (storedFolder != null && canReadAndroidTree(storedFolder)) {
-            exportTargetPath = buildAndroidFileDisplay(storedFolder, DATABASE_FILE_NAME)
-            exportCsvTargetPath = buildAndroidFileDisplay(storedFolder, DAILY_CSV_FILE_NAME)
-        } else {
-            exchangeFolderUri = null
-            clearExchangeFolderUri()
-        }
-    }
-
     LaunchedEffect(editingWeight?.weightId) {
         editWeightInput = editingWeight?.let { entry ->
             formatWeight(entry.weight)
@@ -7041,126 +6859,24 @@ The remaining fields are self expanatory.
         weightDatePickerState.selectedDateMillis = weightDateMillis
     }
 
-    val exchangeFolderPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode != Activity.RESULT_OK) {
-            showPlainToast(context, "Folder selection cancelled")
-            pendingFolderAction = null
-            return@rememberLauncherForActivityResult
+    // Outbound files go through ACTION_SEND via FileProvider. This is the only
+    // route into OneDrive: its DocumentsProvider accepts opens but not saves,
+    // so it never appears as a save target in the system picker — only as a
+    // share-sheet target.
+    fun shareViaSheet(file: File, mime: String) {
+        val uri = FileProvider.getUriForFile(
+            context,
+            context.packageName + ".fileprovider",
+            file
+        )
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = mime
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        val uri = result.data?.data
-        if (uri == null) {
-            showPlainToast(context, "Folder selection cancelled")
-            pendingFolderAction = null
-            return@rememberLauncherForActivityResult
-        }
-        val flags = result.data?.flags ?: 0
-        try {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                (flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)) or
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-        } catch (_: SecurityException) {
-            // Best effort; some providers don't allow persistable permissions.
-        }
-        storeExchangeFolderUri(uri)
-        exchangeFolderUri = uri
-        pendingFolderAction?.invoke()
-        pendingFolderAction = null
+        context.startActivity(Intent.createChooser(send, "Share ${file.name}"))
     }
 
-    fun pickExchangeFolder(onPicked: (Uri) -> Unit) {
-        pendingFolderAction = {
-            val refreshed = exchangeFolderUri
-            if (refreshed != null && canReadAndroidTree(refreshed)) {
-                onPicked(refreshed)
-            } else {
-                showPlainToast(context, "Unable to access selected folder")
-            }
-        }
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-            addFlags(
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-            )
-            exchangeFolderUri?.let { putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) }
-                ?: putExtra(DocumentsContract.EXTRA_INITIAL_URI, MediaStore.Downloads.EXTERNAL_CONTENT_URI)
-        }
-        exchangeFolderPickerLauncher.launch(intent)
-    }
-
-    fun withExchangeFolder(onReady: (Uri) -> Unit) {
-        pendingFolderAction = null
-        val stored = exchangeFolderUri
-        if (stored != null && !canReadAndroidTree(stored)) {
-            exchangeFolderUri = null
-            clearExchangeFolderUri()
-        }
-        if (stored != null && canReadAndroidTree(stored)) {
-            exportTargetPath = buildAndroidFileDisplay(stored, DATABASE_FILE_NAME)
-            exportCsvTargetPath = buildAndroidFileDisplay(stored, DAILY_CSV_FILE_NAME)
-            onReady(stored)
-            return
-        }
-        pendingFolderAction = {
-            val refreshed = exchangeFolderUri
-            if (refreshed != null && canReadAndroidTree(refreshed)) {
-                exportTargetPath = buildAndroidFileDisplay(refreshed, DATABASE_FILE_NAME)
-                exportCsvTargetPath = buildAndroidFileDisplay(refreshed, DAILY_CSV_FILE_NAME)
-                onReady(refreshed)
-            } else {
-                showPlainToast(context, "Unable to access selected folder")
-            }
-        }
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-            addFlags(
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-            )
-            putExtra(DocumentsContract.EXTRA_INITIAL_URI, MediaStore.Downloads.EXTERNAL_CONTENT_URI)
-        }
-        exchangeFolderPickerLauncher.launch(intent)
-    }
-
-    fun startExportFlow() {
-        withExchangeFolder { folderUri ->
-            exportTargetPath = buildAndroidFileDisplay(folderUri, DATABASE_FILE_NAME)
-            showExportWarning = true
-        }
-    }
-
-    fun startImportFlow() {
-        importSourceUri = null
-        importSourcePath = null
-        withExchangeFolder { folderUri ->
-            coroutineScope.launch {
-                val sourceUri = findDocumentInFolder(folderUri, DATABASE_FILE_NAME)
-                if (sourceUri == null) {
-                    val displayDirectory = buildAndroidDirectoryDisplay(folderUri)
-                    showPlainToast(context, "No $DATABASE_FILE_NAME found in $displayDirectory")
-                    return@launch
-                }
-                importSourceUri = sourceUri
-                importSourcePath = buildAndroidFileDisplay(folderUri, DATABASE_FILE_NAME)
-                showImportWarning = true
-            }
-        }
-    }
-
-    fun startExportCsvFlow() {
-        withExchangeFolder { folderUri ->
-            exportCsvTargetPath = buildAndroidFileDisplay(folderUri, DAILY_CSV_FILE_NAME)
-            showExportCsvDialog = true
-        }
-    }
-
-    // Share a snapshot of the database via ACTION_SEND. This is the only route
-    // into OneDrive: its DocumentsProvider accepts opens but not saves, so it
-    // never appears in the CreateDocument picker — only as a share target.
     fun shareDatabase() {
         coroutineScope.launch {
             val shared = withContext(Dispatchers.IO) {
@@ -7179,39 +6895,36 @@ The remaining fields are self expanatory.
                 showPlainToast(context, "Failed to share database")
                 return@launch
             }
-            val uri = FileProvider.getUriForFile(
-                context,
-                context.packageName + ".fileprovider",
-                shared
-            )
-            val send = Intent(Intent.ACTION_SEND).apply {
-                type = "application/octet-stream"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(Intent.createChooser(send, "Share $DATABASE_FILE_NAME"))
+            shareViaSheet(shared, "application/octet-stream")
         }
     }
 
-    // Single-file export/import via the system file picker. Unlike the
-    // exchange-folder flow above, these reach providers with no folder-tree
-    // support — OneDrive, Google Drive, etc. One-shot URIs; nothing remembered.
-    val exportDbFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
-    ) { uri ->
-        if (uri == null) {
-            showPlainToast(context, "Export cancelled")
-            return@rememberLauncherForActivityResult
-        }
+    fun shareCsv() {
         coroutineScope.launch {
-            val success = copyDatabaseToUri(uri)
-            showPlainToast(
-                context,
-                if (success) "Database exported" else "Failed to export database"
-            )
+            val shared = withContext(Dispatchers.IO) {
+                try {
+                    val dailyTotals = aggregateDailyTotals(dbHelper.readEatenFoods())
+                    val weightByDate = dbHelper.readWeights().associateBy { it.dateWeight }
+                    val csv = buildEatenDailyAllCsv(dailyTotals, weightByDate)
+                    val dir = File(context.cacheDir, "shared").apply { mkdirs() }
+                    val outFile = File(dir, DAILY_CSV_FILE_NAME)
+                    outFile.writeText(csv)
+                    outFile
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            if (shared == null) {
+                showPlainToast(context, "Failed to share CSV")
+                return@launch
+            }
+            shareViaSheet(shared, "text/csv")
         }
     }
 
+    // Inbound via the system file picker (SAF OpenDocument) — cloud providers
+    // like OneDrive appear here even though they refuse saves. One-shot URI;
+    // nothing remembered.
     val importDbFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -7277,32 +6990,16 @@ The remaining fields are self expanatory.
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(onClick = { startExportFlow() }) {
-                        Text("Export db")
+                    Button(onClick = { shareDatabase() }) {
+                        Text("Share db…")
                     }
-                    Button(onClick = { startImportFlow() }) {
-                        Text("Import db")
-                    }
-                    Button(onClick = { startExportCsvFlow() }) {
-                        Text("Export csv")
+                    Button(onClick = { shareCsv() }) {
+                        Text("Share csv…")
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Button(onClick = { exportDbFileLauncher.launch(DATABASE_FILE_NAME) }) {
-                        Text("Export db as…")
-                    }
-                    Button(onClick = { importDbFileLauncher.launch(arrayOf("*/*")) }) {
-                        Text("Import db from…")
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(onClick = { shareDatabase() }) {
-                    Text("Share db…")
+                Button(onClick = { importDbFileLauncher.launch(arrayOf("*/*")) }) {
+                    Text("Import db from…")
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
@@ -7375,141 +7072,6 @@ The remaining fields are self expanatory.
         }
     }
 
-    if (showExportWarning) {
-        AlertDialog(
-            onDismissRequest = { showExportWarning = false },
-            title = {
-                Text(
-                    text = "Export Database?",
-                    color = Color.Red,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("This will overwrite $DATABASE_FILE_NAME in the selected folder.")
-                    Text(
-                        text = exportTargetPath ?: "Pick a folder to continue",
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            confirmButton = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(onClick = {
-                        pickExchangeFolder { folderUri ->
-                            exportTargetPath = buildAndroidFileDisplay(folderUri, DATABASE_FILE_NAME)
-                        }
-                    }) {
-                        Text("Change folder")
-                    }
-                    Button(
-                        enabled = exportTargetPath != null,
-                        onClick = {
-                        showExportWarning = false
-                        withExchangeFolder { folderUri ->
-                            coroutineScope.launch {
-                                val success = exportDatabaseToFolder(folderUri)
-                                showPlainToast(
-                                    context,
-                                    if (success) "Database exported" else "Failed to export database"
-                                )
-                            }
-                        }
-                    }) {
-                        Text("Confirm")
-                    }
-                }
-            },
-            dismissButton = {}
-        )
-    }
-
-    if (showImportWarning) {
-        AlertDialog(
-            onDismissRequest = {
-                showImportWarning = false
-                importSourcePath = null
-                importSourceUri = null
-            },
-            title = {
-                Text(
-                    text = "Import Database?",
-                    color = Color.Red,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("This will replace the app database with $DATABASE_FILE_NAME from:")
-                    Text(
-                        text = importSourcePath ?: "No $DATABASE_FILE_NAME found yet",
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            confirmButton = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(onClick = {
-                        pickExchangeFolder { folderUri ->
-                            coroutineScope.launch {
-                                val sourceUri = findDocumentInFolder(folderUri, DATABASE_FILE_NAME)
-                                if (sourceUri == null) {
-                                    val displayDirectory = buildAndroidDirectoryDisplay(folderUri)
-                                    showPlainToast(
-                                        context,
-                                        "No $DATABASE_FILE_NAME found in $displayDirectory"
-                                    )
-                                } else {
-                                    importSourceUri = sourceUri
-                                    importSourcePath = buildAndroidFileDisplay(folderUri, DATABASE_FILE_NAME)
-                                }
-                            }
-                        }
-                    }) {
-                        Text("Change folder")
-                    }
-                    Button(
-                        enabled = importSourcePath != null,
-                        onClick = {
-                        showImportWarning = false
-                        val folderUri = exchangeFolderUri
-                        if (folderUri == null || importSourceUri == null) {
-                            startImportFlow()
-                            return@Button
-                        }
-                        coroutineScope.launch {
-                            val success = importDatabaseFromFolder(folderUri)
-                            if (success) {
-                                refreshWeights()
-                                showPlainToast(context, "Database imported")
-                            } else {
-                                showPlainToast(context, "Failed to import database")
-                            }
-                            importSourcePath = null
-                            importSourceUri = null
-                        }
-                    }) {
-                        Text("Confirm")
-                    }
-                }
-            },
-            dismissButton = {}
-        )
-    }
-
     if (showImportFileWarning) {
         AlertDialog(
             onDismissRequest = {
@@ -7558,61 +7120,6 @@ The remaining fields are self expanatory.
                                 showPlainToast(context, "Database imported")
                             } else {
                                 showPlainToast(context, "Failed to import database")
-                            }
-                        }
-                    }) {
-                        Text("Confirm")
-                    }
-                }
-            },
-            dismissButton = {}
-        )
-    }
-
-    if (showExportCsvDialog) {
-        AlertDialog(
-            onDismissRequest = { showExportCsvDialog = false },
-            title = {
-                Text(
-                    text = "Export CSV?",
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("This will save $DAILY_CSV_FILE_NAME to:")
-                    Text(
-                        text = exportCsvTargetPath ?: "Pick a folder to continue",
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            confirmButton = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(onClick = {
-                        pickExchangeFolder { folderUri ->
-                            exportCsvTargetPath = buildAndroidFileDisplay(folderUri, DAILY_CSV_FILE_NAME)
-                        }
-                    }) {
-                        Text("Change folder")
-                    }
-                    Button(
-                        enabled = exportCsvTargetPath != null,
-                        onClick = {
-                        showExportCsvDialog = false
-                        withExchangeFolder { folderUri ->
-                            coroutineScope.launch {
-                                val success = exportCsvToFolder(folderUri)
-                                showPlainToast(
-                                    context,
-                                    if (success) "CSV exported" else "Failed to export CSV"
-                                )
                             }
                         }
                     }) {
