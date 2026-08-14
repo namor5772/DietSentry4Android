@@ -15,6 +15,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import android.app.Activity
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -6752,6 +6753,45 @@ fun UtilitiesScreen(navController: NavController) {
         }
     }
 
+    fun queryDisplayName(uri: Uri): String? {
+        return try {
+            context.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // replaceDatabaseFromStream swaps the live database before SQLite ever parses
+    // the bytes, so a mispicked file in the free file picker would leave an
+    // unopenable database behind; check the 16-byte magic header up front.
+    suspend fun isSqliteDatabase(uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val header = ByteArray(16)
+                var read = 0
+                while (read < header.size) {
+                    val n = input.read(header, read, header.size - read)
+                    if (n < 0) break
+                    read += n
+                }
+                read == header.size &&
+                    header.decodeToString(0, 15) == "SQLite format 3" &&
+                    header[15] == 0.toByte()
+            } ?: false
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     fun csvCell(value: String): String {
         val escaped = value.replace("\"", "\"\"")
         return "\"$escaped\""
@@ -6871,6 +6911,9 @@ fun UtilitiesScreen(navController: NavController) {
     var importSourcePath by remember { mutableStateOf<String?>(null) }
     var exportCsvTargetPath by remember { mutableStateOf<String?>(null) }
     var importSourceUri by remember { mutableStateOf<Uri?>(null) }
+    var showImportFileWarning by remember { mutableStateOf(false) }
+    var importFileUri by remember { mutableStateOf<Uri?>(null) }
+    var importFileName by remember { mutableStateOf<String?>(null) }
     var pendingFolderAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showAddWeightDialog by remember { mutableStateOf(false) }
     var weightInput by rememberSaveable { mutableStateOf("") }
@@ -6899,6 +6942,10 @@ This screen contains various miscellaneous utilities .
     - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates.
     - It is in csv format with each date per row. Columns match the scrollable table viewer on the Eaten Table screen and include `My weight (kg)` and `Comments` as the second and third columns.
     - The dialog shows the target path and includes a **Change folder** button to relink when needed.
+- **Export db as…**: Saves a copy of `foods.db` through the system file picker, to any location it can reach — including cloud storage such as **OneDrive** or Google Drive. (Cloud drives cannot be chosen as the exchange folder above, because cloud providers don't support Android's folder picker.) You pick the destination and file name each time; nothing is remembered.
+    - If a `foods.db` already exists at the chosen location, the picker asks before overwriting. Some cloud providers instead save an auto-numbered copy such as `foods (1).db` — check the result in your cloud app.
+- **Import db from…**: Replaces the app database with a database file picked in the system file picker — again including cloud locations such as OneDrive. A confirmation dialog shows the picked file's name before anything is replaced.
+    - The picked file is first checked to really be a SQLite database, so picking a wrong file leaves the current database untouched.
 - **Eaten Graph**: opens a separate screen that visualises a chosen metric (My weight, Amount, Energy, or any of 22 nutrients) per day from the Eaten Table over a chosen date range. Use the metric dropdown to pick a metric, then the date-range chips (1W / 1M / 3M / 1Y / All / Custom) to scope the view. See the `?` help on that screen for full details.
 - **Weight Table**: a scrollable table viewer which displays records from the weight table.
     - Records are displayed in descending date order.
@@ -7106,6 +7153,37 @@ The remaining fields are self expanatory.
         }
     }
 
+    // Single-file export/import via the system file picker. Unlike the
+    // exchange-folder flow above, these reach providers with no folder-tree
+    // support — OneDrive, Google Drive, etc. One-shot URIs; nothing remembered.
+    val exportDbFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        if (uri == null) {
+            showPlainToast(context, "Export cancelled")
+            return@rememberLauncherForActivityResult
+        }
+        coroutineScope.launch {
+            val success = copyDatabaseToUri(uri)
+            showPlainToast(
+                context,
+                if (success) "Database exported" else "Failed to export database"
+            )
+        }
+    }
+
+    val importDbFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) {
+            showPlainToast(context, "Import cancelled")
+            return@rememberLauncherForActivityResult
+        }
+        importFileUri = uri
+        importFileName = queryDisplayName(uri) ?: "Selected file"
+        showImportFileWarning = true
+    }
+
     if (showWeightDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showWeightDatePicker = false },
@@ -7167,6 +7245,19 @@ The remaining fields are self expanatory.
                     }
                     Button(onClick = { startExportCsvFlow() }) {
                         Text("Export csv")
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(onClick = { exportDbFileLauncher.launch(DATABASE_FILE_NAME) }) {
+                        Text("Export db as…")
+                    }
+                    Button(onClick = { importDbFileLauncher.launch(arrayOf("*/*")) }) {
+                        Text("Import db from…")
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
@@ -7365,6 +7456,65 @@ The remaining fields are self expanatory.
                             }
                             importSourcePath = null
                             importSourceUri = null
+                        }
+                    }) {
+                        Text("Confirm")
+                    }
+                }
+            },
+            dismissButton = {}
+        )
+    }
+
+    if (showImportFileWarning) {
+        AlertDialog(
+            onDismissRequest = {
+                showImportFileWarning = false
+                importFileUri = null
+                importFileName = null
+            },
+            title = {
+                Text(
+                    text = "Import Database?",
+                    color = Color.Red,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This will replace the app database with the picked file:")
+                    Text(
+                        text = importFileName ?: "Selected file",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(onClick = {
+                        showImportFileWarning = false
+                        val uri = importFileUri
+                        importFileUri = null
+                        importFileName = null
+                        if (uri == null) return@Button
+                        coroutineScope.launch {
+                            if (!isSqliteDatabase(uri)) {
+                                showPlainToast(context, "Not a SQLite database — import cancelled")
+                                return@launch
+                            }
+                            val success = copyDatabaseFromUri(uri)
+                            if (success) {
+                                refreshWeights()
+                                showPlainToast(context, "Database imported")
+                            } else {
+                                showPlainToast(context, "Failed to import database")
+                            }
                         }
                     }) {
                         Text("Confirm")
