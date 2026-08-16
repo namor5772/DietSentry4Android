@@ -76,8 +76,10 @@ When changing app behaviour in one port, make the matching change in the other
 - **UI**: [Dear ImGui](https://github.com/ocornut/imgui) (MIT) rendered via Metal
   in an `MTKView`, styled to Material 3 light (same look family as the Compose
   app). Fonts: Arial / Arial Bold / Menlo from the system, with Apple Symbols
-  merged in for glyphs (arrows, ⚙, ➤). Retina sharpness comes from ImGui 1.92's
-  DPI-aware font rasterizer.
+  merged in for symbol glyphs (arrows, ⚙) and Menlo merged in after it for the
+  Dingbats glyphs neither Arial nor Apple Symbols has (✕ clear buttons, ➤ AI
+  send) — the equivalent of Segoe UI Symbol on Windows. Retina sharpness comes
+  from ImGui 1.92's DPI-aware font rasterizer.
 - **Database**: SQLite amalgamation compiled in; port of `DatabaseHelper.kt` in
   `src/db.cpp`.
 - **Networking**: the system libcurl against `api.anthropic.com/v1/messages` —

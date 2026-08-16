@@ -95,9 +95,11 @@ static void loadPrompts(App& app) {
     app.genericWebSearchClause = trim(readTextFile(assets + L"GenericSysprompt_websearch.txt").value_or(""));
 }
 
-// First existing candidate is loaded; optional merge file (symbols) appended.
+// First existing candidate is loaded; optional merge files (symbols) appended in order.
+// A glyph missing from the base font is taken from the first merge font that has it,
+// so list the preferred symbol font first and broad-coverage fallbacks after it.
 static ImFont* loadFontOrDefault(ImGuiIO& io, std::initializer_list<const char*> candidates,
-                                 const char* mergePath = nullptr) {
+                                 std::initializer_list<const char*> mergePaths = {}) {
     ImFont* f = nullptr;
     for (const char* path : candidates) {
         if (fileExists(utf8ToWide(path))) {
@@ -105,10 +107,13 @@ static ImFont* loadFontOrDefault(ImGuiIO& io, std::initializer_list<const char*>
             if (f) break;
         }
     }
-    if (f && mergePath && fileExists(utf8ToWide(mergePath))) {
-        ImFontConfig cfg;
-        cfg.MergeMode = true;
-        io.Fonts->AddFontFromFileTTF(mergePath, 0.0f, &cfg);
+    if (f) {
+        for (const char* mergePath : mergePaths) {
+            if (!fileExists(utf8ToWide(mergePath))) continue;
+            ImFontConfig cfg;
+            cfg.MergeMode = true;
+            io.Fonts->AddFontFromFileTTF(mergePath, 0.0f, &cfg);
+        }
     }
     if (!f) f = io.Fonts->AddFontDefault();
     return f;
@@ -389,12 +394,18 @@ static BOOL fitSavedFrameToScreens(NSRect* io, NSWindowStyleMask mask) {
     // AppKit points are density-independent; Retina sharpness comes from the
     // backend's framebuffer scale, so dp() maps 1:1.
     g_app.uiScale = 1.0f;
+    // Symbol fallbacks (the Windows port gets all of these from Segoe UI Symbol):
+    // Apple Symbols supplies ⚙ ‹ › ← →; Menlo (always present, DejaVu-derived) backfills
+    // the Dingbats glyphs neither Arial nor Apple Symbols has — ✕ (clear buttons) and
+    // ➤ (AI send) — which otherwise render as ImGui's "?" fallback glyph.
+    static const std::initializer_list<const char*> kSymbolFallbacks = {
+        "/System/Library/Fonts/Apple Symbols.ttf", "/System/Library/Fonts/Menlo.ttc"};
     g_app.fontRegular = loadFontOrDefault(io,
         {"/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Helvetica.ttc"},
-        "/System/Library/Fonts/Apple Symbols.ttf");
+        kSymbolFallbacks);
     g_app.fontBold = loadFontOrDefault(io,
         {"/System/Library/Fonts/Supplemental/Arial Bold.ttf", "/System/Library/Fonts/Helvetica.ttc"},
-        "/System/Library/Fonts/Apple Symbols.ttf");
+        kSymbolFallbacks);
     g_app.fontMono = loadFontOrDefault(io,
         {"/System/Library/Fonts/Menlo.ttc", "/System/Library/Fonts/Supplemental/Courier New.ttf"});
     io.FontDefault = g_app.fontRegular;

@@ -167,6 +167,7 @@ A native Windows 11 desktop port of the entire app lives in [`winport/`](winport
 | Import/export folder | SAF folder picker (remembered URI) | `IFileDialog` folder picker (remembered path) |
 | Charts | Vico | custom-drawn bar chart (same metrics, ranges, y-floor and stats) |
 | Markdown (help + AI chat) | commonmark-java | small built-in renderer (`winport/src/markdown.cpp`) |
+| Multi-line text fields (Description, Notes, weight Comments, JSON paste box, AI profile) | Compose `TextField` (soft-wraps) | ImGui `InputTextMultiline` with `ImGuiInputTextFlags_WordWrap` — long lines fold inside the box like Compose instead of scrolling sideways |
 | Fonts | Roboto (system) | Segoe UI / Segoe UI Symbol / Consolas (system) |
 
 All third-party code is vendored in `winport/vendor/` (MIT / public-domain licences) and compiled into the exe, so a clone builds offline.
@@ -263,6 +264,7 @@ Like the other builds, SQLite and Dear ImGui compile once and are reused; subseq
 - **Shared source**: `ui.h`, `markdown.cpp`, `helptexts.*`, `dialogs.h`, `anthropic.h` and all `screens_*.cpp` except `screens_utilities.cpp` are byte-identical copies of the `winport/` files; a few others differ only in small platform sections (`util.cpp`, `db.cpp`, `prefs.cpp`, `app.h`).
 - **Platform swaps**: `main.mm` (NSApplication + Metal/MTKView instead of WinMain + D3D11), `imageutil.mm` (ImageIO + `NSOpenPanel` instead of WIC + `IFileDialog`), and libcurl instead of WinHTTP as the Anthropic transport — the request JSON, `lookup_food` tool loop and cost math are identical.
 - **Single source of truth**: ImGui core / SQLite / nlohmann-json compile from `winport/vendor/`, and the database + AI prompts come from `winport/assets/` at build time; only the Apple ImGui backends and the `.icns` icon are mac-specific (a Big Sur-style rendition of the same plate-and-bars motif, generated natively by `macport/assets/draw_icon.m`).
+- **Fonts**: Arial / Arial Bold / Menlo from the system. Apple Symbols is merged in for symbol glyphs (arrows, ⚙) and Menlo after it for the Dingbats glyphs neither Arial nor Apple Symbols has (✕ on the clear buttons, ➤ on the AI send button) — the role Segoe UI Symbol plays on Windows. Without that second fallback ImGui draws its "?" placeholder for those glyphs.
 - **Conveniences**: Esc acts as Back (as on Windows), Cmd+Q quits, and — for driving the Mac over VNC/remote desktop from a Windows keyboard — text fields additionally accept **Ctrl+V** for paste and the menu bar offers **Edit → Paste** for mouse-only pasting. The `DIETSENTRY_AUTONAV` testing hook works here too.
 
 When changing app behaviour, apply the matching change to all three implementations (`app/`, `winport/`, `macport/`) — see `CLAUDE.md`. Full build/architecture detail is in [`macport/README.md`](macport/README.md).

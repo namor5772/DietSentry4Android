@@ -174,7 +174,8 @@ struct AddFoodByJsonScreen : Screen {
             }
         };
         ImGui::InputTextMultiline("##json", (char*)jsonText.c_str(), jsonText.capacity() + 1,
-                                  ImVec2(w, textH), ImGuiInputTextFlags_CallbackResize,
+                                  ImVec2(w, textH),
+                                  ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_WordWrap,
                                   Cb::resize, &jsonText);
         if (jsonText.empty() && !ImGui::IsItemActive()) {
             ImVec2 min = ImGui::GetItemRectMin();

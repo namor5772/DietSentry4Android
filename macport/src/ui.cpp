@@ -84,9 +84,12 @@ bool inputText(const char* id, std::string& value, const char* hint,
 
 bool inputMultiline(const char* id, std::string& value, float width, int minLines, const char* hint) {
     float h = ImGui::GetTextLineHeight() * minLines + ImGui::GetStyle().FramePadding.y * 2;
+    // WordWrap: long Description / Notes / Comments lines fold within the box instead of
+    // scrolling sideways, matching the Android app's multi-line text fields.
     bool changed = ImGui::InputTextMultiline(id, (char*)value.c_str(), value.capacity() + 1,
                                              ImVec2(width != 0 ? width : -FLT_MIN, h),
-                                             ImGuiInputTextFlags_CallbackResize, inputTextResizeCb, &value);
+                                             ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_WordWrap,
+                                             inputTextResizeCb, &value);
     // Empty-field hint (InputTextMultiline has no built-in hint)
     if (hint && value.empty() && !ImGui::IsItemActive()) {
         ImVec2 min = ImGui::GetItemRectMin();
