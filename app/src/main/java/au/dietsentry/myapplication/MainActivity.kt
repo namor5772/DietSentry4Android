@@ -150,6 +150,10 @@ private const val KEY_GRAPH_CUSTOM_START = "graphCustomStart"
 private const val KEY_GRAPH_CUSTOM_END = "graphCustomEnd"
 private const val KEY_DB_SHARED_AT = "dbSharedAt"
 private const val KEY_DB_IMPORTED_AT = "dbImportedAt"
+// Remembered "Overwrite db…" target: the SAF document URI (held under a
+// persistable read/write URI permission) and its display name.
+private const val KEY_OVERWRITE_DB_URI = "overwriteDbUri"
+private const val KEY_OVERWRITE_DB_NAME = "overwriteDbName"
 private const val DATABASE_FILE_NAME = "foods.db"
 private const val DAILY_CSV_FILE_NAME = "EatenDailyAll.csv"
 
@@ -3846,6 +3850,20 @@ private fun overwriteDbLog(msg: String, error: Throwable? = null) {
     else android.util.Log.d("OverwriteDb", msg)
 }
 
+// Friendly name of the storage behind a SAF document URI, for the Utilities
+// "Overwrite target" line and confirm dialog. Falls back to the raw authority.
+private fun documentProviderLabel(uri: Uri?): String {
+    val authority = uri?.authority ?: return "unknown storage"
+    return when {
+        authority.contains("skydrive", ignoreCase = true) -> "OneDrive"
+        authority.contains("apps.docs", ignoreCase = true) -> "Google Drive"
+        authority.contains("dropbox", ignoreCase = true) -> "Dropbox"
+        authority == "com.android.externalstorage.documents" -> "device storage"
+        authority == "com.android.providers.downloads.documents" -> "Downloads"
+        else -> authority
+    }
+}
+
 private fun loadExplainSystemPrompt(context: Context): String {
     return try {
         context.assets.open("EXPLAINsysprompt.txt").bufferedReader().use { it.readText() }
@@ -6795,13 +6813,32 @@ fun UtilitiesScreen(navController: NavController) {
     var showImportFileWarning by remember { mutableStateOf(false) }
     var importFileUri by remember { mutableStateOf<Uri?>(null) }
     var importFileName by remember { mutableStateOf<String?>(null) }
-    // "Overwrite db…" experiment: the picked target document, its display name and
-    // whether its provider advertises DocumentsContract.Document.FLAG_SUPPORTS_WRITE
-    // (null = flag could not be read).
+    // "Overwrite db…": the target document of the pending confirm dialog, its
+    // display name, whether its provider advertises
+    // DocumentsContract.Document.FLAG_SUPPORTS_WRITE (null = flag could not be
+    // read), whether the dialog was opened from the remembered target (shows a
+    // "Change file…" button) and whether a fresh pick came with a persistable
+    // permission (so it can be remembered after a successful write).
     var showOverwriteDbWarning by remember { mutableStateOf(false) }
     var overwriteDbUri by remember { mutableStateOf<Uri?>(null) }
     var overwriteDbFileName by remember { mutableStateOf<String?>(null) }
     var overwriteDbSupportsWrite by remember { mutableStateOf<Boolean?>(null) }
+    var overwriteDbDialogFromMemory by remember { mutableStateOf(false) }
+    var overwriteDbPickPersistable by remember { mutableStateOf(false) }
+    // The remembered target (persisted in prefs; permission held via
+    // takePersistableUriPermission) — lets a later tap skip the file picker.
+    var overwriteDbTargetUri by remember {
+        mutableStateOf(
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_OVERWRITE_DB_URI, null)?.let { Uri.parse(it) }
+        )
+    }
+    var overwriteDbTargetName by remember {
+        mutableStateOf(
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_OVERWRITE_DB_NAME, null)
+        )
+    }
     var dbSharedAtMillis by remember {
         mutableLongStateOf(
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -6846,6 +6883,7 @@ This screen contains various miscellaneous utilities .
     - Why the asymmetry? Cloud providers refuse *saves* from Android's pickers (and don't appear in its folder picker at all), but allow *opens* — including writing back into an opened file — so a first export goes through the share sheet, while importing and overwriting can use the file picker directly.
 - **Overwrite db…**: the way to keep the fixed name `foods.db` in OneDrive. Instead of uploading a *new* file through the share sheet, you pick the **existing** `foods.db` in the system file picker (the same picker Import uses, so OneDrive is reachable) and the app writes the current database **into that file in place** — OneDrive sees a modification of the existing file, not a fresh upload, so there is no `foods 1.db` numbering and the Windows/macOS apps find the name they expect. A confirmation dialog shows the picked file's name (and whether its provider says the file is writable) before anything is written. Only `.db` / SQLite files are accepted as targets, so a mis-pick cannot damage some other document.
     - OneDrive accepts this even though it refuses *saves* from the picker (tested 17-Aug-2026). Other cloud providers may differ — the dialog reports the provider's answer, and if a write is refused nothing changes and the app says so. Success updates the `Db last shared` line.
+    - **Remembered target**: after a successful overwrite the app remembers that file (it keeps a persistent permission to it), and an `Overwrite target: …` line appears under the buttons. The next tap on **Overwrite db…** skips the picker and goes straight to the confirmation dialog for that file — **Confirm** writes, **Change file…** opens the picker to choose another. If the remembered file is deleted, moved out of reach, or the permission is lost, it is forgotten automatically and the picker is shown again.
 - **Db last shared / imported**: the two small lines under the buttons record when *this device* last shared out and last imported `foods.db` — a staleness hint for the pass-the-baton workflow (log on one device at a time: share before switching away, import before logging on the next device). The Windows/macOS apps show the matching `Db last exported` / `Db last imported` lines on their Utilities screens.
 - **Eaten Graph**: opens a separate screen that visualises a chosen metric (My weight, Amount, Energy, or any of 22 nutrients) per day from the Eaten Table over a chosen date range. Use the metric dropdown to pick a metric, then the date-range chips (1W / 1M / 3M / 1Y / All / Custom) to scope the view. See the `?` help on that screen for full details.
 - **Weight Table**: a scrollable table viewer which displays records from the weight table.
@@ -7074,6 +7112,45 @@ The remaining fields are self expanatory.
         }
     }
 
+    // ---- remembered target ---------------------------------------------------
+    // The picker's result comes with a persistable read/write grant; taking it
+    // lets the same document be written again later without the picker. The
+    // target is remembered only after a write has actually succeeded, and is
+    // forgotten again if the grant or the document goes away.
+    val persistFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+
+    fun hasPersistedWrite(uri: Uri): Boolean =
+        context.contentResolver.persistedUriPermissions.any { it.uri == uri && it.isWritePermission }
+
+    fun rememberOverwriteTarget(uri: Uri, name: String) {
+        // Swapping to a different file: drop the old grant so they don't pile up.
+        val previous = overwriteDbTargetUri
+        if (previous != null && previous != uri) {
+            runCatching { context.contentResolver.releasePersistableUriPermission(previous, persistFlags) }
+        }
+        overwriteDbTargetUri = uri
+        overwriteDbTargetName = name
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
+            putString(KEY_OVERWRITE_DB_URI, uri.toString())
+            putString(KEY_OVERWRITE_DB_NAME, name)
+        }
+        overwriteDbLog("remembered target $name at $uri")
+    }
+
+    fun forgetOverwriteTarget(reason: String) {
+        val old = overwriteDbTargetUri
+        overwriteDbTargetUri = null
+        overwriteDbTargetName = null
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
+            remove(KEY_OVERWRITE_DB_URI)
+            remove(KEY_OVERWRITE_DB_NAME)
+        }
+        if (old != null) {
+            runCatching { context.contentResolver.releasePersistableUriPermission(old, persistFlags) }
+        }
+        overwriteDbLog("forgot target $old: $reason")
+    }
+
     val overwriteDbFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -7083,13 +7160,49 @@ The remaining fields are self expanatory.
         }
         val name = queryDisplayName(uri) ?: "Selected file"
         val supportsWrite = queryDocumentSupportsWrite(uri)
+        // Must be taken while the picker's transient grant is fresh.
+        val persistable = try {
+            context.contentResolver.takePersistableUriPermission(uri, persistFlags)
+            true
+        } catch (e: SecurityException) {
+            overwriteDbLog("no persistable write grant for $uri", e)
+            false
+        }
         overwriteDbLog(
-            "picked authority=${uri.authority} name=$name supportsWrite=$supportsWrite uri=$uri"
+            "picked authority=${uri.authority} name=$name supportsWrite=$supportsWrite " +
+                "persistable=$persistable uri=$uri"
         )
         overwriteDbUri = uri
         overwriteDbFileName = name
         overwriteDbSupportsWrite = supportsWrite
+        overwriteDbDialogFromMemory = false
+        overwriteDbPickPersistable = persistable
         showOverwriteDbWarning = true
+    }
+
+    // Button entry point: reuse the remembered target when it is still valid,
+    // otherwise (or if it has gone stale) fall back to the file picker.
+    fun startOverwriteDb() {
+        val target = overwriteDbTargetUri
+        if (target != null) {
+            if (hasPersistedWrite(target)) {
+                val name = queryDisplayName(target)
+                if (name != null) {
+                    overwriteDbUri = target
+                    overwriteDbFileName = name
+                    overwriteDbSupportsWrite = queryDocumentSupportsWrite(target)
+                    overwriteDbDialogFromMemory = true
+                    overwriteDbPickPersistable = true
+                    showOverwriteDbWarning = true
+                    return
+                }
+                forgetOverwriteTarget("remembered document no longer queryable")
+                showPlainToast(context, "Remembered file is no longer available — pick it again")
+            } else {
+                forgetOverwriteTarget("persisted write permission missing")
+            }
+        }
+        overwriteDbFileLauncher.launch(arrayOf("*/*"))
     }
 
     if (showWeightDatePicker) {
@@ -7167,10 +7280,10 @@ The remaining fields are self expanatory.
                 // In-place overwrite of an existing db file picked in the system
                 // file picker (the OneDrive route that keeps the name foods.db) —
                 // see the help text. Own row: the row above is already full width
-                // on phones.
+                // on phones. Reuses the remembered target when there is one.
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
-                    onClick = { overwriteDbFileLauncher.launch(arrayOf("*/*")) },
+                    onClick = { startOverwriteDb() },
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
                 ) {
                     Text("Overwrite db…", maxLines = 1, softWrap = false)
@@ -7178,7 +7291,10 @@ The remaining fields are self expanatory.
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Db last shared: ${formatDbStamp(dbSharedAtMillis)}\n" +
-                        "Db last imported: ${formatDbStamp(dbImportedAtMillis)}",
+                        "Db last imported: ${formatDbStamp(dbImportedAtMillis)}" +
+                        (overwriteDbTargetName?.let { name ->
+                            "\nOverwrite target: $name (${documentProviderLabel(overwriteDbTargetUri)})"
+                        } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -7317,13 +7433,14 @@ The remaining fields are self expanatory.
     }
 
     if (showOverwriteDbWarning) {
+        fun closeOverwriteDialog() {
+            showOverwriteDbWarning = false
+            overwriteDbUri = null
+            overwriteDbFileName = null
+            overwriteDbSupportsWrite = null
+        }
         AlertDialog(
-            onDismissRequest = {
-                showOverwriteDbWarning = false
-                overwriteDbUri = null
-                overwriteDbFileName = null
-                overwriteDbSupportsWrite = null
-            },
+            onDismissRequest = { closeOverwriteDialog() },
             title = {
                 Text(
                     text = "Overwrite Database File?",
@@ -7335,9 +7452,16 @@ The remaining fields are self expanatory.
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("This will replace the contents of the picked file with the app database:")
                     Text(
-                        text = overwriteDbFileName ?: "Selected file",
+                        if (overwriteDbDialogFromMemory) {
+                            "This will replace the contents of the remembered file with the app database:"
+                        } else {
+                            "This will replace the contents of the picked file with the app database:"
+                        }
+                    )
+                    Text(
+                        text = (overwriteDbFileName ?: "Selected file") +
+                            "  (${documentProviderLabel(overwriteDbUri)})",
                         fontWeight = FontWeight.Bold
                     )
                     Text(
@@ -7349,6 +7473,17 @@ The remaining fields are self expanatory.
                         },
                         style = MaterialTheme.typography.bodySmall
                     )
+                    Text(
+                        text = when {
+                            overwriteDbDialogFromMemory ->
+                                "Remembered from your last overwrite — use Change file… to pick a different file."
+                            overwriteDbPickPersistable ->
+                                "After a successful write this file is remembered, so next time Overwrite db… skips the picker."
+                            else ->
+                                "This storage does not allow the file to be remembered; the picker will be shown again next time."
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             },
             confirmButton = {
@@ -7357,13 +7492,20 @@ The remaining fields are self expanatory.
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (overwriteDbDialogFromMemory) {
+                        OutlinedButton(onClick = {
+                            closeOverwriteDialog()
+                            overwriteDbFileLauncher.launch(arrayOf("*/*"))
+                        }) {
+                            Text("Change file…")
+                        }
+                    }
                     Button(onClick = {
-                        showOverwriteDbWarning = false
                         val uri = overwriteDbUri
                         val name = overwriteDbFileName ?: "Selected file"
-                        overwriteDbUri = null
-                        overwriteDbFileName = null
-                        overwriteDbSupportsWrite = null
+                        val fromMemory = overwriteDbDialogFromMemory
+                        val canRemember = overwriteDbPickPersistable
+                        closeOverwriteDialog()
                         if (uri == null) return@Button
                         coroutineScope.launch {
                             // Only ever write over something that already is a
@@ -7380,12 +7522,22 @@ The remaining fields are self expanatory.
                                 dbSharedAtMillis = System.currentTimeMillis()
                                 context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                                     .edit { putLong(KEY_DB_SHARED_AT, dbSharedAtMillis) }
+                                if (canRemember) rememberOverwriteTarget(uri, name)
                                 showPlainToast(context, "Overwrote $name (${bytes / 1024} KB)")
                             }.onFailure { e ->
                                 overwriteDbLog("overwrite of $name failed", e)
                                 val reason = e.message?.takeIf { it.isNotBlank() }
                                     ?: e.javaClass.simpleName
-                                showPlainToast(context, "Overwrite refused: $reason")
+                                // A vanished document or a lost grant means the
+                                // remembered target is dead; anything else (e.g.
+                                // offline) keeps it for next time.
+                                val stale = e is SecurityException || e is java.io.FileNotFoundException
+                                if (fromMemory && stale) {
+                                    forgetOverwriteTarget("write failed: $reason")
+                                    showPlainToast(context, "Overwrite refused: $reason — pick the file again")
+                                } else {
+                                    showPlainToast(context, "Overwrite refused: $reason")
+                                }
                             }
                         }
                     }) {
