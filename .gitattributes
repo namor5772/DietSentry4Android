@@ -1,0 +1,28 @@
+# Line-ending policy (added 2026-08-16 after CRLF/LF flips between the Windows
+# and macOS clones kept producing whole-file diffs and phantom "modified" files).
+#
+# Every text file is stored with LF in the repository AND checked out with LF on
+# every platform, so the Windows and macOS clones are byte-identical and
+# core.autocrlf is irrelevant. Windows tools (Android Studio, MSVC, Gradle) are
+# all fine with LF; the only files that need CRLF are batch files, pinned below.
+* text=auto eol=lf
+
+# cmd.exe mis-parses labels/goto in LF-only batch files — keep these CRLF.
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+
+# Binary assets — never converted, never text-diffed.
+*.db       binary
+*.jar      binary
+*.webp     binary
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.icns     binary
+*.ttf      binary
+*.otf      binary
+*.zip      binary
+*.keystore binary
+*.jks      binary

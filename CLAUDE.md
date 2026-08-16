@@ -75,6 +75,7 @@ These conventions are load-bearing throughout the codebase (search, display, rec
 - Do not add new build tools or scripts without explicit instructions.
 - Keep changes scoped to the requested task.
 - When formatting nutritional info, align with `FoodSearchScreen` style — two-column label/value layouts with right-aligned numbers.
+- Line endings: `.gitattributes` stores every text file as LF in the repo **and** checks it out as LF on every platform (`* text=auto eol=lf`), so the Windows and macOS clones are byte-identical; only `*.bat`/`*.cmd` are CRLF, and `*.db`/`*.jar`/images are `binary`. Write LF when creating files. Never commit EOL-only rewrites — if a diff looks like a whole-file change, check `git diff -w` / `git ls-files --eol` first.
 
 ## UI preservation
 
