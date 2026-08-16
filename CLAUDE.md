@@ -83,7 +83,7 @@ These conventions are load-bearing throughout the codebase (search, display, rec
 
 ## Tech stack versions
 
-- Gradle 9.3.1, AGP 9.1.1, Kotlin 2.3.10
+- Gradle 9.6.1, AGP 9.3.1, Kotlin 2.3.10
 - compileSdk/minSdk/targetSdk: 36, JVM target: 11
 - Compose BOM 2026.01.01, Navigation Compose 2.9.7, Material 3
 - commonmark 0.27.1 (markdown rendering with autolink, GFM tables, strikethrough, task lists)
