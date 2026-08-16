@@ -13,6 +13,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.app.Activity
 import androidx.activity.ComponentActivity
@@ -3835,6 +3836,16 @@ private fun aiLog(tag: String, msg: String) {
     if (BuildConfig.DEBUG) android.util.Log.d(tag, msg)
 }
 
+// Diagnostics for the Utilities "Overwrite db…" flow (debug builds only):
+// `adb logcat -s OverwriteDb:D` shows the picked provider, its write flag,
+// the write mode that was accepted and any refusal — handy when trying a
+// cloud provider other than OneDrive.
+private fun overwriteDbLog(msg: String, error: Throwable? = null) {
+    if (!BuildConfig.DEBUG) return
+    if (error != null) android.util.Log.e("OverwriteDb", msg, error)
+    else android.util.Log.d("OverwriteDb", msg)
+}
+
 private fun loadExplainSystemPrompt(context: Context): String {
     return try {
         context.assets.open("EXPLAINsysprompt.txt").bufferedReader().use { it.readText() }
@@ -6784,6 +6795,13 @@ fun UtilitiesScreen(navController: NavController) {
     var showImportFileWarning by remember { mutableStateOf(false) }
     var importFileUri by remember { mutableStateOf<Uri?>(null) }
     var importFileName by remember { mutableStateOf<String?>(null) }
+    // "Overwrite db…" experiment: the picked target document, its display name and
+    // whether its provider advertises DocumentsContract.Document.FLAG_SUPPORTS_WRITE
+    // (null = flag could not be read).
+    var showOverwriteDbWarning by remember { mutableStateOf(false) }
+    var overwriteDbUri by remember { mutableStateOf<Uri?>(null) }
+    var overwriteDbFileName by remember { mutableStateOf<String?>(null) }
+    var overwriteDbSupportsWrite by remember { mutableStateOf<Boolean?>(null) }
     var dbSharedAtMillis by remember {
         mutableLongStateOf(
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -6819,13 +6837,15 @@ fun UtilitiesScreen(navController: NavController) {
 This screen contains various miscellaneous utilities .
 
 - **Share db…**: Hands a copy of the internal `foods.db` to the Android share sheet, reaching any app that accepts files — **OneDrive** (Upload to OneDrive), Google Drive, email, messaging, and so on. In OneDrive's upload UI you choose the destination folder.
-    - If a `foods.db` already exists in that OneDrive folder, OneDrive keeps both by numbering the new upload (e.g. `foods 1.db`). Delete the old copy first (or rename afterwards) if you want the fixed name `foods.db`, which the Windows/macOS apps expect in their exchange folder.
+    - If a `foods.db` already exists in that OneDrive folder, OneDrive keeps both by numbering the new upload (e.g. `foods 1.db`) — the share sheet can only ever add a *new* file. Use **Overwrite db…** (below) instead when the file is already there; use Share for the very first upload or for destinations that aren't files (email, messaging).
 - **Share csv…**: Builds `EatenDailyAll.csv` and hands it to the share sheet in the same way — upload it to OneDrive, attach it to an email, etc.
     - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates, one row per date. Columns match that viewer and include `My weight (kg)` and `Comments` as the second and third columns.
     - The same name-clash rule as above applies: OneDrive numbers rather than overwrites.
 - **Import db from…**: Replaces the app database with a database file picked in the system file picker — cloud locations **including OneDrive** work here. A confirmation dialog shows the picked file's name before anything is replaced.
     - The picked file is first checked to really be a SQLite database, so picking a wrong file leaves the current database untouched.
-    - Why the asymmetry? Cloud providers refuse *saves* from Android's pickers (and don't appear in its folder picker at all), but allow *opens* — so exporting goes through the share sheet while importing can use the file picker directly.
+    - Why the asymmetry? Cloud providers refuse *saves* from Android's pickers (and don't appear in its folder picker at all), but allow *opens* — including writing back into an opened file — so a first export goes through the share sheet, while importing and overwriting can use the file picker directly.
+- **Overwrite db…**: the way to keep the fixed name `foods.db` in OneDrive. Instead of uploading a *new* file through the share sheet, you pick the **existing** `foods.db` in the system file picker (the same picker Import uses, so OneDrive is reachable) and the app writes the current database **into that file in place** — OneDrive sees a modification of the existing file, not a fresh upload, so there is no `foods 1.db` numbering and the Windows/macOS apps find the name they expect. A confirmation dialog shows the picked file's name (and whether its provider says the file is writable) before anything is written. Only `.db` / SQLite files are accepted as targets, so a mis-pick cannot damage some other document.
+    - OneDrive accepts this even though it refuses *saves* from the picker (tested 17-Aug-2026). Other cloud providers may differ — the dialog reports the provider's answer, and if a write is refused nothing changes and the app says so. Success updates the `Db last shared` line.
 - **Db last shared / imported**: the two small lines under the buttons record when *this device* last shared out and last imported `foods.db` — a staleness hint for the pass-the-baton workflow (log on one device at a time: share before switching away, import before logging on the next device). The Windows/macOS apps show the matching `Db last exported` / `Db last imported` lines on their Utilities screens.
 - **Eaten Graph**: opens a separate screen that visualises a chosen metric (My weight, Amount, Energy, or any of 22 nutrients) per day from the Eaten Table over a chosen date range. Use the metric dropdown to pick a metric, then the date-range chips (1W / 1M / 3M / 1Y / All / Custom) to scope the view. See the `?` help on that screen for full details.
 - **Weight Table**: a scrollable table viewer which displays records from the weight table.
@@ -6987,6 +7007,91 @@ The remaining fields are self expanatory.
         showImportFileWarning = true
     }
 
+    // ---- "Overwrite db…" ---------------------------------------------------------
+    // Share db… can only *upload a new file*; OneDrive then numbers a clash
+    // (foods 1.db). SAF *creates* into OneDrive are refused (live-tested
+    // 2026-08-14). What OneDrive does accept is a write to an EXISTING document
+    // opened through the picker (live-tested 2026-08-17): pick the OneDrive
+    // foods.db, stream the current database over it with a truncating write,
+    // and OneDrive syncs it as a modification of that file — no numbering.
+    // Other providers may differ; the dialog reports the picked document's
+    // FLAG_SUPPORTS_WRITE claim and a refused write changes nothing.
+
+    // The provider's own claim about the picked document. null = unreadable.
+    fun queryDocumentSupportsWrite(uri: Uri): Boolean? {
+        return try {
+            context.contentResolver.query(
+                uri,
+                arrayOf(DocumentsContract.Document.COLUMN_FLAGS),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val index = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
+                if (index >= 0 && cursor.moveToFirst() && !cursor.isNull(index)) {
+                    (cursor.getInt(index) and DocumentsContract.Document.FLAG_SUPPORTS_WRITE) != 0
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            overwriteDbLog("flags query failed for $uri", e)
+            null
+        }
+    }
+
+    // Snapshot the live database exactly as Share db… does, then write the
+    // snapshot into the picked document. "wt" (write + truncate) replaces the
+    // document's contents in place; "rwt" is the fallback for providers that
+    // only accept read-write modes. Non-truncating modes are deliberately not
+    // tried — a shorter database written over a longer file would leave
+    // trailing bytes. Returns the number of bytes written.
+    suspend fun overwriteDocumentWithDatabase(uri: Uri): Result<Long> = withContext(Dispatchers.IO) {
+        runCatching {
+            val dbFile = context.getDatabasePath(DATABASE_FILE_NAME)
+            check(dbFile.exists()) { "database file missing" }
+            val dir = File(context.cacheDir, "shared").apply { mkdirs() }
+            val snapshot = File(dir, DATABASE_FILE_NAME)
+            dbFile.copyTo(snapshot, overwrite = true)
+            val resolver = context.contentResolver
+            var lastError: Exception? = null
+            for (mode in listOf("wt", "rwt")) {
+                try {
+                    val out = resolver.openOutputStream(uri, mode)
+                        ?: throw IllegalStateException("provider returned no stream for mode $mode")
+                    out.use { output ->
+                        snapshot.inputStream().use { input -> input.copyTo(output) }
+                        output.flush()
+                    }
+                    overwriteDbLog("wrote ${snapshot.length()} bytes with mode $mode to $uri")
+                    return@runCatching snapshot.length()
+                } catch (e: Exception) {
+                    overwriteDbLog("mode $mode failed for $uri", e)
+                    lastError = e
+                }
+            }
+            throw lastError ?: IllegalStateException("no write mode accepted")
+        }
+    }
+
+    val overwriteDbFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) {
+            showPlainToast(context, "Overwrite cancelled")
+            return@rememberLauncherForActivityResult
+        }
+        val name = queryDisplayName(uri) ?: "Selected file"
+        val supportsWrite = queryDocumentSupportsWrite(uri)
+        overwriteDbLog(
+            "picked authority=${uri.authority} name=$name supportsWrite=$supportsWrite uri=$uri"
+        )
+        overwriteDbUri = uri
+        overwriteDbFileName = name
+        overwriteDbSupportsWrite = supportsWrite
+        showOverwriteDbWarning = true
+    }
+
     if (showWeightDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showWeightDatePicker = false },
@@ -7058,6 +7163,17 @@ The remaining fields are self expanatory.
                     ) {
                         Text("Import db from…", maxLines = 1, softWrap = false)
                     }
+                }
+                // In-place overwrite of an existing db file picked in the system
+                // file picker (the OneDrive route that keeps the name foods.db) —
+                // see the help text. Own row: the row above is already full width
+                // on phones.
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { overwriteDbFileLauncher.launch(arrayOf("*/*")) },
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Text("Overwrite db…", maxLines = 1, softWrap = false)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -7189,6 +7305,87 @@ The remaining fields are self expanatory.
                                 showPlainToast(context, "Database imported")
                             } else {
                                 showPlainToast(context, "Failed to import database")
+                            }
+                        }
+                    }) {
+                        Text("Confirm")
+                    }
+                }
+            },
+            dismissButton = {}
+        )
+    }
+
+    if (showOverwriteDbWarning) {
+        AlertDialog(
+            onDismissRequest = {
+                showOverwriteDbWarning = false
+                overwriteDbUri = null
+                overwriteDbFileName = null
+                overwriteDbSupportsWrite = null
+            },
+            title = {
+                Text(
+                    text = "Overwrite Database File?",
+                    color = Color.Red,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This will replace the contents of the picked file with the app database:")
+                    Text(
+                        text = overwriteDbFileName ?: "Selected file",
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = when (overwriteDbSupportsWrite) {
+                            true -> "The file's provider reports it as writable."
+                            false -> "⚠ The file's provider does NOT report it as writable — " +
+                                "the write will most likely be refused. Nothing changes if it fails."
+                            null -> "Could not read the provider's write flag; trying anyway."
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(onClick = {
+                        showOverwriteDbWarning = false
+                        val uri = overwriteDbUri
+                        val name = overwriteDbFileName ?: "Selected file"
+                        overwriteDbUri = null
+                        overwriteDbFileName = null
+                        overwriteDbSupportsWrite = null
+                        if (uri == null) return@Button
+                        coroutineScope.launch {
+                            // Only ever write over something that already is a
+                            // database (by name or by SQLite header) — a mis-pick
+                            // in the free file picker must not clobber a document.
+                            val looksLikeDb = name.endsWith(".db", ignoreCase = true) ||
+                                isSqliteDatabase(uri)
+                            if (!looksLikeDb) {
+                                showPlainToast(context, "Not a .db / SQLite file — overwrite cancelled")
+                                return@launch
+                            }
+                            val result = overwriteDocumentWithDatabase(uri)
+                            result.onSuccess { bytes ->
+                                dbSharedAtMillis = System.currentTimeMillis()
+                                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                                    .edit { putLong(KEY_DB_SHARED_AT, dbSharedAtMillis) }
+                                showPlainToast(context, "Overwrote $name (${bytes / 1024} KB)")
+                            }.onFailure { e ->
+                                overwriteDbLog("overwrite of $name failed", e)
+                                val reason = e.message?.takeIf { it.isNotBlank() }
+                                    ?: e.javaClass.simpleName
+                                showPlainToast(context, "Overwrite refused: $reason")
                             }
                         }
                     }) {
