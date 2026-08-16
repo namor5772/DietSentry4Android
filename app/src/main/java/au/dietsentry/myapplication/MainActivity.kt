@@ -6873,17 +6873,17 @@ fun UtilitiesScreen(navController: NavController) {
 # **Utilities**
 This screen contains various miscellaneous utilities .
 
-- **Share db…**: Hands a copy of the internal `foods.db` to the Android share sheet, reaching any app that accepts files — **OneDrive** (Upload to OneDrive), Google Drive, email, messaging, and so on. In OneDrive's upload UI you choose the destination folder.
-    - If a `foods.db` already exists in that OneDrive folder, OneDrive keeps both by numbering the new upload (e.g. `foods 1.db`) — the share sheet can only ever add a *new* file. Use **Overwrite db…** (below) instead when the file is already there; use Share for the very first upload or for destinations that aren't files (email, messaging).
-- **Share csv…**: Builds `EatenDailyAll.csv` and hands it to the share sheet in the same way — upload it to OneDrive, attach it to an email, etc.
-    - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates, one row per date. Columns match that viewer and include `My weight (kg)` and `Comments` as the second and third columns.
-    - The same name-clash rule as above applies: OneDrive numbers rather than overwrites.
+- **Overwrite db…**: the way to keep the fixed name `foods.db` in OneDrive. Instead of uploading a *new* file through the share sheet (**Share db…**, below), you pick the **existing** `foods.db` in the system file picker (the same picker Import uses, so OneDrive is reachable) and the app writes the current database **into that file in place** — OneDrive sees a modification of the existing file, not a fresh upload, so there is no `foods 1.db` numbering and the Windows/macOS apps find the name they expect. A confirmation dialog shows the picked file's name (and whether its provider says the file is writable) before anything is written. Only `.db` / SQLite files are accepted as targets, so a mis-pick cannot damage some other document.
+    - OneDrive accepts this even though it refuses *saves* from the picker (tested 17-Aug-2026). Other cloud providers may differ — the dialog reports the provider's answer, and if a write is refused nothing changes and the app says so. Success updates the `Db last shared/overwritten` line.
+    - **Remembered target**: after a successful overwrite the app remembers that file (it keeps a persistent permission to it), and an `Overwrite target: …` line appears under the buttons. The next tap on **Overwrite db…** skips the picker and goes straight to the confirmation dialog for that file — **Confirm** writes, **Change file…** opens the picker to choose another. If the remembered file is deleted, moved out of reach, or the permission is lost, it is forgotten automatically and the picker is shown again.
 - **Import db from…**: Replaces the app database with a database file picked in the system file picker — cloud locations **including OneDrive** work here. A confirmation dialog shows the picked file's name before anything is replaced.
     - The picked file is first checked to really be a SQLite database, so picking a wrong file leaves the current database untouched.
     - Why the asymmetry? Cloud providers refuse *saves* from Android's pickers (and don't appear in its folder picker at all), but allow *opens* — including writing back into an opened file — so a first export goes through the share sheet, while importing and overwriting can use the file picker directly.
-- **Overwrite db…**: the way to keep the fixed name `foods.db` in OneDrive. Instead of uploading a *new* file through the share sheet, you pick the **existing** `foods.db` in the system file picker (the same picker Import uses, so OneDrive is reachable) and the app writes the current database **into that file in place** — OneDrive sees a modification of the existing file, not a fresh upload, so there is no `foods 1.db` numbering and the Windows/macOS apps find the name they expect. A confirmation dialog shows the picked file's name (and whether its provider says the file is writable) before anything is written. Only `.db` / SQLite files are accepted as targets, so a mis-pick cannot damage some other document.
-    - OneDrive accepts this even though it refuses *saves* from the picker (tested 17-Aug-2026). Other cloud providers may differ — the dialog reports the provider's answer, and if a write is refused nothing changes and the app says so. Success updates the `Db last shared/overwritten` line.
-    - **Remembered target**: after a successful overwrite the app remembers that file (it keeps a persistent permission to it), and an `Overwrite target: …` line appears under the buttons. The next tap on **Overwrite db…** skips the picker and goes straight to the confirmation dialog for that file — **Confirm** writes, **Change file…** opens the picker to choose another. If the remembered file is deleted, moved out of reach, or the permission is lost, it is forgotten automatically and the picker is shown again.
+- **Share db…**: Hands a copy of the internal `foods.db` to the Android share sheet, reaching any app that accepts files — **OneDrive** (Upload to OneDrive), Google Drive, email, messaging, and so on. In OneDrive's upload UI you choose the destination folder.
+    - If a `foods.db` already exists in that OneDrive folder, OneDrive keeps both by numbering the new upload (e.g. `foods 1.db`) — the share sheet can only ever add a *new* file. Use **Overwrite db…** (above) instead when the file is already there; use Share for the very first upload or for destinations that aren't files (email, messaging).
+- **Share csv…**: Builds `EatenDailyAll.csv` and hands it to the share sheet in the same way — upload it to OneDrive, attach it to an email, etc.
+    - It exports the Eaten table daily totals shown in the scrollable table viewer of the Eaten Foods screen, with the All option selected and across all dates, one row per date. Columns match that viewer and include `My weight (kg)` and `Comments` as the second and third columns.
+    - The same name-clash rule as above applies: OneDrive numbers rather than overwrites.
 - **Db last shared/overwritten / Db last imported**: the two small lines under the buttons record when *this device* last sent `foods.db` out (Share db… or Overwrite db…) and last imported it — a staleness hint for the pass-the-baton workflow (log on one device at a time: share or overwrite before switching away, import before logging on the next device). The Windows/macOS apps show the matching `Db last exported` / `Db last imported` lines on their Utilities screens.
 - **Eaten Graph**: opens a separate screen that visualises a chosen metric (My weight, Amount, Energy, or any of 22 nutrients) per day from the Eaten Table over a chosen date range. Use the metric dropdown to pick a metric, then the date-range chips (1W / 1M / 3M / 1Y / All / Custom) to scope the view. See the `?` help on that screen for full details.
 - **Weight Table**: a scrollable table viewer which displays records from the weight table.
@@ -7253,40 +7253,54 @@ The remaining fields are self expanatory.
                 verticalArrangement = Arrangement.Top,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // 2×2 grid, all four buttons the same width (weight(1f) splits
+                // each row in half). Row 1 = the database round-trip with a
+                // fixed-name file (Overwrite db… in place, Import db from…);
+                // row 2 = the share-sheet routes (new-file uploads, email, …).
+                val utilityButtonPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // In-place overwrite of an existing db file picked in the
+                    // system file picker (the OneDrive route that keeps the name
+                    // foods.db); reuses the remembered target when there is one.
+                    Button(
+                        onClick = { startOverwriteDb() },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = utilityButtonPadding
+                    ) {
+                        Text("Overwrite db…", maxLines = 1, softWrap = false)
+                    }
+                    Button(
+                        onClick = { importDbFileLauncher.launch(arrayOf("*/*")) },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = utilityButtonPadding
+                    ) {
+                        Text("Import db from…", maxLines = 1, softWrap = false)
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Button(
                         onClick = { shareDatabase() },
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                        modifier = Modifier.weight(1f),
+                        contentPadding = utilityButtonPadding
                     ) {
                         Text("Share db…", maxLines = 1, softWrap = false)
                     }
                     Button(
                         onClick = { shareCsv() },
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                        modifier = Modifier.weight(1f),
+                        contentPadding = utilityButtonPadding
                     ) {
                         Text("Share csv…", maxLines = 1, softWrap = false)
                     }
-                    Button(
-                        onClick = { importDbFileLauncher.launch(arrayOf("*/*")) },
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-                    ) {
-                        Text("Import db from…", maxLines = 1, softWrap = false)
-                    }
-                }
-                // In-place overwrite of an existing db file picked in the system
-                // file picker (the OneDrive route that keeps the name foods.db) —
-                // see the help text. Own row: the row above is already full width
-                // on phones. Reuses the remembered target when there is one.
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = { startOverwriteDb() },
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-                ) {
-                    Text("Overwrite db…", maxLines = 1, softWrap = false)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
