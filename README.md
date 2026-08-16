@@ -167,7 +167,7 @@ A native Windows 11 desktop port of the entire app lives in [`winport/`](winport
 | Import/export folder | SAF folder picker (remembered URI) | `IFileDialog` folder picker (remembered path) |
 | Charts | Vico | custom-drawn bar chart (same metrics, ranges, y-floor and stats) |
 | Markdown (help + AI chat) | commonmark-java | small built-in renderer (`winport/src/markdown.cpp`) |
-| Multi-line text fields (Description, Notes, weight Comments, JSON paste box, AI profile) | Compose `TextField` (soft-wraps) | ImGui `InputTextMultiline` with `ImGuiInputTextFlags_WordWrap` — long lines fold inside the box like Compose instead of scrolling sideways |
+| Multi-line text fields (Description, Notes, weight Comments, JSON paste box, AI profile) | Compose `TextField` (soft-wraps; grows with content between `minLines`/`maxLines`) | ImGui `InputTextMultiline` with `ImGuiInputTextFlags_WordWrap`, sized each frame from the wrapped line count — long lines fold inside the box and the box grows to show them all, with the same caps as Android (Description/Notes/Comments unbounded, recipe Notes 8 lines then scrolls, AI profile fixed at 4); a field growing at the bottom of a scrolling form scrolls itself into view like Compose |
 | Fonts | Roboto (system) | Segoe UI / Segoe UI Symbol / Consolas (system) |
 
 All third-party code is vendored in `winport/vendor/` (MIT / public-domain licences) and compiled into the exe, so a clone builds offline.

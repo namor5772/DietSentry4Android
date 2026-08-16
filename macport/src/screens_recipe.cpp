@@ -341,7 +341,7 @@ struct AddRecipeScreen : Screen {
             if (ui::beginDialog("##editnotes", &showEditNotesDialog)) {
                 ui::dialogTitle(app, "Edit notes");
                 ImGui::PushFont(app.fontRegular, ui::fsBody());
-                ui::inputMultiline("##notesedit", notesDraft, 0, 6);
+                ui::inputMultiline("##notesedit", notesDraft, 0, 6, nullptr, 8);   // grows to 8 lines, then scrolls (as on Android)
                 ImGui::PopFont();
                 ImGui::Dummy(ImVec2(0, ui::dp(8)));
                 float cw = ui::dp(110);

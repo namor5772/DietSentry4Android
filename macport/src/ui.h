@@ -36,8 +36,11 @@ float fsLabel();
 // ---------------------------------------------------------------------------
 bool inputText(const char* id, std::string& value, const char* hint = nullptr,
                ImGuiInputTextFlags flags = 0, float width = 0);
+// Word-wrapping text box that grows with its content, like Compose's TextField(minLines,
+// maxLines): at least minLines tall, taller as the wrapped text needs, capped at maxLines
+// (<= 0: no cap) beyond which it scrolls.
 bool inputMultiline(const char* id, std::string& value, float width, int minLines,
-                    const char* hint = nullptr);
+                    const char* hint = nullptr, int maxLines = 0);
 bool primaryButton(const char* label, const ImVec2& size = ImVec2(0, 0), bool enabled = true);
 bool outlinedButton(const char* label, const ImVec2& size = ImVec2(0, 0), bool enabled = true);
 bool textButton(const char* label, bool enabled = true);

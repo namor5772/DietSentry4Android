@@ -594,7 +594,7 @@ struct EatenLogScreen : Screen {
                                    "Custom Instructions");
                 ImGui::PopFont();
                 ImGui::PushFont(app.fontRegular, ui::fsBody());
-                ui::inputMultiline("##profile", profileText, 0, 4);
+                ui::inputMultiline("##profile", profileText, 0, 4, nullptr, 4);   // fixed 4 lines (minLines=maxLines=4 on Android)
                 ImGui::PopFont();
                 ImGui::Dummy(ImVec2(0, ui::dp(4)));
                 ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - ui::dp(140));

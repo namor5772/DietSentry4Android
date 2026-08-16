@@ -82,14 +82,55 @@ bool inputText(const char* id, std::string& value, const char* hint,
                                     value.capacity() + 1, flags, inputTextResizeCb, &value);
 }
 
-bool inputMultiline(const char* id, std::string& value, float width, int minLines, const char* hint) {
-    float h = ImGui::GetTextLineHeight() * minLines + ImGui::GetStyle().FramePadding.y * 2;
+// Number of lines InputTextMultiline(WordWrap) will lay `text` out on at `wrapWidth`.
+// Mirrors ImGui's InputTextLineIndexBuild() word-wrap path (same wrap function and flags),
+// so the box height chosen below matches the widget's own layout exactly.
+static int wrappedLineCount(const std::string& text, float wrapWidth) {
+    ImFont* font = ImGui::GetFont();
+    float fontSize = ImGui::GetFontSize();
+    const char* buf = text.c_str();
+    const char* end = buf + text.size();
+    int n = 0;
+    for (const char* s = buf; s < end; s = (*s == '\n') ? s + 1 : s) {
+        n++;
+        s = ImFontCalcWordWrapPositionEx(font, fontSize, s, end, wrapWidth, ImDrawTextFlags_WrapKeepBlanks);
+    }
+    if (n == 0) n = 1;                              // empty text still occupies one line
+    if (end > buf && end[-1] == '\n') n++;         // trailing newline opens an empty last line
+    return n;
+}
+
+bool inputMultiline(const char* id, std::string& value, float width, int minLines, const char* hint,
+                    int maxLines) {
+    const ImGuiStyle& style = ImGui::GetStyle();
     // WordWrap: long Description / Notes / Comments lines fold within the box instead of
-    // scrolling sideways, matching the Android app's multi-line text fields.
+    // scrolling sideways, and the box grows to show all wrapped lines (minLines..maxLines) —
+    // matching the Android app's multi-line TextFields.
+    // Reproduce the wrap width InputTextMultiline derives internally: its child window is
+    // truncated to whole pixels, text starts FramePadding.x in, and a scrollbar's width is
+    // always reserved.
+    float boxW = width != 0 ? width : ImGui::GetContentRegionAvail().x;
+    float wrapW = ImMax(1.0f, IM_TRUNC(boxW) - style.FramePadding.x - style.ScrollbarSize);
+    int lines = ImMax(minLines, wrappedLineCount(value, wrapW));
+    if (maxLines > 0) lines = ImMin(lines, ImMax(maxLines, minLines));
+    float h = ImGui::GetTextLineHeight() * lines + style.FramePadding.y * 2;
     bool changed = ImGui::InputTextMultiline(id, (char*)value.c_str(), value.capacity() + 1,
                                              ImVec2(width != 0 ? width : -FLT_MIN, h),
                                              ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_WordWrap,
                                              inputTextResizeCb, &value);
+    // Compose keeps the caret in view when a field grows at the bottom of a scrolling form; do
+    // the same: if the box gained a line while being edited and its bottom now sits below the
+    // visible area, scroll the parent just enough to reveal it. Only growth triggers this, so
+    // it never fights a user scrolling the form while the field stays focused.
+    ImGuiStorage* storage = ImGui::GetStateStorage();
+    ImGuiID linesKey = ImHashStr("lines", 0, ImGui::GetID(id));
+    int prevLines = storage->GetInt(linesKey, lines);
+    storage->SetInt(linesKey, lines);
+    if (lines > prevLines && ImGui::IsItemActive()) {
+        ImGuiWindow* win = ImGui::GetCurrentWindow();
+        float overflow = ImGui::GetItemRectMax().y + style.ItemSpacing.y - win->ClipRect.Max.y;
+        if (overflow > 0) ImGui::SetScrollY(win->Scroll.y + overflow);
+    }
     // Empty-field hint (InputTextMultiline has no built-in hint)
     if (hint && value.empty() && !ImGui::IsItemActive()) {
         ImVec2 min = ImGui::GetItemRectMin();
