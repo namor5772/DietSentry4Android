@@ -23,6 +23,33 @@ struct RecipeInsertResult {
     std::string error;
 };
 
+// The {recipe=Xg} marker means "this row has ingredient rows in the Recipe table". A NIP
+// (non-recipe) JSON creates none, so a description carrying the marker — Claude occasionally
+// names a photographed composite dish that way in NIP mode — would become a phantom recipe:
+// Edit opens the recipe editor with no ingredients. Normalise it to a plain AI/user-added
+// food instead: drop the marker (and any trailing '*'/'#') and re-apply the " #" / "mL#" suffix.
+static std::string normalizeNonRecipeDescription(const std::string& description) {
+    if (!isRecipeDescription(description)) return description;
+    std::string base = removeRecipeMarker(description);
+    if (base.empty()) return base;
+    return isLiquidDescription(base) ? base + "#" : base + " #";
+}
+
+// Recipe JSON: the app appends its own " (AI) {recipe=Xg}", so drop any marker or "(AI)" tag
+// Claude already put on the name (else you get "X (AI)  (AI) {recipe=965g}").
+static std::string baseRecipeName(const std::string& rawDescription) {
+    std::string s = removeRecipeMarker(rawDescription);
+    for (;;) {
+        while (!s.empty() && isspace((unsigned char)s.back())) s.pop_back();
+        size_t n = s.size();
+        bool aiTag = n >= 4 && s[n-4] == '(' && (s[n-3] == 'A' || s[n-3] == 'a') &&
+                     (s[n-2] == 'I' || s[n-2] == 'i') && s[n-1] == ')';
+        if (!aiTag) break;
+        s.resize(n - 4);
+    }
+    return s;
+}
+
 // Port of insertRecipeFromRecipeJson (MainActivity.kt).
 RecipeInsertResult insertRecipeFromRecipeJson(const json& j, Db& db) {
     RecipeInsertResult out;
@@ -87,7 +114,12 @@ RecipeInsertResult insertRecipeFromRecipeJson(const json& j, Db& db) {
         aggregate.add(ri.food.n.scaled(ri.amount / 100.0));
     double scale = 100.0 / totalAmount;
 
-    std::string sanitized = trim(stripTrailingRecipeSuffix(rawDescription));
+    std::string sanitized = baseRecipeName(rawDescription);
+    if (sanitized.empty()) {
+        db.deleteRecipesWithFoodIdZero();
+        out.error = "Recipe FoodDescription is required";
+        return out;
+    }
     std::string recipeWeightText = formatNumber(totalAmount, 0);
     std::string notes;
     if (j.contains("notes") && j["notes"].is_string()) notes = trim(j["notes"].get<std::string>());
@@ -224,6 +256,9 @@ struct AddFoodByJsonScreen : Screen {
                 description = trim(j["FoodDescription"].get<std::string>());
             else
                 throw std::runtime_error("FoodDescription missing");
+            // NIP JSON must not carry the {recipe=…} marker (that means "has Recipe rows",
+            // which only Recipe JSON creates) — normalise it away.
+            description = normalizeNonRecipeDescription(description);
             if (description.empty()) {
                 app.toast("FoodDescription is required");
                 return;

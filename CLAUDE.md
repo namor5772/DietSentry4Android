@@ -45,7 +45,7 @@ These conventions are load-bearing throughout the codebase (search, display, rec
 - **Solid food**: description does NOT end with ` mL` or ` mL#`; nutrients per 100 g
 - **Liquid food**: description ends with ` mL` or ` mL#`; nutrients per 100 mL
 - **Converted liquid-to-solid**: description contains `{density=...g/mL}`
-- **Recipe food**: description ends with ` {recipe=<weight>g}`; nutrients per 100 g derived from ingredients
+- **Recipe food**: description ends with ` {recipe=<weight>g}`; nutrients per 100 g derived from ingredients. The marker is a promise that matching rows exist in the `Recipe` table (`Recipe.FoodId` = the recipe's FoodId; `FoodId = 0` rows are a recipe under construction, `CopyFg = 1` rows are editing copies) — only the recipe flows (manual Add/Copy Recipe, Recipe JSON) may create it. The plain-food JSON path strips a stray marker (`normalizeNonRecipeDescription`) and the NIP system prompt forbids it, so a NIP reply can never become an ingredient-less phantom recipe.
 - **AI-generated food**: description ends with ` (AI) #` (solid) or ` (AI) mL#` (liquid). The system prompt enforces these suffixes so AI-sourced rows are easy to spot/filter in the Foods Table.
 
 ## Database rules

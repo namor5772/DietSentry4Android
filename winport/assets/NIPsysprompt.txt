@@ -68,7 +68,8 @@ Where the Category# strings are usually one word food descriptions in decreasing
 {Category1} should ALWAYS start with a capilal. The remaining ones should always start with lowercase.
 In the {OtherDescription } DO NOT use the {Category#} text, or repeat the {Brand, Company} text.
 Only include {- Brand, Company} if it is available. Do not Hallucinate.
-The {endstuff} is " (AI)", " (AI) mL#" or " (AI) {recipe=[amount]g}" as appropriate.
+The {endstuff} is " (AI) #" for a per-100 g food or " (AI) mL#" for a per-100 mL liquid — nothing else.
+NEVER put a "{recipe=...}" marker in a NIP FoodDescription. That marker is reserved for Recipe JSON (produced only in recipe mode, when the user's message contains the word "recipe") because the app treats it as "this row has ingredient rows in the Recipe table". A composite dish or meal analysed as a NIP — from a photo, a menu or your own estimate — is still a single per-100 g food and must end with " (AI) #".
 
 ** CRITICAL OUTPUT RULE (do not violate): **
 

@@ -273,6 +273,27 @@ private fun stripTrailingRecipeSuffix(description: String): String =
     description.replace(trailingRecipeStarRegex, "")
         .replace(trailingRecipeHashRegex, "")
         .trimEnd()
+private val trailingAiTagRegex = Regex("(\\s*\\(AI\\))+\\s*$", RegexOption.IGNORE_CASE)
+
+// The {recipe=Xg} marker means "this row has ingredient rows in the Recipe table". A NIP
+// (non-recipe) JSON creates none, so a description carrying the marker — Claude occasionally
+// names a photographed composite dish that way in NIP mode — would become a phantom recipe:
+// Edit opens the recipe editor with no ingredients. Normalise it to a plain AI/user-added
+// food instead: drop the marker (and any trailing '*'/'#') and re-apply the " #" / "mL#" suffix.
+private fun normalizeNonRecipeDescription(description: String): String {
+    if (!isRecipeDescription(description)) return description
+    val base = removeRecipeMarker(description)
+    return when {
+        base.isEmpty() -> base
+        isLiquidDescription(base) -> "$base#"
+        else -> "$base #"
+    }
+}
+
+// Recipe JSON: the app appends its own " (AI) {recipe=Xg}", so drop any marker or "(AI)" tag
+// Claude already put on the name (else you get "X (AI)  (AI) {recipe=965g}").
+private fun baseRecipeName(rawDescription: String): String =
+    removeRecipeMarker(rawDescription).replace(trailingAiTagRegex, "").trimEnd()
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -3391,7 +3412,11 @@ private fun insertRecipeFromRecipeJson(
     val scale = 100.0 / totalAmount
     fun scaled(s: Double) = s * scale
 
-    val sanitized = stripTrailingRecipeSuffix(rawDescription).trim()
+    val sanitized = baseRecipeName(rawDescription)
+    if (sanitized.isBlank()) {
+        dbHelper.deleteRecipesWithFoodIdZero()
+        return Result.failure(Exception("Recipe FoodDescription is required"))
+    }
     val recipeWeightText = formatNumber(totalAmount, decimals = 0)
     val notes = json.optString("notes", "").trim()
     val baseFood = Food(
@@ -3459,7 +3484,7 @@ fun AddFoodByJsonScreen(navController: NavController) {
     - **Automatically (auto-pump)**: when the **Add Food using AI** screen produces a JSON reply, it is "auto-pumped" here pre-filled in the text field — ready for one-tap **Confirm**. Both NIP-mode JSON (regular food) and recipe-mode JSON (recipe of ingredients) auto-pump.
 - Like other screens it has a **help** and a **navigation** button in the top row, then a **text field** that takes up the rest of the screen, followed by a **Confirm** button.
 - Two JSON shapes are accepted:
-    - **NIP food JSON** — `FoodDescription` plus the 24 nutrient fields. On Confirm a single Food row is added.
+    - **NIP food JSON** — `FoodDescription` plus the 24 nutrient fields. On Confirm a single Food row is added. If its `FoodDescription` carries a `{recipe=…}` marker the marker is removed and the plain ` #` / `mL#` ending applied — that marker means "has ingredient rows", which only Recipe JSON creates, so keeping it would produce a recipe with no ingredients.
     - **Recipe JSON** — `type: "recipe"`, `FoodDescription`, `ingredients[]` (each entry has `FoodId`, `AmountUsed`, `FoodDescription`), and `notes`. On Confirm the app validates every ingredient against the live Foods table (rejecting unknown FoodIds and any liquid ingredients), then creates a Foods row plus Recipe rows linked by FoodId — same database state as building the recipe by hand on the **Add Recipe** screen.
 - The notes field is optional free text. If provided it is stored with the food (or recipe) and shown in the Foods Table when **All** is selected.
 
@@ -3613,7 +3638,11 @@ The recommended way to obtain JSON for this screen is the app's own **Add Food u
                             )
                             return@Button
                         }
-                        val description = json.getString("FoodDescription").trim()
+                        // NIP JSON must not carry the {recipe=…} marker (that means "has
+                        // Recipe rows", which only Recipe JSON creates) — normalise it away.
+                        val description = normalizeNonRecipeDescription(
+                            json.getString("FoodDescription").trim()
+                        )
                         if (description.isBlank()) {
                             showPlainToast(context, "FoodDescription is required")
                             return@Button

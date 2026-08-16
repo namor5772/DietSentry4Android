@@ -303,7 +303,7 @@ const std::string& jsonHelpText() {
     - **Automatically (auto-pump)**: when the **Add Food using AI** screen produces a JSON reply, it is "auto-pumped" here pre-filled in the text field — ready for one-click **Confirm**. Both NIP-mode JSON (regular food) and recipe-mode JSON (recipe of ingredients) auto-pump.
 - Like other screens it has a **help** and a **navigation** button in the top row, then a **text field** that takes up the rest of the screen, followed by a **Confirm** button.
 - Two JSON shapes are accepted:
-    - **NIP food JSON** — `FoodDescription` plus the 24 nutrient fields. On Confirm a single Food row is added.
+    - **NIP food JSON** — `FoodDescription` plus the 24 nutrient fields. On Confirm a single Food row is added. If its `FoodDescription` carries a `{recipe=…}` marker the marker is removed and the plain ` #` / `mL#` ending applied — that marker means "has ingredient rows", which only Recipe JSON creates, so keeping it would produce a recipe with no ingredients.
     - **Recipe JSON** — `type: "recipe"`, `FoodDescription`, `ingredients[]` (each entry has `FoodId`, `AmountUsed`, `FoodDescription`), and `notes`. On Confirm the app validates every ingredient against the live Foods table (rejecting unknown FoodIds and any liquid ingredients), then creates a Foods row plus Recipe rows linked by FoodId — same database state as building the recipe by hand on the **Add Recipe** screen.
 - The notes field is optional free text. If provided it is stored with the food (or recipe) and shown in the Foods Table when **All** is selected.
 
