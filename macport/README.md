@@ -96,7 +96,11 @@ When changing app behaviour in one port, make the matching change in the other
   other locales still filter/sort/graph correctly. The month tables and
   `parseDMMMYY` in `src/util.cpp` are identical to the Windows port's.
 - The keyboard **Esc** key acts as the Android system Back button (clears the
-  selection first, then leaves the screen). **Cmd+Q** quits.
+  selection first, then leaves the screen). On the root Foods Table it only clears
+  the selection — it never quits, so a stray extra press stays harmless. **Cmd+Q**
+  quits from any screen or dialog (the app menu's *Quit DietSentry* item; the
+  shared `App::pollGlobalShortcuts()` in `ui.cpp` polls the same chord inside
+  ImGui, which is what gives the Windows port its Ctrl+Q).
 - **Window size and position persist** across restarts, stored as the content
   rect in `prefs.json` (`windowX`/`windowY`/`windowW`/`windowH`, AppKit points,
   origin bottom-left). Written once in `applicationWillTerminate:` rather than on
@@ -140,7 +144,8 @@ When changing app behaviour in one port, make the matching change in the other
   closed dialog or drop-down hands it back to the control that opened it, so Tab
   carries on from there). Dialogs with an amount field focus it on open and
   confirm on **Enter**; delete confirmations open with nothing armed (Tab, then
-  Enter). In a help sheet the arrows, PageUp/PageDown, Home/End scroll.
+  Enter). In a help sheet the arrows, PageUp/PageDown, Home/End scroll. **Cmd+Q**
+  quits (Ctrl+Q on Windows).
   Verified on macOS 26.5 (2026-08-17): AppKit passes Tab, Shift+Tab, Return,
   Space, Escape and the arrows through `imgui_impl_osx.mm` unchanged — its
   `interpretKeyEvents:` only maps them to no-op selectors (`insertTab:`,

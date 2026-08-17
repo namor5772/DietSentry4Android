@@ -1127,6 +1127,18 @@ void App::endFrameKeyboardNav() {
     g.NavCursorVisible = false;                        // next Tab = "focus first item"
 }
 
+void App::pollGlobalShortcuts() {
+    // Ctrl+Q — Cmd+Q on macOS, where ImGui maps the Cmd key to ImGuiMod_Ctrl —
+    // quits from any screen or dialog. Deliberately a plain key query rather
+    // than a routed Shortcut(): it has to fire whichever ImGui window holds
+    // the focus (root, modal, help sheet) and while a text field is being
+    // edited, and nothing else in the app binds Ctrl+Q. Only the exact chord
+    // counts (Ctrl+Shift+Q does nothing). Escape never quits — on the root
+    // Foods Table it is Back with nowhere to go, and an extra press there
+    // must stay harmless.
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Q)) quitRequested = true;
+}
+
 void App::drawToasts() {
     if (toasts.empty()) return;
     toasts.erase(std::remove_if(toasts.begin(), toasts.end(),

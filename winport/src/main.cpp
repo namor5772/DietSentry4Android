@@ -255,6 +255,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
                      ImGuiWindowFlags_NoSavedSettings);
         if (!app.nav.empty()) app.nav.back()->draw(app);
         app.endFrameKeyboardNav();
+        app.pollGlobalShortcuts();   // Ctrl+Q -> quitRequested, honoured at the top of the next loop
         ImGui::End();
 
         app.drawToasts();

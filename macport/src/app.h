@@ -350,13 +350,20 @@ struct App {
     // frame and so looks dead until the next one.
     void endFrameKeyboardNav();
     ImGuiID deadNavIdCandidate = 0;   // focus id found dead at the previous frame's end
+    // Global keyboard shortcuts, polled once per frame by both platform mains
+    // right after endFrameKeyboardNav(). Ctrl+Q quits from any screen or
+    // dialog (Cmd+Q on macOS, where ImGui reports the Cmd key as
+    // ImGuiMod_Ctrl and the app menu's Quit item covers the same chord). It
+    // only sets quitRequested; the main loop turns that into the same clean
+    // exit as the window's close button.
+    void pollGlobalShortcuts();
 
     // Metal texture creation for AI image thumbnails (implemented in main.mm);
     // returns a retained id<MTLTexture> bridged to void*.
     void* createTextureRGBA(const unsigned char* rgba, int w, int h);
     void releaseTexture(void* tex);
 
-    bool quitRequested = false;
+    bool quitRequested = false;       // set by pollGlobalShortcuts(); the main loop exits when it sees it
 };
 
 // Screen factories (defined in the screens_*.cpp files)

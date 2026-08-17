@@ -206,6 +206,7 @@ static void autoNavigate(App& app) {
                  ImGuiWindowFlags_NoSavedSettings);
     if (!g_app.nav.empty()) g_app.nav.back()->draw(g_app);
     g_app.endFrameKeyboardNav();
+    g_app.pollGlobalShortcuts();   // Cmd+Q -> quitRequested (the app menu's Quit item normally gets there first)
     ImGui::End();
 
     g_app.drawToasts();

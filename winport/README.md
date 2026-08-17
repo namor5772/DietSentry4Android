@@ -89,7 +89,10 @@ formulas all match the Kotlin source.
   month prefix with optional trailing period (`Jul`, `July`, `Sept`, `Dec.`, …),
   so databases from phones in other locales still filter/sort/graph correctly.
 - The keyboard **Esc** key acts as the Android system Back button (clears the
-  selection first, then leaves the screen).
+  selection first, then leaves the screen). On the root Foods Table it only clears
+  the selection — it never quits, so a stray extra press stays harmless. **Ctrl+Q**
+  quits from any screen or dialog (the same clean shutdown as the window's close
+  button; **Alt+F4** works too, as for any Windows window).
 - **Keyboard navigation** (since 2026-08-17): the whole app can be driven without
   the mouse. **Tab** / **Shift+Tab** move the focus through the controls in visual
   order (top bar first, then the content) and a purple focus ring marks the focused
@@ -103,7 +106,9 @@ formulas all match the Kotlin source.
   closed dialog or drop-down hands it back to the control that opened it, so Tab
   carries on from there). Dialogs with an amount field focus it on open and
   confirm on **Enter**; delete confirmations open with nothing armed (Tab, then
-  Enter). In a help sheet the arrows, PageUp/PageDown, Home/End scroll.
+  Enter). In a help sheet the arrows, PageUp/PageDown, Home/End scroll. **Ctrl+Q**
+  quits (`App::pollGlobalShortcuts()` in the shared `ui.cpp`, polled once per
+  frame by `main.cpp`; on the Mac the same code reads as Cmd+Q).
 - **App icon**: `assets/DietSentry.ico` (a dinner plate with a nutrition bar
   chart on Material purple) is embedded into the exe via `app.rc`, so Explorer,
   the taskbar and desktop shortcuts pick it up automatically. To make a desktop

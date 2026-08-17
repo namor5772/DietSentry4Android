@@ -189,7 +189,7 @@ The script locates `VsDevCmd.bat` itself, compiles SQLite and Dear ImGui once in
 - **First run** copies the seed `assets\foods.db` to `%APPDATA%\DietSentry4Windows\foods.db`; that copy is the live database from then on. Settings (Min/NIP/All selections, graph state, AI key/model/toggles, user profile, exchange folder) persist in `%APPDATA%\DietSentry4Windows\prefs.json`.
 - **Factory reset**: delete the `%APPDATA%\DietSentry4Windows` folder; the next launch re-seeds.
 - **App icon**: `winport/assets/DietSentry.ico` (a dinner plate with a nutrition bar chart on Material purple) is embedded in the exe, so Explorer, the taskbar and shortcuts show it. To make a desktop shortcut: right-click the exe → *Send to → Desktop (create shortcut)*.
-- The **Esc** key acts as the Android system Back button (clears the current selection first, then leaves the screen). The window is resizable; the default size is phone-shaped.
+- The **Esc** key acts as the Android system Back button (clears the current selection first, then leaves the screen; on the root Foods Table it never quits). **Ctrl+Q** quits from any screen or dialog (Alt+F4 works too). The window is resizable; the default size is phone-shaped.
 
 ### 6.4 Moving data between phone and PC
 
@@ -244,7 +244,7 @@ Each `screens_*.cpp` file corresponds to the like-named composable(s) in `MainAc
 - The bar chart is a custom renderer (same data, ranges, y-axis behaviour and summary stats as Vico; adds a hover tooltip per bar).
 - The chat and edit screens use the system clipboard via Ctrl+C/Ctrl+V as usual on desktop; the assistant bubble's **Copy** button copies the raw markdown, as on Android.
 - `DIETSENTRY_AUTONAV=<route>` (e.g. `eatenLog`, `utilities`, `eatenGraph`, `addFoodByAi`) opens a screen directly at launch, and `DIETSENTRY_DATA_DIR=<folder>` redirects the app-data folder — testing hooks with no Android equivalent.
-- **Full keyboard operation** (both desktop ports, since 2026-08-17): Tab / Shift+Tab step through the controls in visual order with a purple focus ring, arrows move between neighbours and Up/Down walk (and scroll) list rows, Enter or Space activates (buttons, rows, checkboxes, switches, drop-downs; text fields start editing), Escape goes back / closes dialogs. Amount dialogs focus their field on open and confirm on Enter; delete confirmations open unarmed. See the *Keyboard navigation* section of the Foods Table help.
+- **Full keyboard operation** (both desktop ports, since 2026-08-17): Tab / Shift+Tab step through the controls in visual order with a purple focus ring, arrows move between neighbours and Up/Down walk (and scroll) list rows, Enter or Space activates (buttons, rows, checkboxes, switches, drop-downs; text fields start editing), Escape goes back / closes dialogs (never quits). Amount dialogs focus their field on open and confirm on Enter; delete confirmations open unarmed. **Ctrl+Q** (Windows) / **Cmd+Q** (macOS) quits from any screen or dialog. See the *Keyboard navigation* section of the Foods Table help.
 
 ## 7. macOS port (C++)
 
