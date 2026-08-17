@@ -99,9 +99,11 @@ formulas all match the Kotlin source.
   arrows walk inside it and scroll it). **Enter** or **Space** activates the focused
   control (button, list row, checkbox, switch, drop-down; on a text field it starts
   editing — Tab moves on, Enter finishes). **Escape** goes back a screen or closes
-  the open dialog / drop-down / help sheet. Dialogs with an amount field focus it
-  on open and confirm on **Enter**; delete confirmations open with nothing armed
-  (Tab, then Enter). In a help sheet the arrows, PageUp/PageDown, Home/End scroll.
+  the open dialog / drop-down / help sheet, and leaves the focus where it was (a
+  closed dialog or drop-down hands it back to the control that opened it, so Tab
+  carries on from there). Dialogs with an amount field focus it on open and
+  confirm on **Enter**; delete confirmations open with nothing armed (Tab, then
+  Enter). In a help sheet the arrows, PageUp/PageDown, Home/End scroll.
 - **App icon**: `assets/DietSentry.ico` (a dinner plate with a nutrition bar
   chart on Material purple) is embedded into the exe via `app.rc`, so Explorer,
   the taskbar and desktop shortcuts pick it up automatically. To make a desktop

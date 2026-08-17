@@ -136,9 +136,20 @@ When changing app behaviour in one port, make the matching change in the other
   arrows walk inside it and scroll it). **Enter** or **Space** activates the focused
   control (button, list row, checkbox, switch, drop-down; on a text field it starts
   editing — Tab moves on, Enter finishes). **Escape** goes back a screen or closes
-  the open dialog / drop-down / help sheet. Dialogs with an amount field focus it
-  on open and confirm on **Enter**; delete confirmations open with nothing armed
-  (Tab, then Enter). In a help sheet the arrows, PageUp/PageDown, Home/End scroll.
+  the open dialog / drop-down / help sheet, and leaves the focus where it was (a
+  closed dialog or drop-down hands it back to the control that opened it, so Tab
+  carries on from there). Dialogs with an amount field focus it on open and
+  confirm on **Enter**; delete confirmations open with nothing armed (Tab, then
+  Enter). In a help sheet the arrows, PageUp/PageDown, Home/End scroll.
+  Verified on macOS 26.5 (2026-08-17): AppKit passes Tab, Shift+Tab, Return,
+  Space, Escape and the arrows through `imgui_impl_osx.mm` unchanged — its
+  `interpretKeyEvents:` only maps them to no-op selectors (`insertTab:`,
+  `insertBacktab:`, `insertNewline:`, `cancelOperation:`), plus an `insertText:`
+  of `\r` for Return that ImGui's text input filters out — so no mac-specific
+  key handling was needed. Test recipe: run the bundle binary with
+  `DIETSENTRY_DATA_DIR`, bring it to the front, post real key events with
+  `CGEventPost` (kCGHIDEventTap) and capture with `screencapture -l <windowid>`;
+  the Terminal needs Accessibility and Screen Recording permission for that.
 
 ## Source layout
 

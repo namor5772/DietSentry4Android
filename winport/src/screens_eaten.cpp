@@ -491,7 +491,7 @@ struct EatenLogScreen : Screen {
                 ImVec2 pos = ImGui::GetCursorScreenPos();
                 float w = ImGui::GetContentRegionAvail().x;
                 float h = ui::dp(44);
-                bool clicked = ImGui::InvisibleButton(label, ImVec2(w, h), ImGuiButtonFlags_EnableNav);
+                bool clicked = ui::navHitTarget(label, ImVec2(w, h));
                 if (ImGui::IsItemHovered())
                     ImGui::GetWindowDrawList()->AddRectFilled(pos, ImVec2(pos.x + w, pos.y + h),
                                                               IM_COL32(0x1D, 0x1B, 0x20, 0x10), ui::dp(8));

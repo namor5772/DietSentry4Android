@@ -340,8 +340,12 @@ struct App {
     // (still inside the root window). Drops a focus that points at an item
     // that no longer exists (screen change, dialog closed onto a new screen)
     // so the next Tab / arrow starts from the first control instead of
-    // being ignored.
+    // being ignored. A focus id is only dropped once it has been seen dead at
+    // the end of two consecutive frames: when a popup closes, ImGui hands the
+    // focus back to the control that opened it, which was already drawn that
+    // frame and so looks dead until the next one.
     void endFrameKeyboardNav();
+    ImGuiID deadNavIdCandidate = 0;   // focus id found dead at the previous frame's end
 
     // D3D texture creation for AI image thumbnails (implemented in main.cpp)
     void* createTextureRGBA(const unsigned char* rgba, int w, int h); // ID3D11ShaderResourceView*

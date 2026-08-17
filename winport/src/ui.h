@@ -55,9 +55,17 @@ bool chip(const char* label, bool selected);
 // Keyboard navigation (ImGuiConfigFlags_NavEnableKeyboard is on in both ports:
 // Tab / Shift+Tab step through controls, arrows move directionally, Enter or
 // Space activates, Escape cancels). Standard widgets draw ImGui's focus ring
-// themselves; the custom InvisibleButton-based widgets in this file call
-// focusRing() so the keyboard focus is visible on them too.
+// themselves; the custom hit-target-based widgets in this file submit
+// navHitTarget() and call focusRing() after painting, so the keyboard focus is
+// visible on them too.
 // ---------------------------------------------------------------------------
+// Invisible hit target that takes part in keyboard navigation (Tab/arrows reach
+// it, Enter/Space press it) and returns true when clicked or activated. Unlike
+// a bare InvisibleButton(..., ImGuiButtonFlags_EnableNav) it does not draw
+// ImGui's own focus ring — that one is painted before the caller draws the
+// widget, expanded past its edge with the frame rounding, so it would show as
+// a second ring around the compact focusRing() drawn afterwards.
+bool navHitTarget(const char* id, const ImVec2& size);
 // Draw the standard keyboard-focus ring around the last submitted item (only
 // when that item is the nav focus and the cursor is visible). rounding < 0
 // uses the current FrameRounding. Call after painting the item's own

@@ -387,6 +387,11 @@ static BOOL fitSavedFrameToScreens(NSRect* io, NSWindowStyleMask mask) {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    // Escape is this app's Back key. By default ImGui also treats an Escape that
+    // nothing else consumes as "clear the focused item" while leaving the focus
+    // cursor shown, after which Tab has no item to step from and does nothing
+    // until an arrow key or the mouse is used. Keep the focus where it is.
+    io.ConfigNavEscapeClearFocusItem = false;
     io.IniFilename = nullptr;
 
     ImGui_ImplMetal_Init(g_device);

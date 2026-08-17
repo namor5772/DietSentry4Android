@@ -80,6 +80,16 @@ void focusRing(float rounding) {
     focusRingFor(ImGui::GetItemID(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), rounding);
 }
 
+bool navHitTarget(const char* id, const ImVec2& size) {
+    // EnableNav: InvisibleButton is excluded from keyboard navigation by default.
+    // Its built-in ring is drawn with ImGuiCol_NavCursor during the call, so a
+    // transparent colour for that call alone leaves the ring to focusRing().
+    ImGui::PushStyleColor(ImGuiCol_NavCursor, IM_COL32(0, 0, 0, 0));
+    bool pressed = ImGui::InvisibleButton(id, size, ImGuiButtonFlags_EnableNav);
+    ImGui::PopStyleColor();
+    return pressed;
+}
+
 void beginTextScroll(const char* id, const ImVec2& size) {
     ImGui::BeginChild(id, size, ImGuiChildFlags_None);
     // Focus the child on its first frame: with no navigable items inside, ImGui's
@@ -279,7 +289,7 @@ bool switchM(const char* id, bool* v, bool enabled) {
     if (!enabled) ImGui::BeginDisabled();
     // The button's return value covers both a mouse click and keyboard activation
     // (Space/Enter while focused) — IsItemClicked() would be mouse-only.
-    bool clicked = ImGui::InvisibleButton(id, ImVec2(w, h), ImGuiButtonFlags_EnableNav);
+    bool clicked = navHitTarget(id, ImVec2(w, h));
     if (clicked && enabled) *v = !*v;
     if (!enabled) ImGui::EndDisabled();
     ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -310,7 +320,7 @@ int segmented3(const char* id, int current, const char* a, const char* b, const 
     for (int i = 0; i < 3; i++) {
         ImGui::SetCursorScreenPos(ImVec2(pos.x + segW * i, pos.y));
         ImGui::PushID(i);
-        if (ImGui::InvisibleButton("seg", ImVec2(segW, h), ImGuiButtonFlags_EnableNav)) clicked = i;
+        if (navHitTarget("seg", ImVec2(segW, h))) clicked = i;
         bool hovered = ImGui::IsItemHovered();
         ImVec2 p0(pos.x + segW * i, pos.y), p1(pos.x + segW * (i + 1), pos.y + h);
         ImDrawFlags corners = i == 0 ? ImDrawFlags_RoundCornersLeft
@@ -492,8 +502,7 @@ void virtualList(const char* id, const ImVec2& size, int count, float spacing,
         ImVec2 rowSize(w, cache.heights[i]);
         ImGui::PushItemFlag(ImGuiItemFlags_NoTabStop, !tabStop);
         // Row hit target: pressed on click *and* on Enter/Space while focused.
-        // EnableNav: InvisibleButton is excluded from keyboard navigation by default.
-        bool pressed = ImGui::InvisibleButton("row", rowSize, ImGuiButtonFlags_EnableNav);
+        bool pressed = navHitTarget("row", rowSize);
         ImGui::PopItemFlag();
         ImGui::SetCursorScreenPos(rowPos);
         draw(i, w, pressed);
@@ -651,7 +660,7 @@ static std::optional<long long> calendarGrid(App& app, CalState& st,
         long long dayMs = ymdToMillis(st.viewYear, st.viewMonth, d);
         ImVec2 pos = ImGui::GetCursorScreenPos();
         ImGui::PushID(d);
-        if (ImGui::InvisibleButton("day", ImVec2(cell, cell), ImGuiButtonFlags_EnableNav)) clicked = dayMs;
+        if (navHitTarget("day", ImVec2(cell, cell))) clicked = dayMs;
         bool hovered = ImGui::IsItemHovered();
         ImDrawList* dl = ImGui::GetWindowDrawList();
         ImVec2 center(pos.x + cell / 2, pos.y + cell / 2);
@@ -778,7 +787,10 @@ bool timePickerModal(App& app, const char* id, bool* open, int* hour, int* minut
     ImGui::Spacing();
 
     ImGui::PushFont(app.fontRegular, dp(26));
-    ImGui::SetNextItemWidth(dp(84));
+    // InputInt is a text field plus two square step buttons (one frame height
+    // each, at this font size); size the item so the digits keep room beside them.
+    float fieldW = dp(60) + 2 * (ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x);
+    ImGui::SetNextItemWidth(fieldW);
     if (ImGui::InputInt("##hh", &st.hour, 1, 1)) {
         if (st.hour < 0) st.hour = 23;
         if (st.hour > 23) st.hour = 0;
@@ -786,7 +798,7 @@ bool timePickerModal(App& app, const char* id, bool* open, int* hour, int* minut
     ImGui::SameLine();
     ImGui::TextUnformatted(":");
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(dp(84));
+    ImGui::SetNextItemWidth(fieldW);
     if (ImGui::InputInt("##mm", &st.minute, 1, 1)) {
         if (st.minute < 0) st.minute = 59;
         if (st.minute > 59) st.minute = 0;
@@ -1099,8 +1111,15 @@ void App::endFrameKeyboardNav() {
     // focused item is gone but the cursor flag is still set, so Tab would find
     // no result. Detect the dead focus at end of frame and clear it.
     ImGuiContext& g = *ImGui::GetCurrentContext();
-    if (g.NavWindow == nullptr || g.NavId == 0 || g.NavIdIsAlive) return;
-    if (g.ActiveId != 0) return;                       // e.g. a text field mid-edit
+    if (g.NavWindow == nullptr || g.NavId == 0 || g.NavIdIsAlive) { deadNavIdCandidate = 0; return; }
+    if (g.ActiveId != 0) { deadNavIdCandidate = 0; return; }   // e.g. a text field mid-edit
+    // Not alive *this* frame is not proof: when a popup / dialog closes, ImGui
+    // restores the focus to the control that opened it (combo box, date button,
+    // list row) after that control has already been drawn, so it only shows up
+    // as alive next frame. Clear an id only when it was already dead at the end
+    // of the previous frame as well.
+    if (deadNavIdCandidate != g.NavId) { deadNavIdCandidate = g.NavId; return; }
+    deadNavIdCandidate = 0;
     // Keep the window's root focus scope: tabbing only considers items whose
     // focus scope matches g.NavFocusScopeId, so a scope of 0 would leave Tab
     // with no eligible item at all.
