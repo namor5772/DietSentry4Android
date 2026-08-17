@@ -316,12 +316,10 @@ struct UtilitiesScreen : Screen {
             ImGui::PopFont();
             return h;
         };
-        auto draw = [&](int i, float w2) {
+        auto draw = [&](int i, float w2, bool clicked) {
             const WeightEntry& e = weightEntries[i];
             ImVec2 pos = ImGui::GetCursorScreenPos();
             float h = weightCache.heights[i];
-            ImGui::InvisibleButton("wrow", ImVec2(w2, h));
-            bool clicked = ImGui::IsItemClicked();
             if (ImGui::IsItemHovered())
                 ImGui::GetWindowDrawList()->AddRectFilled(pos, ImVec2(pos.x + w2, pos.y + h),
                                                           IM_COL32(0x1D, 0x1B, 0x20, 0x0A));
@@ -349,7 +347,7 @@ struct UtilitiesScreen : Screen {
             }
         };
         ui::virtualList("##weights", size, (int)weightEntries.size(), 0, weightCache,
-                        weightRevision, measure, draw, true);
+                        weightRevision, measure, draw, true, ui::dp(4));
     }
 
     void drawWeightPanel(App& app, float panelH) {
@@ -584,6 +582,7 @@ struct UtilitiesScreen : Screen {
         if (deletingWeight) {
             bool open = true;
             if (ui::beginDialog("##deleteweight", &open)) {
+                ui::dialogNoDefaultFocus();   // destructive dialog: nothing pre-armed
                 ui::dialogTitle(app, "Delete weight?", IM_COL32(0xC0, 0x18, 0x18, 0xFF), true);
                 ImGui::PushFont(app.fontRegular, ui::fsBody());
                 ImGui::TextUnformatted("This will remove the selected weight record.");

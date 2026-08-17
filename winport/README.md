@@ -90,6 +90,18 @@ formulas all match the Kotlin source.
   so databases from phones in other locales still filter/sort/graph correctly.
 - The keyboard **Esc** key acts as the Android system Back button (clears the
   selection first, then leaves the screen).
+- **Keyboard navigation** (since 2026-08-17): the whole app can be driven without
+  the mouse. **Tab** / **Shift+Tab** move the focus through the controls in visual
+  order (top bar first, then the content) and a purple focus ring marks the focused
+  control — it appears as soon as you use the keyboard and hides again on mouse use.
+  **Arrow keys** move between neighbouring controls and **Up/Down** step through the
+  rows of a list (a list is a single Tab stop, so Tab steps *past* it while the
+  arrows walk inside it and scroll it). **Enter** or **Space** activates the focused
+  control (button, list row, checkbox, switch, drop-down; on a text field it starts
+  editing — Tab moves on, Enter finishes). **Escape** goes back a screen or closes
+  the open dialog / drop-down / help sheet. Dialogs with an amount field focus it
+  on open and confirm on **Enter**; delete confirmations open with nothing armed
+  (Tab, then Enter). In a help sheet the arrows, PageUp/PageDown, Home/End scroll.
 - **App icon**: `assets/DietSentry.ico` (a dinner plate with a nutrition bar
   chart on Material purple) is embedded into the exe via `app.rc`, so Explorer,
   the taskbar and desktop shortcuts pick it up automatically. To make a desktop
@@ -100,6 +112,9 @@ formulas all match the Kotlin source.
   `eatenGraph`, `addFoodByJson`, `addFoodByAi`, `addRecipe`, `insertFood`, and
   `editFirst` (opens Edit Food on the lowest-numbered food). Unknown values are
   ignored and the app starts on the Foods Table as usual.
+- `DIETSENTRY_DATA_DIR=<folder>` environment variable redirects the app-data
+  folder (`foods.db` + `prefs.json`) — a testing hook that keeps an automated or
+  experimental instance away from the real data (created if missing).
 
 ## Source layout
 

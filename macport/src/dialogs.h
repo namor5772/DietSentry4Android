@@ -33,12 +33,17 @@ struct AmountDateTimeDialog {
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - unitW - ui::dp(14));
             char buf[64];
             snprintf(buf, sizeof(buf), "%s", amount.c_str());
+            // Keyboard: the amount field is active as soon as the dialog opens
+            // (type straight away), and Enter in it confirms — see below.
+            if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
             if (ImGui::InputTextWithHint("##amount", "Amount", buf, sizeof(buf))) {
                 std::string filtered;
                 for (const char* p = buf; *p; ++p)
                         if (isdigit((unsigned char)*p) || *p == '.') filtered += *p;
                 amount = filtered;
             }
+            bool enterConfirm = ImGui::IsItemDeactivated() &&
+                (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false));
             ImGui::SameLine();
             ImGui::TextUnformatted(unit.c_str());
             ImGui::PopFont();
@@ -68,7 +73,7 @@ struct AmountDateTimeDialog {
             bool valid = !trim(amount).empty();
             float cw = ui::dp(110);
             ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - cw) / 2 + ImGui::GetCursorPosX());
-            if (ui::primaryButton("Confirm", ImVec2(cw, 0), valid)) {
+            if (ui::primaryButton("Confirm", ImVec2(cw, 0), valid) || (enterConfirm && valid)) {
                 auto amt = parseDouble(amount);
                 *outAmount = amt.value_or(0.0);
                 *outDateTime = dateTime;
@@ -106,12 +111,17 @@ struct AmountDialog {
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - unitW - ui::dp(14));
             char buf[64];
             snprintf(buf, sizeof(buf), "%s", amount.c_str());
+            // Keyboard: the amount field is active as soon as the dialog opens
+            // (type straight away), and Enter in it confirms — see below.
+            if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
             if (ImGui::InputTextWithHint("##amount", "Amount", buf, sizeof(buf))) {
                 std::string filtered;
                 for (const char* p = buf; *p; ++p)
                         if (isdigit((unsigned char)*p) || *p == '.') filtered += *p;
                 amount = filtered;
             }
+            bool enterConfirm = ImGui::IsItemDeactivated() &&
+                (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false));
             ImGui::SameLine();
             ImGui::TextUnformatted(unit.c_str());
             ImGui::PopFont();
@@ -119,7 +129,7 @@ struct AmountDialog {
             bool valid = !trim(amount).empty();
             float cw = ui::dp(110);
             ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - cw) / 2 + ImGui::GetCursorPosX());
-            if (ui::primaryButton("Confirm", ImVec2(cw, 0), valid)) {
+            if (ui::primaryButton("Confirm", ImVec2(cw, 0), valid) || (enterConfirm && valid)) {
                 *outAmount = parseDouble(amount).value_or(0.0);
                 result = Confirmed;
                 open = false;

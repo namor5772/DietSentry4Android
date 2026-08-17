@@ -117,7 +117,9 @@ struct AddFoodByAiScreen : Screen {
 
         // Chat list
         float listH = ImGui::GetContentRegionAvail().y - errorH - thumbsH - inputH;
-        ImGui::BeginChild("##chat", ImVec2(0, listH));
+        // NavFlattened: keyboard focus can Tab through the Copy buttons in here
+        // and on to the composer below.
+        ImGui::BeginChild("##chat", ImVec2(0, listH), ImGuiChildFlags_NavFlattened);
         ImGui::SetCursorPosX(ui::dp(12));
         ImGui::BeginGroup();
         float w = ImGui::GetContentRegionAvail().x - ui::dp(12);
@@ -466,7 +468,8 @@ struct AddFoodByAiScreen : Screen {
         if (ui::beginDialog("##aisettings", &showSettings, ui::dp(440))) {
             ui::dialogTitle(app, "AI settings");
             ImGuiViewport* vp = ImGui::GetMainViewport();
-            ImGui::BeginChild("##settingsscroll", ImVec2(0, std::min(vp->Size.y * 0.62f, ui::dp(560))));
+            ImGui::BeginChild("##settingsscroll", ImVec2(0, std::min(vp->Size.y * 0.62f, ui::dp(560))),
+                              ImGuiChildFlags_NavFlattened);   // Tab reaches the fields inside
             ImGui::PushFont(app.fontRegular, ui::fsBody());
 
             ImGui::PushFont(app.fontBold, ui::fsLabel());

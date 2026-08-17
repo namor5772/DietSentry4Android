@@ -117,7 +117,7 @@ struct EatenGraphScreen : Screen {
         if (ImGui::IsKeyPressed(ImGuiKey_Escape) && !showHelp && !showRangePicker)
             app.requestBack();
 
-        ImGui::BeginChild("##graphscroll", ImVec2(0, 0));
+        ImGui::BeginChild("##graphscroll", ImVec2(0, 0), ImGuiChildFlags_NavFlattened);   // keyboard reaches the controls inside
         ImGui::SetCursorPosX(ui::dp(16));
         ImGui::BeginGroup();
         float w = ImGui::GetContentRegionAvail().x - ui::dp(16);

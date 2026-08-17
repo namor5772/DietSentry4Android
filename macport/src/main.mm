@@ -205,6 +205,7 @@ static void autoNavigate(App& app) {
                  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
                  ImGuiWindowFlags_NoSavedSettings);
     if (!g_app.nav.empty()) g_app.nav.back()->draw(g_app);
+    g_app.endFrameKeyboardNav();
     ImGui::End();
 
     g_app.drawToasts();

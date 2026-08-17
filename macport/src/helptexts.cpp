@@ -139,6 +139,15 @@ Some foods don't require a NIP unless a nutrition claim is made:
 
 - **Notwithstanding the above the Foods table includes many such items**
 ***
+# **Keyboard navigation**
+Every screen of this app can be driven without the mouse:
+- **Tab** / **Shift+Tab** move the focus forwards / backwards through the controls in visual order (top bar first, then the content). A purple ring marks the focused control; it appears as soon as you use the keyboard and hides again when you use the mouse.
+- **Arrow keys** move between neighbouring controls, and **Up** / **Down** step through the rows of a list. A list counts as a single Tab stop, so Tab steps *past* it while the arrows walk inside it (the list scrolls along).
+- **Enter** or **Space** activates the focused control: presses a button, selects a list row, toggles a checkbox or switch, opens a drop-down. On a text field it starts editing — type, then Tab moves on (Enter finishes editing; in the filter field it also applies the filter).
+- **Escape** goes back a screen, or closes an open dialog, drop-down or help sheet.
+- In the LOG and amount dialogs the amount field is active as soon as the dialog opens: type the amount and press **Enter** to confirm.
+- In a help sheet like this one the arrow keys, **PageUp** / **PageDown** and **Home** / **End** scroll the text; **Escape** closes it.
+***
 )MD";
     return s;
 }

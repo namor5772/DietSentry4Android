@@ -51,6 +51,33 @@ bool switchM(const char* id, bool* v, bool enabled = true);
 int  segmented3(const char* id, int current, const char* a = "Min", const char* b = "NIP", const char* c = "All");
 bool chip(const char* label, bool selected);
 
+// ---------------------------------------------------------------------------
+// Keyboard navigation (ImGuiConfigFlags_NavEnableKeyboard is on in both ports:
+// Tab / Shift+Tab step through controls, arrows move directionally, Enter or
+// Space activates, Escape cancels). Standard widgets draw ImGui's focus ring
+// themselves; the custom InvisibleButton-based widgets in this file call
+// focusRing() so the keyboard focus is visible on them too.
+// ---------------------------------------------------------------------------
+// Draw the standard keyboard-focus ring around the last submitted item (only
+// when that item is the nav focus and the cursor is visible). rounding < 0
+// uses the current FrameRounding. Call after painting the item's own
+// background so the ring stays on top.
+void focusRing(float rounding = -1.0f);
+// Draw the focus ring for an arbitrary item id/rect (used by virtualList once
+// the row content has been painted over the row's hit target).
+void focusRingFor(ImGuiID id, const ImVec2& min, const ImVec2& max, float rounding = -1.0f);
+// Scrollable read-only text region (help sheet, AI explanation): the child
+// takes keyboard focus on the frame it first appears so arrows / PageUp /
+// PageDown / Home / End scroll it, and Tab hands focus back to the parent
+// window's controls. Pair with endTextScroll().
+void beginTextScroll(const char* id, const ImVec2& size);
+void endTextScroll();
+// Call right after beginDialog() in a *destructive* dialog (Delete …?): ImGui
+// would otherwise focus the dialog's first item — the Confirm button — so a
+// second Enter would delete. This leaves nothing focused on open; Tab/arrow
+// then Enter confirms deliberately, Escape cancels.
+void dialogNoDefaultFocus();
+
 // label/value half-width row used across food + eaten displays
 void nutrientRow(const char* label, double value);
 void nutrientRowText(const char* label, const std::string& value);
@@ -80,13 +107,21 @@ struct HeightCache {
 };
 
 // Virtualized vertical list inside a child region. measure() must be cheap
-// (it is only called when the cache is invalid). draw(i) renders item i at the
-// current cursor and must consume exactly the measured height.
+// (it is only called when the cache is invalid). The list owns each row's hit
+// target: it submits an InvisibleButton covering row i, then calls
+// draw(i, w, pressed) with the cursor back at the row's top-left; `pressed` is
+// true when the row was clicked or activated with Enter/Space while keyboard-
+// focused. draw() paints background + content and must consume exactly the
+// measured height. Keyboard: the child is nav-flattened so Tab/arrows cross
+// its border; only one row is a Tab stop (the focused row, else the first
+// visible one) so Tab steps *past* the list while Up/Down move through rows;
+// a few rows beyond the viewport are submitted so arrow keys scroll it.
+// focusRounding shapes the focus ring drawn over the focused row.
 void virtualList(const char* id, const ImVec2& size, int count, float spacing,
                  HeightCache& cache, int revision,
                  const std::function<float(int, float)>& measure,
-                 const std::function<void(int, float)>& draw,
-                 bool border = false);
+                 const std::function<void(int, float, bool)>& draw,
+                 bool border = false, float focusRounding = 0.0f);
 
 // Rounded card background painter for use inside virtualList::draw.
 void cardBackground(const ImVec2& pos, const ImVec2& size, ImU32 color = COL_CARD);

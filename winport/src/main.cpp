@@ -249,6 +249,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
                      ImGuiWindowFlags_NoSavedSettings);
         if (!app.nav.empty()) app.nav.back()->draw(app);
+        app.endFrameKeyboardNav();
         ImGui::End();
 
         app.drawToasts();

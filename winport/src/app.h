@@ -336,6 +336,12 @@ struct App {
     std::vector<Toast> toasts;
     void toast(const std::string& msg);
     void drawToasts();
+    // Keyboard navigation upkeep; call right after the top screen has drawn
+    // (still inside the root window). Drops a focus that points at an item
+    // that no longer exists (screen change, dialog closed onto a new screen)
+    // so the next Tab / arrow starts from the first control instead of
+    // being ignored.
+    void endFrameKeyboardNav();
 
     // D3D texture creation for AI image thumbnails (implemented in main.cpp)
     void* createTextureRGBA(const unsigned char* rgba, int w, int h); // ID3D11ShaderResourceView*

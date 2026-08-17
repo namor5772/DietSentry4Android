@@ -469,6 +469,15 @@ std::wstring assetsDirectory() {
 }
 
 std::wstring appDataDirectory() {
+    // Test hook (like DIETSENTRY_AUTONAV): DIETSENTRY_DATA_DIR=<folder> keeps a
+    // test instance's foods.db + prefs.json away from the real ones.
+    if (const char* override = getenv("DIETSENTRY_DATA_DIR")) {
+        if (*override) {
+            std::string dir = override;
+            mkdir(dir.c_str(), 0755);
+            return utf8ToWide(dir);
+        }
+    }
     const char* home = getenv("HOME");
     std::string dir = home ? home : ".";
     dir += "/Library/Application Support/DietSentry4Mac";

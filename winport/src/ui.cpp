@@ -59,7 +59,56 @@ void applyTheme(App& app) {
     c[ImGuiCol_SliderGrab] = v4(COL_PRIMARY);
     c[ImGuiCol_SliderGrabActive] = v4(COL_PRIMARY);
     c[ImGuiCol_ModalWindowDimBg] = ImVec4(0, 0, 0, 0.40f);
-    c[ImGuiCol_NavCursor] = ImVec4(0, 0, 0, 0);
+    // Keyboard-focus ring (Material "focus indicator"): primary purple. ImGui only
+    // shows it after keyboard/gamepad input and hides it again on mouse use
+    // (io.ConfigNavCursorVisibleAuto), so mouse users never see it.
+    c[ImGuiCol_NavCursor] = v4(COL_PRIMARY);
+}
+
+// ---------------------------------------------------------------------------
+// Keyboard-focus helpers
+// ---------------------------------------------------------------------------
+void focusRingFor(ImGuiID id, const ImVec2& min, const ImVec2& max, float rounding) {
+    ImGuiContext& ctx = *ImGui::GetCurrentContext();
+    if (id == 0 || ctx.NavId != id || !ctx.NavCursorVisible) return;
+    // Compact = drawn on the item's own edge (the expanded default would be
+    // clipped by neighbouring rows / the child border).
+    ImGui::RenderNavCursor(ImRect(min, max), id, ImGuiNavRenderCursorFlags_Compact, rounding);
+}
+
+void focusRing(float rounding) {
+    focusRingFor(ImGui::GetItemID(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), rounding);
+}
+
+void beginTextScroll(const char* id, const ImVec2& size) {
+    ImGui::BeginChild(id, size, ImGuiChildFlags_None);
+    // Focus the child on its first frame: with no navigable items inside, ImGui's
+    // fallback makes the arrow keys / PageUp / PageDown / Home / End scroll it.
+    if (ImGui::IsWindowAppearing()) ImGui::SetWindowFocus();
+    // Tab: hand focus back to the parent so its controls become reachable again
+    // (nothing inside a text region can take a Tab stop).
+    if (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Tab, false)) {
+        ImGuiWindow* parent = ImGui::GetCurrentWindow()->ParentWindow;
+        if (parent) {
+            ImGui::FocusWindow(parent);
+            ImGui::NavInitWindow(parent, true);
+        }
+    }
+}
+
+void endTextScroll() {
+    ImGui::EndChild();
+}
+
+void dialogNoDefaultFocus() {
+    if (!ImGui::IsWindowAppearing()) return;
+    ImGuiContext& g = *ImGui::GetCurrentContext();
+    // BeginPopupModal focused the new window and queued a nav-init request that
+    // the first submitted item would satisfy; cancel it before any item is seen.
+    g.NavInitRequest = false;
+    g.NavInitResult.ID = 0;
+    g.NavAnyRequest = g.NavMoveScoringItems || g.NavInitRequest;   // == NavUpdateAnyRequestFlag()
+    g.NavCursorVisible = false;   // next Tab = "focus first item" (nothing pre-armed)
 }
 
 // ---------------------------------------------------------------------------
@@ -228,8 +277,9 @@ bool switchM(const char* id, bool* v, bool enabled) {
     float h = dp(24), w = dp(44);
     ImVec2 pos = ImGui::GetCursorScreenPos();
     if (!enabled) ImGui::BeginDisabled();
-    ImGui::InvisibleButton(id, ImVec2(w, h));
-    bool clicked = ImGui::IsItemClicked();
+    // The button's return value covers both a mouse click and keyboard activation
+    // (Space/Enter while focused) — IsItemClicked() would be mouse-only.
+    bool clicked = ImGui::InvisibleButton(id, ImVec2(w, h), ImGuiButtonFlags_EnableNav);
     if (clicked && enabled) *v = !*v;
     if (!enabled) ImGui::EndDisabled();
     ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -246,6 +296,7 @@ bool switchM(const char* id, bool* v, bool enabled) {
     float r = *v ? h * 0.38f : h * 0.28f;
     float cx = *v ? pos.x + w - h * 0.5f : pos.x + h * 0.5f;
     dl->AddCircleFilled(ImVec2(cx, pos.y + h * 0.5f), r, withAlpha(thumb));
+    focusRing(h * 0.5f);   // pill-shaped ring on the track
     return clicked && enabled;
 }
 
@@ -259,7 +310,7 @@ int segmented3(const char* id, int current, const char* a, const char* b, const 
     for (int i = 0; i < 3; i++) {
         ImGui::SetCursorScreenPos(ImVec2(pos.x + segW * i, pos.y));
         ImGui::PushID(i);
-        if (ImGui::InvisibleButton("seg", ImVec2(segW, h))) clicked = i;
+        if (ImGui::InvisibleButton("seg", ImVec2(segW, h), ImGuiButtonFlags_EnableNav)) clicked = i;
         bool hovered = ImGui::IsItemHovered();
         ImVec2 p0(pos.x + segW * i, pos.y), p1(pos.x + segW * (i + 1), pos.y + h);
         ImDrawFlags corners = i == 0 ? ImDrawFlags_RoundCornersLeft
@@ -273,6 +324,7 @@ int segmented3(const char* id, int current, const char* a, const char* b, const 
         dl->AddText(ImVec2(p0.x + (segW - ts.x) * 0.5f, p0.y + (h - ts.y) * 0.5f),
                     COL_ON_SURFACE, labels[i]);
         ImGui::PopFont();
+        focusRing(dp(6));   // keyboard focus on this segment
         ImGui::PopID();
     }
     dl->AddRect(pos, ImVec2(pos.x + segW * 3, pos.y + h), COL_OUTLINE, h * 0.5f, 0, dp(1));
@@ -337,11 +389,16 @@ TopBarResult topBar(App& app, const char* title, bool withSegmented, int segValu
                 ImVec2(pos.x + dp(14), pos.y + (h - ts.y) * 0.5f), COL_ON_SURFACE, title);
     ImGui::PopFont();
 
-    // Right-aligned actions, laid out right-to-left
-    float x = pos.x + winW - dp(8);
+    // Right-aligned actions. Positions are computed right-to-left, but the
+    // widgets are *submitted* left-to-right (segmented, settings, help, nav) so
+    // the keyboard Tab order follows the visual order.
     float btnW = dp(34);
-    auto actionButton = [&](const char* id, const char* glyph) -> bool {
-        x -= btnW;
+    float xNav = pos.x + winW - dp(8) - btnW;
+    float xHelp = xNav - btnW;
+    float xSettings = withSettings ? xHelp - btnW : xHelp;
+    float segTotal = dp(58) * 3;
+    float xSeg = xSettings - segTotal - dp(6);
+    auto actionButton = [&](float x, const char* glyph) -> bool {
         ImGui::SetCursorScreenPos(ImVec2(x, pos.y + (h - dp(30)) * 0.5f));
         ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(0x1D, 0x1B, 0x20, 0x12));
@@ -354,20 +411,17 @@ TopBarResult topBar(App& app, const char* title, bool withSegmented, int segValu
         ImGui::PopFont();
         ImGui::PopStyleVar(2);
         ImGui::PopStyleColor(4);
-        (void)id;
         return clicked;
     };
 
-    if (actionButton("nav", navForward ? u8"→" : u8"←")) res.navClicked = true;
-    if (actionButton("help", "?")) res.helpClicked = true;
-    if (withSettings && actionButton("settings", u8"⚙")) res.settingsClicked = true;
     if (withSegmented) {
-        float segTotal = dp(58) * 3;
-        x -= segTotal + dp(6);
-        ImGui::SetCursorScreenPos(ImVec2(x, pos.y + (h - dp(32)) * 0.5f));
+        ImGui::SetCursorScreenPos(ImVec2(xSeg, pos.y + (h - dp(32)) * 0.5f));
         int seg = segmented3("topseg", segValue);
         if (seg >= 0) res.segSelection = seg;
     }
+    if (withSettings && actionButton(xSettings, u8"⚙")) res.settingsClicked = true;
+    if (actionButton(xHelp, "?")) res.helpClicked = true;
+    if (actionButton(xNav, navForward ? u8"→" : u8"←")) res.navClicked = true;
 
     ImGui::SetCursorScreenPos(ImVec2(pos.x, pos.y + h));
     ImGui::Dummy(ImVec2(0, 0));
@@ -380,11 +434,15 @@ TopBarResult topBar(App& app, const char* title, bool withSegmented, int segValu
 void virtualList(const char* id, const ImVec2& size, int count, float spacing,
                  HeightCache& cache, int revision,
                  const std::function<float(int, float)>& measure,
-                 const std::function<void(int, float)>& draw,
-                 bool border) {
+                 const std::function<void(int, float, bool)>& draw,
+                 bool border, float focusRounding) {
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(0x80, 0x80, 0x80, 0xFF));
-    ImGui::BeginChild(id, size, border ? ImGuiChildFlags_Borders : ImGuiChildFlags_None);
+    // NavFlattened: keyboard focus can Tab / arrow into and out of the list
+    // instead of being trapped inside (or kept outside) the child window.
+    ImGuiChildFlags childFlags = ImGuiChildFlags_NavFlattened |
+                                 (border ? ImGuiChildFlags_Borders : ImGuiChildFlags_None);
+    ImGui::BeginChild(id, size, childFlags);
     ImGui::PopStyleColor();
     float w = ImGui::GetContentRegionAvail().x;
     if (!cache.valid(count, w, revision)) {
@@ -411,11 +469,36 @@ void virtualList(const char* id, const ImVec2& size, int count, float spacing,
         last = first;
         while (last < count - 1 && cache.prefix[last + 1] < scrollY + viewH) last++;
     }
+    // Keyboard: rows just outside the viewport are submitted too (clipped, so
+    // nearly free) — a Down/Up press on the edge row then finds its neighbour
+    // and ImGui scrolls it into view, so the arrow keys walk the whole list.
+    const int OVERSCAN = 3;
+    int firstVisible = first;
+    int drawFirst = std::max(0, first - OVERSCAN);
+    int drawLast = std::min(count - 1, last + OVERSCAN);
+    // Exactly one row is a Tab stop: the keyboard-focused row while focus is in
+    // the list (so Tab / Shift+Tab step out of the list, not through it), else
+    // the first visible row (so Tab steps in at the top of the viewport).
+    ImGuiContext& ctx = *ImGui::GetCurrentContext();
+    ImGuiWindow* listWindow = ImGui::GetCurrentWindow();
+    bool navInList = (ctx.NavWindow == listWindow);
     float baseY = ImGui::GetCursorPosY();
-    for (int i = first; i <= last && i < count; i++) {
+    for (int i = drawFirst; i <= drawLast && i < count; i++) {
         ImGui::SetCursorPosY(baseY + cache.prefix[i]);
         ImGui::PushID(i);
-        draw(i, w);
+        ImGuiID rowId = ImGui::GetID("row");
+        bool tabStop = navInList ? (ctx.NavId == rowId) : (i == firstVisible);
+        ImVec2 rowPos = ImGui::GetCursorScreenPos();
+        ImVec2 rowSize(w, cache.heights[i]);
+        ImGui::PushItemFlag(ImGuiItemFlags_NoTabStop, !tabStop);
+        // Row hit target: pressed on click *and* on Enter/Space while focused.
+        // EnableNav: InvisibleButton is excluded from keyboard navigation by default.
+        bool pressed = ImGui::InvisibleButton("row", rowSize, ImGuiButtonFlags_EnableNav);
+        ImGui::PopItemFlag();
+        ImGui::SetCursorScreenPos(rowPos);
+        draw(i, w, pressed);
+        // Ring on top of whatever draw() painted (card background, hover fill).
+        focusRingFor(rowId, rowPos, ImVec2(rowPos.x + rowSize.x, rowPos.y + rowSize.y), focusRounding);
         ImGui::PopID();
     }
     if (count > 0) {
@@ -435,6 +518,19 @@ void cardBackground(const ImVec2& pos, const ImVec2& size, ImU32 color) {
 // ---------------------------------------------------------------------------
 // Dialogs
 // ---------------------------------------------------------------------------
+// Escape closes the top-most modal. ImGui only auto-closes *non-modal* popups on
+// Escape, so the app's modals handle it here — but not on the same press that
+// just cancelled a text edit (ImGui clears the active item first; the next
+// Escape then closes the dialog), and only for the focused (top-most) modal.
+static bool modalEscapePressed() {
+    ImGuiContext& g = *ImGui::GetCurrentContext();
+    // NoPopupHierarchy: a nested picker popup must not count as this dialog's
+    // child, else one Escape would close both.
+    return ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows | ImGuiFocusedFlags_NoPopupHierarchy) &&
+           g.ActiveIdPreviousFrame == 0 &&
+           ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+}
+
 bool beginDialog(const char* id, bool* open, float width, bool dismissOnOutside) {
     if (*open && !ImGui::IsPopupOpen(id)) ImGui::OpenPopup(id);
     if (!*open && !ImGui::IsPopupOpen(id)) return false;
@@ -454,6 +550,12 @@ bool beginDialog(const char* id, bool* open, float width, bool dismissOnOutside)
         return false;
     }
     if (!*open) {
+        ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+        return false;
+    }
+    if (!ImGui::IsWindowAppearing() && modalEscapePressed()) {
+        *open = false;
         ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
         return false;
@@ -549,7 +651,7 @@ static std::optional<long long> calendarGrid(App& app, CalState& st,
         long long dayMs = ymdToMillis(st.viewYear, st.viewMonth, d);
         ImVec2 pos = ImGui::GetCursorScreenPos();
         ImGui::PushID(d);
-        if (ImGui::InvisibleButton("day", ImVec2(cell, cell))) clicked = dayMs;
+        if (ImGui::InvisibleButton("day", ImVec2(cell, cell), ImGuiButtonFlags_EnableNav)) clicked = dayMs;
         bool hovered = ImGui::IsItemHovered();
         ImDrawList* dl = ImGui::GetWindowDrawList();
         ImVec2 center(pos.x + cell / 2, pos.y + cell / 2);
@@ -567,6 +669,7 @@ static std::optional<long long> calendarGrid(App& app, CalState& st,
         snprintf(buf, sizeof(buf), "%d", d);
         ImVec2 ts = ImGui::CalcTextSize(buf);
         dl->AddText(ImVec2(center.x - ts.x / 2, center.y - ts.y / 2), textCol, buf);
+        focusRing(cell * 0.5f);   // round ring, matching the day circle
         ImGui::PopID();
         cellIdx++;
     }
@@ -607,6 +710,12 @@ bool datePickerModal(App& app, const char* id, bool* open, long long* dateMillis
         ImGuiWindowFlags_AlwaysAutoResize);
     ImGui::PopStyleVar();
     if (!visible) { if (*open) *open = false; return false; }
+    if (!ImGui::IsWindowAppearing() && modalEscapePressed()) {
+        *open = false;
+        ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+        return false;
+    }
 
     ImGuiID key = ImGui::GetID(id);
     CalState& st = calStates()[key];
@@ -652,6 +761,12 @@ bool timePickerModal(App& app, const char* id, bool* open, int* hour, int* minut
         ImGuiWindowFlags_AlwaysAutoResize);
     ImGui::PopStyleVar();
     if (!visible) { if (*open) *open = false; return false; }
+    if (!ImGui::IsWindowAppearing() && modalEscapePressed()) {
+        *open = false;
+        ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+        return false;
+    }
 
     ImGuiID key = ImGui::GetID(id);
     CalState& st = calStates()[key];
@@ -707,6 +822,12 @@ bool dateRangePickerModal(App& app, const char* id, bool* open,
         ImGuiWindowFlags_AlwaysAutoResize);
     ImGui::PopStyleVar();
     if (!visible) { if (*open) *open = false; return false; }
+    if (!ImGui::IsWindowAppearing() && modalEscapePressed()) {
+        *open = false;
+        ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+        return false;
+    }
 
     ImGuiID key = ImGui::GetID(id);
     CalState& st = calStates()[key];
@@ -807,10 +928,12 @@ void helpBottomSheet(App& app, const char* id, bool* show, const std::string& ma
         IM_COL32(0x79, 0x74, 0x7E, 0x66), dp(2));
     ImGui::Dummy(ImVec2(0, dp(14)));
 
-    ImGui::BeginChild("##helpscroll", ImVec2(0, 0), ImGuiChildFlags_None);
+    // Keyboard: the sheet's scroll region takes focus when the sheet opens, so
+    // arrows / PageUp / PageDown / Home / End scroll the help; Escape closes.
+    beginTextScroll("##helpscroll", ImVec2(0, 0));
     renderMarkdown(app, markdown);
     ImGui::Dummy(ImVec2(0, dp(24)));
-    ImGui::EndChild();
+    endTextScroll();
     ImGui::End();
     ImGui::PopStyleVar(2);
     ImGui::PopStyleColor();
@@ -855,12 +978,12 @@ void foodList(App& app, const char* id, const ImVec2& size, const std::vector<Fo
         }
         return h + pad * 2;
     };
-    auto draw = [&](int i, float w) {
+    auto draw = [&](int i, float w, bool clicked) {
         const Food& f = foods[i];
         ImVec2 pos = ImGui::GetCursorScreenPos();
         float h = state.cache.heights[i];
-        ImGui::InvisibleButton("item", ImVec2(w, h));
-        bool clicked = ImGui::IsItemClicked();
+        // The row's hit target was just submitted by virtualList: IsItemHovered()
+        // refers to it, and `clicked` covers mouse click + keyboard activation.
         if (ImGui::IsItemHovered())
             ImGui::GetWindowDrawList()->AddRectFilled(pos, ImVec2(pos.x + w, pos.y + h),
                                                       IM_COL32(0x1D, 0x1B, 0x20, 0x0A));
@@ -916,7 +1039,7 @@ void foodList(App& app, const char* id, const ImVec2& size, const std::vector<Fo
         if (clicked) onClicked(f);
     };
     int rev = state.revision * 8 + (showNutritionalInfo ? 1 : 0) + (showExtraNutrients ? 2 : 0);
-    virtualList(id, size, (int)foods.size(), 0, state.cache, rev, measure, draw, true);
+    virtualList(id, size, (int)foods.size(), 0, state.cache, rev, measure, draw, true, dp(4));
 }
 
 void recipeList(App& app, const char* id, const ImVec2& size, const std::vector<RecipeItem>& recipes,
@@ -932,12 +1055,10 @@ void recipeList(App& app, const char* id, const ImVec2& size, const std::vector<
         ImGui::PopFont();
         return h + rowH * 4 + pad * 2;
     };
-    auto draw = [&](int i, float w) {
+    auto draw = [&](int i, float w, bool clicked) {
         const RecipeItem& r = recipes[i];
         ImVec2 pos = ImGui::GetCursorScreenPos();
         float h = state.cache.heights[i];
-        ImGui::InvisibleButton("item", ImVec2(w, h));
-        bool clicked = ImGui::IsItemClicked();
         if (ImGui::IsItemHovered())
             ImGui::GetWindowDrawList()->AddRectFilled(pos, ImVec2(pos.x + w, pos.y + h),
                                                       IM_COL32(0x1D, 0x1B, 0x20, 0x0A));
@@ -960,7 +1081,7 @@ void recipeList(App& app, const char* id, const ImVec2& size, const std::vector<
         ImGui::EndGroup();
         if (clicked) onClicked(r);
     };
-    virtualList(id, size, (int)recipes.size(), 0, state.cache, state.revision, measure, draw, true);
+    virtualList(id, size, (int)recipes.size(), 0, state.cache, state.revision, measure, draw, true, dp(4));
 }
 
 } // namespace ui
@@ -970,6 +1091,21 @@ void recipeList(App& app, const char* id, const ImVec2& size, const std::vector<
 // ---------------------------------------------------------------------------
 void App::toast(const std::string& msg) {
     toasts.push_back({msg, ImGui::GetTime() + 2.4});
+}
+
+void App::endFrameKeyboardNav() {
+    // ImGui only re-targets a Tab press when the focused item is alive (or when
+    // nothing is focused and the cursor is hidden). After a screen change the
+    // focused item is gone but the cursor flag is still set, so Tab would find
+    // no result. Detect the dead focus at end of frame and clear it.
+    ImGuiContext& g = *ImGui::GetCurrentContext();
+    if (g.NavWindow == nullptr || g.NavId == 0 || g.NavIdIsAlive) return;
+    if (g.ActiveId != 0) return;                       // e.g. a text field mid-edit
+    // Keep the window's root focus scope: tabbing only considers items whose
+    // focus scope matches g.NavFocusScopeId, so a scope of 0 would leave Tab
+    // with no eligible item at all.
+    ImGui::SetNavID(0, g.NavLayer, g.NavWindow->NavRootFocusScopeId, ImRect());
+    g.NavCursorVisible = false;                        // next Tab = "focus first item"
 }
 
 void App::drawToasts() {

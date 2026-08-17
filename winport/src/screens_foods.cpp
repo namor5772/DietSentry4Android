@@ -249,6 +249,7 @@ struct FoodSearchScreen : Screen {
             Food food = *selectedFood;
             bool wasOpen = showDeleteDialog;
             if (ui::beginDialog("##deletefood", &showDeleteDialog)) {
+                ui::dialogNoDefaultFocus();   // destructive dialog: nothing pre-armed
                 ui::dialogTitle(app, "Delete Food?", IM_COL32(0xC0, 0x18, 0x18, 0xFF), true);
                 ImGui::PushFont(app.fontRegular, ui::fsBody());
                 ImGui::TextUnformatted("Are you sure you want to delete :");

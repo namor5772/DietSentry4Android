@@ -404,6 +404,17 @@ std::wstring exeDirectory() {
 }
 
 std::wstring appDataDirectory() {
+    // Test hook (like DIETSENTRY_AUTONAV): DIETSENTRY_DATA_DIR=<folder> keeps a
+    // test instance's foods.db + prefs.json away from the real ones.
+    {
+        wchar_t override[MAX_PATH];
+        DWORD n = GetEnvironmentVariableW(L"DIETSENTRY_DATA_DIR", override, MAX_PATH);
+        if (n > 0 && n < MAX_PATH) {
+            std::wstring dir = override;
+            CreateDirectoryW(dir.c_str(), nullptr);
+            return dir;
+        }
+    }
     wchar_t* raw = nullptr;
     std::wstring dir;
     if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &raw))) {

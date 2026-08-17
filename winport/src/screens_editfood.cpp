@@ -77,7 +77,10 @@ struct FoodFormScreen : Screen {
 
         float bottomH = ui::dp(64);
         ImGui::SetCursorPosX(0);
-        ImGui::BeginChild("##form", ImVec2(0, ImGui::GetContentRegionAvail().y - bottomH));
+        // NavFlattened: Tab walks from the top bar into the form fields and on to
+        // the buttons below it.
+        ImGui::BeginChild("##form", ImVec2(0, ImGui::GetContentRegionAvail().y - bottomH),
+                          ImGuiChildFlags_NavFlattened);
         ImGui::SetCursorPosX(ui::dp(16));
         ImGui::BeginGroup();
         float formW = ImGui::GetContentRegionAvail().x - ui::dp(16);

@@ -75,6 +75,7 @@ struct EatenLogScreen : Screen {
 
     // Daily totals action sheet + explain flow
     std::optional<DailyTotals> sheetTotals;
+    bool sheetWasOpen = false;          // focus the action sheet on the frame it opens
     std::shared_ptr<AiJob> explainJob;
     enum class ExplainState { Idle, Loading, Success, Error };
     ExplainState explainState = ExplainState::Idle;
@@ -224,12 +225,10 @@ struct EatenLogScreen : Screen {
             }
             return h;
         };
-        auto draw = [&](int i, float w) {
+        auto draw = [&](int i, float w, bool clicked) {
             const EatenFood& ef = filteredEatenFoods[i];
             ImVec2 pos = ImGui::GetCursorScreenPos();
             float h = listCache.heights[i];
-            ImGui::InvisibleButton("card", ImVec2(w, h));
-            bool clicked = ImGui::IsItemClicked();
             ui::cardBackground(pos, ImVec2(w, h));
             ImGui::SetCursorScreenPos(ImVec2(pos.x + pad, pos.y + pad));
             ImGui::BeginGroup();
@@ -264,7 +263,7 @@ struct EatenLogScreen : Screen {
         };
         int rev = listRevision * 8 + (showNutritionalInfo ? 1 : 0) + (showExtraNutrients ? 2 : 0);
         ui::virtualList("##eatenlist", size, (int)filteredEatenFoods.size(), spacing,
-                        listCache, rev, measure, draw, false);
+                        listCache, rev, measure, draw, false, ui::dp(12));   // ring follows the card corners
     }
 
     // --- daily totals cards ----------------------------------------------
@@ -303,13 +302,11 @@ struct EatenLogScreen : Screen {
             }
             return h;
         };
-        auto draw = [&](int i, float w) {
+        auto draw = [&](int i, float w, bool clicked) {
             const DailyTotals& dt = dailyTotals[i];
             const WeightEntry* we = weightByDate(dt.date);
             ImVec2 pos = ImGui::GetCursorScreenPos();
             float h = listCache.heights[i];
-            ImGui::InvisibleButton("card", ImVec2(w, h));
-            bool clicked = ImGui::IsItemClicked();
             ui::cardBackground(pos, ImVec2(w, h));
             ImGui::SetCursorScreenPos(ImVec2(pos.x + pad, pos.y + pad));
             ImGui::BeginGroup();
@@ -353,7 +350,7 @@ struct EatenLogScreen : Screen {
         };
         int rev = listRevision * 8 + 4 + (showNutritionalInfo ? 1 : 0) + (showExtraNutrients ? 2 : 0);
         ui::virtualList("##dailylist", size, (int)dailyTotals.size(), spacing,
-                        listCache, rev, measure, draw, false);
+                        listCache, rev, measure, draw, false, ui::dp(12));   // ring follows the card corners
     }
 
     // --- selection panel (EatenSelectionPanel) ----------------------------
@@ -422,6 +419,7 @@ struct EatenLogScreen : Screen {
             EatenFood ef = *selectedEatenFood;
             bool wasOpen = showDeleteEatenDialog;
             if (ui::beginDialog("##deleteeaten", &showDeleteEatenDialog)) {
+                ui::dialogNoDefaultFocus();   // destructive dialog: nothing pre-armed
                 ui::dialogTitle(app, "Delete Eaten Food?", IM_COL32(0xC0, 0x18, 0x18, 0xFF), true);
                 ImGui::PushFont(app.fontRegular, ui::fsBody());
                 ImGui::TextUnformatted("Are you sure you want to delete:");
@@ -467,6 +465,10 @@ struct EatenLogScreen : Screen {
             ImGui::PopStyleColor();
 
             float sheetH = ui::dp(190);
+            // Keyboard: the sheet takes focus when it opens so its rows are
+            // reachable with Tab/arrows + Enter (Escape closes it).
+            if (!sheetWasOpen) ImGui::SetNextWindowFocus();
+            sheetWasOpen = true;
             ImGui::SetNextWindowPos(ImVec2(vp->Pos.x, vp->Pos.y + vp->Size.y - sheetH));
             ImGui::SetNextWindowSize(ImVec2(vp->Size.x, sheetH));
             ImGui::PushStyleColor(ImGuiCol_WindowBg,
@@ -489,7 +491,7 @@ struct EatenLogScreen : Screen {
                 ImVec2 pos = ImGui::GetCursorScreenPos();
                 float w = ImGui::GetContentRegionAvail().x;
                 float h = ui::dp(44);
-                bool clicked = ImGui::InvisibleButton(label, ImVec2(w, h));
+                bool clicked = ImGui::InvisibleButton(label, ImVec2(w, h), ImGuiButtonFlags_EnableNav);
                 if (ImGui::IsItemHovered())
                     ImGui::GetWindowDrawList()->AddRectFilled(pos, ImVec2(pos.x + w, pos.y + h),
                                                               IM_COL32(0x1D, 0x1B, 0x20, 0x10), ui::dp(8));
@@ -498,6 +500,7 @@ struct EatenLogScreen : Screen {
                     ImVec2(pos.x + ui::dp(8), pos.y + (h - ImGui::GetTextLineHeight()) / 2),
                     ui::COL_ON_SURFACE, label);
                 ImGui::PopFont();
+                ui::focusRing(ui::dp(8));
                 return clicked;
             };
             if (sheetRow("Explain this day (AI)")) {
@@ -513,6 +516,8 @@ struct EatenLogScreen : Screen {
             ImGui::PopStyleVar(2);
             ImGui::PopStyleColor();
             if (scrimClicked || ImGui::IsKeyPressed(ImGuiKey_Escape)) sheetTotals.reset();
+        } else {
+            sheetWasOpen = false;
         }
 
         // Poll explain job
@@ -553,7 +558,9 @@ struct EatenLogScreen : Screen {
                 } else if (explainState == ExplainState::Success) {
                     ImGuiViewport* vp = ImGui::GetMainViewport();
                     float maxH = vp->Size.y * 0.55f;
-                    ImGui::BeginChild("##explaintext", ImVec2(0, maxH), ImGuiChildFlags_None);
+                    // Keyboard: focused on open so arrows/PageUp/PageDown scroll the
+                    // text; Tab moves on to the OK button.
+                    ui::beginTextScroll("##explaintext", ImVec2(0, maxH));
                     ImGui::PushFont(app.fontRegular, ui::fsBody());
                     ImGui::PushTextWrapPos(0.0f);
                     ImGui::TextUnformatted(explainText.c_str());
@@ -563,7 +570,7 @@ struct EatenLogScreen : Screen {
                     ImGui::Text("API cost: %s", formatUsdCost(explainCost).c_str());
                     ImGui::PopFont();
                     ImGui::PopFont();
-                    ImGui::EndChild();
+                    ui::endTextScroll();
                 } else {
                     ImGui::PushFont(app.fontRegular, ui::fsBody());
                     ImGui::PushTextWrapPos(0.0f);
